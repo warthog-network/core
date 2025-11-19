@@ -132,7 +132,7 @@ public:
             annotations->emplace_back(std::move(name), offset());
             pendingAnnotation = true;
         }
-        return { *this};
+        return { *this };
     }
 
     [[nodiscard]] MerkleFrame merkle_frame() { return { *this }; }

@@ -64,11 +64,14 @@ private:
 
 template <typename T>
 struct vector : public std::vector<T> {
+    using elem_t = T;
     using std::vector<T>::vector;
     vector(std::vector<T> v)
         : std::vector<T>(std::move(v))
     {
     }
+    auto& get() const { return *this; }
+    auto& get() { return *this; }
     void serialize(Serializer auto&& s) const
     {
         for (auto& e : *this)
@@ -141,58 +144,29 @@ private:
 };
 namespace elements {
 
-template <typename Elem>
-struct Vector {
-    using elem_t = Elem;
-    auto& get() const { return elements; }
-    auto& get() { return elements; }
-
-    [[nodiscard]] size_t byte_size() const
-    {
-        return elements.byte_size();
-    }
-    void serialize(Serializer auto&& s) const
-    {
-        s << elements;
-    }
-    void append_txids(std::vector<TransactionId>& out, PinFloor pf, PinHeight minPinHeight) const
-    {
-        elements.append_txids(out, pf, minPinHeight);
-    }
-
-    Vector() { }
-    Vector(size_t N, StructuredReader& m)
-        : elements { N, m }
-    {
-    }
-
-protected:
-    vector<Elem> elements;
-};
-
 namespace tokens {
 
-struct AssetTransfers : public Tag<"assetTransfers", Vector<body::AssetTransfer>> {
+struct AssetTransfers : public Tag<"assetTransfers", vector<body::AssetTransfer>> {
     using Tag::Tag;
     auto& asset_transfers() const { return get(); }
     auto& asset_transfers() { return get(); }
 };
-struct ShareTransfers : public Tag<"shareTransfers", Vector<body::LiquidityTransfer>> {
+struct ShareTransfers : public Tag<"shareTransfers", vector<body::LiquidityTransfer>> {
     using Tag::Tag;
     auto& share_transfers() const { return get(); }
     auto& share_transfers() { return get(); }
 };
-struct Orders : public Tag<"orders", Vector<body::Order>> {
+struct Orders : public Tag<"orders", vector<body::Order>> {
     using Tag::Tag;
     auto& orders() const { return get(); }
     auto& orders() { return get(); }
 };
-struct LiquidityDeposits : public Vector<body::LiquidityDeposit> {
-    using Vector::Vector;
+struct LiquidityDeposits : public Tag<"liquidityDeposits", vector<body::LiquidityDeposit>> {
+    using Tag::Tag;
     auto& liquidity_deposits() const { return get(); }
     auto& liquidity_deposits() { return get(); }
 };
-struct LiquidityWithdrawals : public Tag<"liquidityWithdrawals", Vector<body::LiquidityWithdrawal>> {
+struct LiquidityWithdrawals : public Tag<"liquidityWithdrawals", vector<body::LiquidityWithdrawal>> {
     using Tag::Tag;
     auto& liquidity_withdrawals() const { return get(); }
     auto& liquidity_withdrawals() { return get(); }
@@ -367,23 +341,23 @@ public:
 }
 
 template <typename UInt, typename Elem>
-struct UntaggedSizeVector : public Vector<Elem> {
+struct UntaggedSizeVector : public vector<Elem> {
     [[nodiscard]] size_t byte_size() const
     {
         return sizeof(UInt) + this->get().byte_size();
     }
     void write(MerkleWriteHooker& w) const
     {
-        this->elements.template write<UInt>(w);
+        vector<Elem>::template write<UInt>(w);
     }
     UntaggedSizeVector() { }
     UntaggedSizeVector(StructuredReader& r)
-        : Vector<Elem> { [&]() {
+        : vector<Elem> { [&]() {
             if (r.remaining() == 0) {
-                return Vector<Elem> {};
+                return vector<Elem> {};
             } else {
                 UInt len(r.annotate("length").reader);
-                return Vector<Elem> { len, r };
+                return vector<Elem> { len, r };
             };
         }() }
     {
@@ -514,7 +488,7 @@ using elements::tokens::TokenSection;
 class ParsedBody : public AddressReward, public Entries {
 private:
     template <typename T>
-    using body_vector = vector<T>;
+    using body_vector = block::body::vector<T>;
 
 public:
     ParsedBody(std::vector<Address> newAddresses, Reward reward, Entries entries)
