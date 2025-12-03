@@ -188,7 +188,7 @@ private:
 template <typename... Elements>
 struct signed_entry {
     // "Internal" is for temporary representation of block entries while block is applied
-    using Internal = impl::Internal<CombineElements<Elements...>, typename selectors::SelectorPath<impl::ReplaceArg<Elements>::replace...>::ComputedSelectors, impl::GetArgs<Elements...>>;
+    using Internal = impl::Internal<CombineElements<Elements...>, typename selectors::SelectorPath<impl::ReplaceArg<typename Elements::data_t>::replace...>::ComputedSelectors, impl::GetArgs<Elements...>>;
 
     // "Verified" is a safety type for block entries while block is applied. This type is guaranteed to be signature-verified
     using Verified = impl::Verified<Internal>;
@@ -238,7 +238,7 @@ using WartTransfer = signed_entry<ToValidAccEl, WartEl>;
 using Order = signed_entry<AssetIdEl, BuyEl, NonzeroAmountEl, LimitPriceEl>;
 using LiquidityDeposit = signed_entry<AssetIdEl, NonzeroBaseQuoteEl>;
 using LiquidityWithdrawal = signed_entry<AssetIdEl, NonzeroAmountEl>;
-using TokenTransfer = signed_entry<AssetIdEl, ToValidAccEl, NonzeroAmountEl>;
+using TokenTransfer = signed_entry<AssetIdEl, LiquidityFlagEl, ToValidAccEl, NonzeroAmountEl>;
 using AssetCreation = signed_entry<AssetSupplyEl, AssetNameEl>;
 
 }

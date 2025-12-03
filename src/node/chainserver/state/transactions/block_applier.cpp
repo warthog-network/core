@@ -344,8 +344,7 @@ private:
 
 public:
     auto asset_id() const { return id; }
-    std::vector<block_apply::TokenTransfer::Internal> assetTransfers;
-    std::vector<block_apply::TokenTransfer::Internal> sharesTransfers;
+    std::vector<block_apply::TokenTransfer::Internal> tokenTransfers;
     std::vector<block_apply::Order::Internal> orders;
     std::vector<block_apply::LiquidityDeposit::Internal> liquidityAdds;
     std::vector<block_apply::LiquidityWithdrawal::Internal> liquidityRemoves;
@@ -640,12 +639,12 @@ public:
             [&](const block::body::AssetTransfer& at) {
                 auto s(process_signer(at));
                 auto valid_to_id { __register_transfer(aid.token_id(), at.to_id(), at.amount(), s) };
-                ts.assetTransfers.push_back({ s, { aid, valid_to_id, at.amount() } });
+                ts.tokenTransfers.push_back({ s, { aid, false, valid_to_id, at.amount() } });
             },
             [&](const block::body::LiquidityTransfer& st) {
                 auto s(process_signer(st));
                 auto valid_to_id { __register_transfer(aid.token_id(true), st.to_id(), st.shares(), s) };
-                ts.sharesTransfers.push_back({ s, { aid, valid_to_id, st.shares() } });
+                ts.tokenTransfers.push_back({ s, { aid, true, valid_to_id, st.shares() } });
             },
             [&](const block::body::Order& o) {
                 ts.orders.push_back(register_new_order(o, aid));
@@ -1133,8 +1132,7 @@ private:
         for (auto& ts : balanceChecker.get_token_sections()) {
             auto ihn { db_asset(ts.asset_id()) };
             AssetHandle ah(ihn);
-            process_asset_transfers(ah, ts.assetTransfers);
-            process_liquidity_transfers(ah, ts.sharesTransfers);
+            process_token_transfers(ah, ts.tokenTransfers);
             process_orders(ah, ts.orders); // matching happens here.
             process_liquidity_deposits(ah, ts.liquidityAdds);
             process_liquidity_withdrawals(ah, ts.liquidityRemoves);
@@ -1213,7 +1211,7 @@ private:
         }
     }
 
-    void process_token_transfers(AssetHandle& asset, const std::vector<block_apply::TokenTransfer::Internal>& transfers, bool isLiquidity)
+    void process_token_transfers(AssetHandle& asset, const std::vector<block_apply::TokenTransfer::Internal>& transfers)
     {
         for (auto& tr : transfers) {
             auto verified { tr.verify(txVerifier, asset.info().hash) };
@@ -1222,19 +1220,11 @@ private:
                 make_signed_info(verified, ref.historyId),
                 {
                     .assetInfo { asset.info() },
-                    .isLiquidity = isLiquidity,
+                    .isLiquidity = tr.is_liquidity(),
                     .toAddress { tr.to_address() },
                     .amount { tr.amount() },
                 } });
         }
-    }
-    void process_asset_transfers(AssetHandle& asset, const std::vector<block_apply::TokenTransfer::Internal>& transfers)
-    {
-        return process_token_transfers(asset, transfers, false);
-    }
-    void process_liquidity_transfers(AssetHandle& asset, const std::vector<block_apply::TokenTransfer::Internal>& transfers)
-    {
-        return process_token_transfers(asset, transfers, true);
     }
     [[nodiscard]] NewOrdersInternal generate_new_orders(const AssetHandle& asset, const std::vector<block_apply::Order::Internal>& orders)
     {
