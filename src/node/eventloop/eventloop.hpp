@@ -130,7 +130,7 @@ public:
     void api_loadtest_header(uint64_t conId, ErrorCb);
     void api_loadtest_disable(uint64_t conId, ErrorCb);
     void api_disconnect_peer(uint64_t id, ErrorCb&& cb);
-    void api_get_synced(SyncedCb&& cb);
+    void api_is_synced(SyncedCb&& cb);
     void api_inspect(InspectorCb&&);
     void api_count_ips(IpCounterCb&&);
     void api_get_connection_schedule(JSONCb&& cb);

@@ -194,7 +194,7 @@ void get_block_head(HeadCb f)
 
     auto s = std::make_shared<APIHeadRequest>(std::move(f));
 
-    global().core->api_get_synced([s](auto&& ch) {
+    global().core->api_is_synced([s](auto&& ch) {
         s->on(std::move(ch));
     });
     api_call<chainserver::GetChainHead>([s = std::move(s)](auto&& ch) {
@@ -257,7 +257,7 @@ void get_chain_mine(const Address& a, MiningCb f)
 {
     auto s = std::make_shared<APIMiningRequest>(std::move(f));
 
-    global().core->api_get_synced([s](auto&& ch) {
+    global().core->api_is_synced([s](auto&& ch) {
         s->on(std::move(ch));
     });
     api_call<chainserver::GetMining>(a,

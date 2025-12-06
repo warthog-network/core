@@ -67,59 +67,58 @@ public:
     }
     void apply(const AccountInsert& a)
     {
-        // log_db_update("DB Apply AccountInsert {} {}", a.id.value(), a.address.to_string());
+        log_db_update("DB Apply AccountInsert {} {}", a.id.value(), a.address.to_string());
         db.insert_guarded(a);
     }
     void apply(const BalanceUpdate& u)
     {
-        // log_db_update("DB Apply BalanceUpdate token {} accountId {} id: {}, total: {}", u.at.token_id().value(), u.at.account_id().value(), u.id.value(), u.updated.total.value());
+        log_db_update("DB Apply BalanceUpdate token {} accountId {} id: {}, total: {}", u.at.token_id().value(), u.at.account_id().value(), u.id.value(), u.updated.total.value());
         freeBalanceUpdates.insert_or_assign(u.at, u.updated.free_assert());
         db.set_balance(u.id, u.updated);
         rg.register_original_balance({ u.id, u.original });
     }
     void apply(const BalanceInsert& b)
     {
-        // log_db_update("DB Apply BalanceInsert token {} accountId {} id: {}, total: {}", b.tokenId.value(), b.accountId.value(), b.id.value(), b.total.value());
+        log_db_update("DB Apply BalanceInsert token {} accountId {} id: {}, total: {}", b.tokenId.value(), b.accountId.value(), b.id.value(), b.total.value());
         db.insert_guarded(b);
     }
     void apply(const BalanceInsertUnguarded& b)
     {
-        // log_db_update("DB Apply BalanceInsert token {} accountId {} id: {}, total: {}", b.tokenId.value(), b.accountId.value(), b.id.value(), b.total.value());
+        log_db_update("DB Apply BalanceInsert token {} accountId {} id: {}, total: {}", b.tokenId.value(), b.accountId.value(), b.id.value(), b.total.value());
         db.insert_guarded(b, false);
     }
     void apply(OrderDelete od)
     {
-        // od.filled
-        // log_db_update("DB Apply OrderDelete id {} buy {}", od.id.value(), od.buy);
+        log_db_update("DB Apply OrderDelete id {} buy {}", od.id.value(), od.buy);
         db.delete_order({ .id = od.id, .buy = od.buy });
         rg.register_original_order(std::move(od), db.next_history_id());
     }
     void apply(const OrderInsert& o)
     {
-        // log_db_update("DB Apply OrderData id {} buy {}, total {}", o.id.value(), o.buy, o.total.value());
+        log_db_update("DB Apply OrderData id {} buy {}, total {}", o.id.value(), o.buy, o.total.value());
         db.insert(o);
     }
     void apply(const OrderUpdate& o)
     {
-        // log_db_update("DB Apply OrderUpdate id {} old_fill {}, new_fill {}", o.newFillState.id.value(), o.originalFilled.value(), o.newFillState.filled.value());
+        log_db_update("DB Apply OrderUpdate id {} old_fill {}, new_fill {}", o.newFillState.id.value(), o.originalFilled.value(), o.newFillState.filled.value());
         db.update_order_fillstate(o.newFillState);
         rg.register_original_fillstate(o.original_fill_state(), db.next_history_id());
     }
     void apply(const PoolInsert& p)
     {
-        // log_db_update("DB Apply PoolInsert assetId {}, base {}, quote {}", p.asset_id().value(), p.base.value(), p.quote.value());
+        log_db_update("DB Apply PoolInsert assetId {}, base {}, quote {}", p.asset_id().value(), p.base.value(), p.quote.value());
         rg.register_newly_created_pool(p.asset_id());
         db.insert_pool(p);
     }
     void apply(const PoolUpdate& u)
     {
-        // log_db_update("DB Apply PoolUpdate assetId {}, base {}, quote {}", u.original.id.value(), u.updated.base.value(), u.updated.quote.value());
+        log_db_update("DB Apply PoolUpdate assetId {}, base {}, quote {}", u.original.id.value(), u.updated.base.value(), u.updated.quote.value());
         rg.register_original_poolstate(u.original);
         db.update_pool({ u.original.id, u.updated });
     }
     void apply(const AssetInsert& a)
     {
-        // log_db_update("DB Apply AssetInsert name {}, id {}, amount {}, precision {}", a.name.to_string(), a.id.value(), a.supply.funds.value(), a.supply.precision.value());
+        log_db_update("DB Apply AssetInsert name {}, id {}, amount {}, precision {}", a.name.to_string(), a.id.value(), a.supply.funds.value(), a.supply.precision.value());
         db.insert_guarded(a);
     }
     auto rollback_data() &&

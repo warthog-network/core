@@ -165,7 +165,7 @@ void Eventloop::api_disconnect_peer(uint64_t id, ErrorCb&& cb)
     defer(DisconnectPeer { id, std::move(cb) });
 }
 
-void Eventloop::api_get_synced(SyncedCb&& cb)
+void Eventloop::api_is_synced(SyncedCb&& cb)
 {
     defer(std::move(cb));
 }
