@@ -42,13 +42,17 @@ struct AccountData {
     AccountId id;
     AddressView address;
 };
-struct BalanceData {
-    BalanceId id;
+struct BalanceDataWithoutId {
     AccountId accountId;
     TokenId tokenId;
     Funds_uint64 total;
     Funds_uint64 locked;
 };
+
+struct BalanceData: public BalanceDataWithoutId {
+    BalanceId id;
+};
+
 struct TokenForkBalanceData {
     TokenForkBalanceId id;
     AccountId accountId;

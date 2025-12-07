@@ -287,8 +287,9 @@ auto ChainServer::handle_api(chainserver::PutMempool&& e) -> TxHash
 void ChainServer::fake_mine(const Address& address)
 {
     auto b { state.mining_task(address)->block };
-    Block reparsedBlock { b.height, b.header, Body::parse_throw(std::move(b.body.data), b.height) };
-    return append_mined({ reparsedBlock, "fakemine" }, false);
+    BlockData bd(b.height, b.header, b.body.data);
+    auto reparsedBlock { std::move(bd).parse_throw() };
+    return append_mined({ std::move(reparsedBlock), "fakemine" }, false);
 }
 
 // void ChainServer::handle_event(PutMempool&& e)

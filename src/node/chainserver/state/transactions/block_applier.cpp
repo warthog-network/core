@@ -422,8 +422,8 @@ class BalanceChecker {
         }
 
         auto& token_flow() const { return flow; }
-        AccountData(AddressView address, ValidAccountId accountId)
-            : ValidAccount(address, accountId)
+        AccountData(ValidAccountId accountId, AddressView address)
+            : ValidAccount(accountId, address)
         {
         }
     };
@@ -432,7 +432,7 @@ class BalanceChecker {
     public:
         OldAccountData(ValidAccountId accountId)
             : address(Address::uninitialized())
-            , data(address, accountId)
+            , data(accountId, address)
         {
         }
         auto& token_flow() { return data.token_flow(); }
@@ -457,14 +457,17 @@ class BalanceChecker {
     };
 
     struct Accounts {
-        Accounts(StateIncrementer& inc, const Body& b)
-            : beginNew(inc.next())
+        Accounts(const Body& b, block_apply::BlockEffects& blockEffects)
+            : beginNew(blockEffects.first_new_account_id())
             , beginInvalid(beginNew + b.newAddresses.size())
         {
             size_t n { b.newAddresses.size() };
             newAccounts.reserve(n);
-            for (size_t i = 0; i < n; ++i)
-                newAccounts.push_back({ b.newAddresses[i], AccountId(inc.next_inc()).validate_throw(beginInvalid) });
+            for (size_t i = 0; i < n; ++i) {
+                auto& address { b.newAddresses[i] };
+                auto accId { blockEffects.insert_new_account(address).validate_throw(beginInvalid) };
+                newAccounts.push_back({ accId, address });
+            }
         }
         [[nodiscard]] AccountData& operator[](AccountId id)
         {
@@ -511,11 +514,11 @@ public:
             .toAddress { a.address }
         };
     }
-    BalanceChecker(StateIncrementer& inc, const Body& b, NonzeroHeight height)
+    BalanceChecker(const Body& b, NonzeroHeight height, block_apply::BlockEffects& blockEffects)
         : height(height)
         , pinFloor(height.pin_floor())
         , b(b)
-        , accounts(inc, b)
+        , accounts(b, blockEffects)
         , reward(register_reward(b, accounts, height))
     {
     }
@@ -900,7 +903,8 @@ public:
 
 private:
     friend class PreparationGenerator;
-    Preparation()
+    Preparation(StateIncrementer idIncrementer)
+        : blockEffects(std::move(idIncrementer))
     {
     }
 };
@@ -911,7 +915,6 @@ private:
     // constants
     const ChainDB& db;
     const Headerchain& hc;
-    StateIncrementer idIncrementer;
     decltype(BlockApplier::Preparer::baseTxIds)& baseTxIds;
     const decltype(BlockApplier::Preparer::newTxIds)& newTxIds;
     const BlockHash& blockhash;
@@ -973,23 +976,14 @@ private:
         Funds_uint64 total { tokenFlow.total.positive() };
         if (total < locked)
             throw Error(EBALANCE);
-        if (id) {
-            blockEffects.insert(block_apply::BalanceInsertUnguarded({
-                .id { *id },
+        blockEffects.insert_new_balance(
+            {
                 .accountId { at.account_id() },
                 .tokenId { at.token_id() },
                 .total { total },
                 .locked { locked },
-            }));
-        } else {
-            blockEffects.insert(block_apply::BalanceInsert({
-                .id { BalanceId(idIncrementer.next_inc()) },
-                .accountId { at.account_id() },
-                .tokenId { at.token_id() },
-                .total { total },
-                .locked { locked },
-            }));
-        }
+            },
+            id);
     }
     auto process_forked_balance(const AccountToken& at, const BalanceFlow& flow, Balance_uint64 parentBalance)
     {
@@ -999,13 +993,12 @@ private:
         auto totalFinal { diff_throw(totalPositive, flow.total.negative()) }; // throws if < 0
         if (totalFinal < lockedFinal)
             throw Error(EBALANCE);
-        blockEffects.insert(block_apply::BalanceInsert({
-            .id { BalanceId(idIncrementer.next_inc()) },
+        blockEffects.insert_new_balance({
             .accountId { at.account_id() },
             .tokenId { at.token_id() },
             .total { totalFinal },
             .locked { lockedFinal },
-        }));
+        });
     }
     auto process_existing_balance(const AccountToken& at, const BalanceFlow& flow, const IdBalance ib)
     {
@@ -1016,10 +1009,8 @@ private:
         auto totalUpdated { diff_throw(totalPositive, flow.total.negative()) }; // throws if < 0
         if (totalUpdated < lockedUpdated)
             throw Error(EBALANCE);
-        blockEffects.insert(block_apply::BalanceUpdate { .at { at },
-            .id { ib.id },
-            .original { ib.balance },
-            .updated { Balance_uint64::from_total_locked(totalUpdated, lockedUpdated) } });
+        auto updatedBalance { Balance_uint64::from_total_locked(totalUpdated, lockedUpdated) };
+        blockEffects.update_balance({ .at { at }, .id { ib.id }, .original { ib.balance }, .updated { updatedBalance } });
     }
     auto db_addr(AccountId id)
     {
@@ -1073,7 +1064,6 @@ private:
             }
             if (!referred)
                 throw Error(EIDPOLICY); // id was not referred
-            blockEffects.insert(block_apply::AccountInsert { a.id, a.address });
         }
     }
 
@@ -1160,9 +1150,9 @@ private:
             if (auto& o { ah.loaded_pool() }) {
                 auto& p { *o };
                 if (p.create && p.pool.nonzero())
-                    blockEffects.insert(block_apply::PoolInsert { ah.id(), p.pool.updated });
+                    blockEffects.insert_pool(ah.id(), p.pool.updated);
                 else
-                    blockEffects.insert(block_apply::PoolUpdate(o->pool));
+                    blockEffects.update_pool(o->pool);
             }
         }
     }
@@ -1171,21 +1161,24 @@ private:
         auto& assetCreations { balanceChecker.asset_creations() };
         for (size_t i { 0 }; i < assetCreations.size(); ++i) {
             auto& ac { assetCreations[i] };
-            AssetId assetId { idIncrementer.next_inc() };
             const auto verified { ac.verify(txVerifier) };
-            blockEffects.insert(block_apply::AssetInsert(
-                { .id { assetId },
-                    .height { height },
-                    .ownerAccountId { ac.origin.id },
-                    .supply { ac.supply() },
-                    .groupId { assetId.token_id() },
-                    .parentId { TokenId { 0 } },
-                    .name { ac.asset_name() },
-                    .hash { AssetHash(TxHash(verified.hash)) },
-                    .data {} }));
-
+            auto assetGenerator {
+                [&](AssetId id) -> chain_db::AssetData {
+                    return {
+                        .id = id,
+                        .height { height },
+                        .ownerAccountId { ac.origin.id },
+                        .supply { ac.supply() },
+                        .groupId { id.token_id() },
+                        .parentId { TokenId { 0 } },
+                        .name { ac.asset_name() },
+                        .hash { AssetHash(TxHash(verified.hash)) },
+                        .data {}
+                    };
+                }
+            };
+            auto assetId { blockEffects.generate_asset(assetGenerator).id };
             balanceChecker.create_asset_balance(ac.origin.id, assetId, ac.supply().funds);
-
             auto& ref { history.push_asset_creation(verified, assetId) };
             api.assetCreations.push_back({ make_signed_info(verified, ref.historyId), { .name { ac.asset_name() }, .supply { ac.supply() }, .assetId { assetId } } });
         }
@@ -1227,7 +1220,7 @@ private:
             if (o) { // transaction is removed from the database
                 ignoreOrderIds.insert(o->id);
                 balanceChecker.unlock_balance(c.origin.id, o->spend_token_id(), o->remaining());
-                blockEffects.insert(block_apply::OrderDelete(*o));
+                blockEffects.delete_order(*o);
             }
         }
     }
@@ -1262,20 +1255,20 @@ private:
                     .buy = o.buy(),
                 } });
             res.push_back({ verified, ref.historyId });
-            blockEffects.insert(block_apply::OrderInsert(
+            blockEffects.insert_order(
                 { .id { ref.historyId },
                     .buy = o.buy(),
                     .txid { verified.txid },
                     .aid { asset.id() },
                     .total { o.amount() },
                     .filled { Funds_uint64::zero() },
-                    .limit { o.limit() } }));
+                    .limit { o.limit() } });
         }
         return res;
     }
     void process_orders(const AssetHandle& ah, const std::vector<block_apply::Order::Internal>& orders)
     {
-        if (orders.size() == 0)
+        if (orders.empty())
             return;
         auto newOrders { generate_new_orders(ah, orders) };
 
@@ -1290,8 +1283,8 @@ private:
             .db { db },
             .ignoreOrderIds { ignoreOrderIds },
             .unsortedOrderbook { newOrders },
-            .on_order_delete = [&](block_apply::OrderDelete o) { blockEffects.insert(std::move(o)); },
-            .on_order_update = [&](block_apply::OrderUpdate o) { blockEffects.insert(std::move(o)); },
+            .on_order_delete = [&](block_apply::OrderDelete o) { blockEffects.delete_order(std::move(o)); },
+            .on_order_update = [&](block_apply::OrderUpdate o) { blockEffects.update_order(std::move(o)); },
             .on_buy_swap = [&](SwapInternal s) { 
                 auto accId{s.txid.accountId};
                 balanceChecker.fill_buy(accId,ah.id(),s.base,s.quote);
@@ -1326,6 +1319,8 @@ private:
 
     void process_liquidity_deposits(AssetHandle& ah, const std::vector<block_apply::LiquidityDeposit::Internal>& deposits)
     {
+        if (deposits.empty())
+            return;
         auto& pool { ah.get_pool(db) };
         for (auto& d : deposits) {
             auto verified { d.verify(txVerifier, ah.hash()) };
@@ -1344,6 +1339,8 @@ private:
 
     void process_liquidity_withdrawals(AssetHandle& ah, const std::vector<block_apply::LiquidityWithdrawal::Internal>& withdrawals)
     {
+        if (withdrawals.empty())
+            return;
         auto& pool { ah.get_pool(db) };
         for (auto& a : withdrawals) {
             auto verified { a.verify(txVerifier, ah.hash()) };
@@ -1376,17 +1373,16 @@ public:
     // * check every new address is indeed new OK
     // * check signatures OK
     PreparationGenerator(const BlockApplier::Preparer& preparer, const Block& b, const BlockHash& hash)
-        : Preparation()
+        : Preparation(preparer.db.id_incrementer())
         , db(preparer.db)
         , hc(preparer.hc)
-        , idIncrementer(db.id_incrementer())
         , baseTxIds(preparer.baseTxIds)
         , newTxIds(preparer.newTxIds)
         , blockhash(hash)
         , body { b.body }
         , height(b.height)
         , reward(b.body.reward)
-        , balanceChecker(idIncrementer, b.body, height)
+        , balanceChecker(b.body, height, blockEffects)
         , history(historyEntries, db.next_history_id())
         , txVerifier(TransactionVerifier { hc, height,
               std::function<bool(TransactionId)>(

@@ -1,10 +1,10 @@
 #pragma once
 
 #include "general/serializer.hxx"
+#include "wrt/optional.hpp"
 #include <cassert>
 #include <cstdint>
 #include <cstring>
-#include "wrt/optional.hpp"
 #include <span>
 
 class Writer {

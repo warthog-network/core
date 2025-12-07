@@ -71,11 +71,11 @@ struct RewardInternal {
 namespace block_apply {
 
 struct ValidAccount {
-    AddressView address;
     ValidAccountId id;
-    ValidAccount(AddressView address, ValidAccountId accountId)
-        : address(address)
-        , id(accountId)
+    AddressView address;
+    ValidAccount(ValidAccountId accountId, AddressView address)
+        : id(accountId)
+        , address(address)
     {
     }
 };

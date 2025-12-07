@@ -133,7 +133,7 @@ private:
 };
 
 template <typename... Ts>
-struct BlockEffectsBase {
+struct BlockEffectsVector {
 private:
     using variant_t = std::variant<Ts...>;
     std::vector<variant_t> data;
@@ -147,10 +147,12 @@ private:
 
 public:
     template <typename T>
-    requires(std::is_same_v<T, std::remove_cvref_t<Ts>> || ...)
-    void insert(T&& t)
+    requires(std::is_same_v<std::remove_cvref_t<T>, std::remove_cvref_t<Ts>> || ...)
+    auto& insert(T&& t)
     {
         data.push_back(std::forward<T>(t));
+        using ret_t = std::remove_cvref_t<T>;
+        return std::get<ret_t>(data.back());
     }
 
     auto apply(ChainDB& db, chainserver::FreeBalanceUpdates& freeBalanceUpdates) const
@@ -159,7 +161,71 @@ public:
     }
 };
 
-using BlockEffects = BlockEffectsBase<AccountInsert, BalanceUpdate, BalanceInsert, BalanceInsertUnguarded, OrderDelete, OrderInsert, OrderUpdate, PoolInsert, PoolUpdate, AssetInsert>;
+class BlockEffects {
+    using entries_t = BlockEffectsVector<AccountInsert, BalanceUpdate, BalanceInsert, BalanceInsertUnguarded, OrderDelete, OrderInsert, OrderUpdate, PoolInsert, PoolUpdate, AssetInsert>;
+    entries_t entries;
+    StateIncrementer state;
+    AccountId beginNew;
+
+public:
+    auto apply(ChainDB& db, chainserver::FreeBalanceUpdates& freeBalanceUpdates) const
+    {
+        return entries.apply(db, freeBalanceUpdates);
+    }
+    auto first_new_account_id() { return beginNew; }
+    BlockEffects(StateIncrementer incrementer)
+        : state(std::move(incrementer))
+        , beginNew(incrementer.next()) { };
+    AccountId insert_new_account(AddressView address)
+    {
+        AccountId newId { state.next_inc() };
+        entries.insert(AccountInsert { newId, address });
+        return newId;
+    }
+    BalanceId insert_new_balance(const chain_db::BalanceDataWithoutId& b, wrt::optional<BalanceId> oid = {})
+    {
+        if (oid) {
+            entries.insert(BalanceInsertUnguarded({ b, *oid }));
+            return *oid;
+        }
+        BalanceId id { state.next_inc() };
+        entries.insert(BalanceInsert({ b, id }));
+        return id;
+    }
+    void update_balance(BalanceUpdate bu)
+    {
+        entries.insert(std::move(bu));
+    }
+    void update_pool(block_apply::PoolUpdate u)
+    {
+        entries.insert(std::move(u));
+    }
+    void insert_pool(AssetId aid, defi::Pool_uint64 p)
+    {
+        entries.insert(PoolInsert { aid, std::move(p) });
+    }
+
+    auto& insert_generated(const auto& lambda)
+    {
+        return entries.insert(lambda(state.next_inc()));
+    }
+    auto& generate_asset(const auto& generator)
+    {
+        return insert_generated([&](auto&& id) { return AssetInsert(generator(std::forward<decltype(id)>(id))); });
+    }
+    void delete_order(chain_db::OrderData o)
+    {
+        entries.insert(OrderDelete(std::move(o)));
+    }
+    void insert_order(chain_db::OrderData o)
+    {
+        entries.insert(OrderInsert(std::move(o)));
+    }
+    void update_order(OrderUpdate o)
+    {
+        entries.insert(std::move(o));
+    }
+};
 
 // struct BlockEffects {
 //     std::vector<AccountInsert> accountInserts;

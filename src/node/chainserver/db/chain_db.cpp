@@ -983,11 +983,11 @@ auto ChainDB::get_token_balance(BalanceId id) const -> wrt::optional<BalanceData
 {
     return stmtSelectBalanceId.one(id).process([&](const sqlite::Row& o) {
         return BalanceData {
-            .id = id,
-            .accountId = o[0],
-            .tokenId = o[1],
-            .total = o[2],
-            .locked = o[3]
+            { .accountId = o[0],
+                .tokenId = o[1],
+                .total = o[2],
+                .locked = o[3] },
+            id
         };
     });
 }
