@@ -2,6 +2,7 @@
 #include "block/body/body_fwd.hpp"
 #include "block/body/container.hpp"
 #include "block/body/elements.hpp"
+#include "block/body/transaction_types.hpp"
 #include "block/version.hpp"
 #include "crypto/hasher_sha256.hpp"
 #include "general/reader_declaration.hpp"
@@ -100,27 +101,27 @@ namespace elements {
 
 namespace tokens {
 
-struct AssetTransfers : public TaggedVectorElements<"assetTransfers", body::AssetTransfer> {
+struct AssetTransfers : public IsTokenTransfer, public TaggedVectorElements<"assetTransfers", body::AssetTransfer> {
     using TaggedVectorElements::TaggedVectorElements;
     auto& asset_transfers() const { return entries(); }
     auto& asset_transfers() { return entries(); }
 };
-struct LiquidityTransfers : public TaggedVectorElements<"shareTransfers", body::LiquidityTransfer> {
+struct LiquidityTransfers : public IsTokenTransfer, public TaggedVectorElements<"shareTransfers", body::LiquidityTransfer> {
     using TaggedVectorElements::TaggedVectorElements;
     auto& liquidity_transfers() const { return entries(); }
     auto& liquidity_transfers() { return entries(); }
 };
-struct Orders : public TaggedVectorElements<"orders", body::Order> {
+struct Orders : public IsLimitSwap, public TaggedVectorElements<"orders", body::Order> {
     using TaggedVectorElements::TaggedVectorElements;
     auto& orders() const { return entries(); }
     auto& orders() { return entries(); }
 };
-struct LiquidityDeposits : public TaggedVectorElements<"liquidityDeposits", body::LiquidityDeposit> {
+struct LiquidityDeposits : public IsLiquidityDeposit, public TaggedVectorElements<"liquidityDeposits", body::LiquidityDeposit> {
     using TaggedVectorElements::TaggedVectorElements;
     auto& liquidity_deposits() const { return entries(); }
     auto& liquidity_deposits() { return entries(); }
 };
-struct LiquidityWithdrawals : public TaggedVectorElements<"liquidityWithdrawals", body::LiquidityWithdrawal> {
+struct LiquidityWithdrawals : public IsLiquidityWithdrawal, public TaggedVectorElements<"liquidityWithdrawals", body::LiquidityWithdrawal> {
     using TaggedVectorElements::TaggedVectorElements;
     auto& liquidity_withdrawals() const { return entries(); }
     auto& liquidity_withdrawals() { return entries(); }
@@ -319,7 +320,7 @@ void apply_to_entries(UntaggedSizeVector<UInt, Elem>& v, auto&& lambda)
         apply_to_entries(e, lambda);
 }
 
-struct WartTransfers : public SizeVector<"wartTransfers", uint32_t, body::WartTransfer> {
+struct WartTransfers : public IsWartTransfer, public SizeVector<"wartTransfers", uint32_t, body::WartTransfer> {
     using Tag::Tag;
     auto& wart_transfers() const { return entries(); }
     auto& wart_transfers() { return entries(); }
@@ -330,12 +331,14 @@ struct TokenSections : public SizeVector<"tokenSections", uint16_t, Tag<"tokenSe
     auto& tokens() { return entries(); }
 };
 
-struct Cancelations : public SizeVector<"cancelations", uint16_t, body::Cancelation> {
+struct Cancelations : public IsCancelation, public SizeVector<"cancelations", uint16_t, body::Cancelation> {
+    using SizeVector<"cancelations", uint16_t, body::Cancelation>::SizeVector;
     auto& cancelations() const { return entries(); }
     auto& cancelations() { return entries(); }
 };
 
-struct AssetCreations : public SizeVector<"assetCreations", uint16_t, body::AssetCreation> {
+struct AssetCreations : public IsAssetCreate, public SizeVector<"assetCreations", uint16_t, body::AssetCreation> {
+    using SizeVector<"assetCreations", uint16_t, body::AssetCreation>::SizeVector;
     auto& asset_creations() const { return entries(); }
     auto& asset_creations() { return entries(); }
 };
@@ -426,6 +429,7 @@ class ParsedBody : public AddressReward, public Entries {
 private:
     template <typename T>
     using body_vector = block::body::VectorEntries<T>;
+    [[nodiscard]] SerializedBody serialize_v4() const;
 
 public:
     ParsedBody(std::vector<Address> newAddresses, Reward reward, Entries entries)
@@ -439,8 +443,15 @@ public:
     };
     BlockTxids tx_ids(NonzeroHeight height, PinHeight minPinHeight) const;
     [[nodiscard]] static std::pair<ParsedBody, MerkleLeaves> parse_throw(std::span<const uint8_t> rd, NonzeroHeight h, BlockVersion version, ParseAnnotations* = nullptr);
+
     void serialize(MerkleSerializer auto&& s) const;
-    [[nodiscard]] SerializedBody serialize() const;
+
+    template <BlockVersion blockVersion>
+    [[nodiscard]] SerializedBody serialize() const
+    {
+        static_assert(blockVersion == BlockVersion::v4);
+        return serialize_v4();
+    }
 };
 
 struct Body : public ParsedBody {

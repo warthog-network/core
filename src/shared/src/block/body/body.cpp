@@ -94,7 +94,7 @@ void ParsedBody::serialize(MerkleSerializer auto&& s) const
       << entries();
 }
 
-SerializedBody ParsedBody::serialize() const
+SerializedBody ParsedBody::serialize_v4() const
 {
     std::vector<uint8_t> res(count_bytes(*this), 0);
     Writer w(res);
@@ -117,7 +117,7 @@ Body Body::parse_throw(VersionedBodyData c, NonzeroHeight h, ParseAnnotations* p
 
 Body Body::serialize(ParsedBody b)
 {
-    auto ser { b.serialize() };
+    auto ser { b.serialize<BlockVersion::v4>() };
     return Body { std::move(b), std::move(ser.container), std::move(ser.merkleLeaves) };
 }
 }

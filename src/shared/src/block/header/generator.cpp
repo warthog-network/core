@@ -2,22 +2,10 @@
 #include "block/body/body.hpp"
 #include "general/is_testnet.hpp"
 namespace {
-BlockVersion block_version(NonzeroHeight h)
-{
-    if (is_testnet()) {
-        if (h.value() <= 2)
-            return BlockVersion::v3;
-        return BlockVersion::v4;
-    } else {
-        if (h.value() <= TOKENSTARTHEIGHT)
-            return BlockVersion::v3;
-        return BlockVersion::v4;
-    }
-}
 }
 HeaderGenerator::HeaderGenerator(std::array<uint8_t, 32> prevhash,
     const Body& b, Target target, uint32_t timestamp, NonzeroHeight height)
-    : version(block_version(height))
+    : version(BlockVersion::hardcoded_for_params(height))
     , prevhash(prevhash)
     , merkleroot(b.merkle_root(height))
     , timestamp(timestamp)

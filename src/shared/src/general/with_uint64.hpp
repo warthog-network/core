@@ -31,7 +31,6 @@ public:
         s << value();
     }
 
-protected:
     uint32_t val;
 };
 

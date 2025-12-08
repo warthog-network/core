@@ -1,15 +1,16 @@
 #pragma once
 #include <variant>
 namespace wrt { // wart tools namesapce
+
+template <typename... Rs>
+struct Overload : Rs... {
+    using Rs::operator()...;
+};
+template <typename... Rs>
+Overload(Rs...) -> Overload<Rs...>;
 template <typename... Ts>
 struct variant : public std::variant<Ts...> {
     using std::variant<Ts...>::variant;
-    template <typename... Rs>
-    struct Overload : Rs... {
-        using Rs::operator()...;
-    };
-    template <typename... Rs>
-    Overload(Rs...) -> Overload<Rs...>;
 
     template <typename... U>
     auto visit_overload(U&&... u) &

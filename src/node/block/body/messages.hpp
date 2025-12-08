@@ -2,6 +2,7 @@
 #include "block/body/elements.hpp"
 #include "block/body/nonce.hpp"
 #include "block/body/transaction_id.hpp"
+#include "block/body/transaction_types.hpp"
 #include "crypto/hasher_sha256.hpp"
 #include "general/reader.hpp"
 #include "spdlog/spdlog.h"
@@ -83,7 +84,7 @@ public:
     }
 };
 
-class WartTransferMessage : public ComposeTransactionMessage<1, WartTransferMessage, ToAddrEl, NonzeroWartEl> {
+class WartTransferMessage : public IsWartTransfer, public ComposeTransactionMessage<1, WartTransferMessage, ToAddrEl, NonzeroWartEl> {
 public:
     static_assert(!has_asset_hash);
     using WartTransfer = block::body::WartTransfer;
@@ -96,7 +97,7 @@ public:
     [[nodiscard]] Wart spend_wart_throw() const { return sum_throw(fee(), wart()); }
 };
 
-class TokenTransferMessage : public ComposeTransactionMessage<2, TokenTransferMessage, AssetHashEl, LiquidityFlagEl, ToAddrEl, NonzeroAmountEl> { // for defi we include the asset hash
+class TokenTransferMessage : public IsTokenTransfer, public ComposeTransactionMessage<2, TokenTransferMessage, AssetHashEl, LiquidityFlagEl, ToAddrEl, NonzeroAmountEl> { // for defi we include the asset hash
 public:
     static_assert(has_asset_hash);
     using ComposeTransactionMessage::ComposeTransactionMessage;
@@ -107,12 +108,12 @@ public:
     [[nodiscard]] messages::SpendToken spend_token_throw() const { return messages::SpendToken { asset_hash(), is_liquidity(), amount() }; }
 };
 
-class AssetCreationMessage : public ComposeTransactionMessage<3, AssetCreationMessage, AssetSupplyEl, AssetNameEl> {
+class AssetCreationMessage : public IsAssetCreate, public ComposeTransactionMessage<3, AssetCreationMessage, AssetSupplyEl, AssetNameEl> {
 public:
     using ComposeTransactionMessage::ComposeTransactionMessage;
 };
 
-class LimitSwapMessage : public ComposeTransactionMessage<4, LimitSwapMessage, AssetHashEl, BuyEl, NonzeroAmountEl, LimitPriceEl> { // for defi we include the token hash
+class LimitSwapMessage : public IsLimitSwap, public ComposeTransactionMessage<4, LimitSwapMessage, AssetHashEl, BuyEl, NonzeroAmountEl, LimitPriceEl> { // for defi we include the token hash
     static_assert(has_asset_hash);
 
 public:
@@ -126,7 +127,7 @@ public:
     using parent_t::parent_t;
 };
 
-class LiquidityDepositMessage : public ComposeTransactionMessage<5, LiquidityDepositMessage, AssetHashEl, BaseEl, QuoteEl> {
+class LiquidityDepositMessage : public IsLiquidityDeposit, public ComposeTransactionMessage<5, LiquidityDepositMessage, AssetHashEl, BaseEl, QuoteEl> {
     static_assert(has_asset_hash);
 
 public:
@@ -140,7 +141,7 @@ public:
     using parent_t::parent_t;
 };
 
-class LiquidityWithdrawalMessage : public ComposeTransactionMessage<6, LiquidityWithdrawalMessage, AssetHashEl, NonzeroAmountEl> {
+class LiquidityWithdrawalMessage : public IsLiquidityWithdrawal, public ComposeTransactionMessage<6, LiquidityWithdrawalMessage, AssetHashEl, NonzeroAmountEl> {
     static_assert(has_asset_hash);
 
 public:
@@ -151,7 +152,7 @@ public:
     using parent_t::parent_t;
 };
 
-class CancelationMessage : public ComposeTransactionMessage<7, CancelationMessage, CancelHeightEl, CancelNonceEl> {
+class CancelationMessage : public IsCancelation, public ComposeTransactionMessage<7, CancelationMessage, CancelHeightEl, CancelNonceEl> {
     static_assert(!has_asset_hash);
 
 private:
@@ -188,6 +189,9 @@ public:
     const MsgBase& base() const
     {
         return *visit([](const auto& m) -> const MsgBase* { return &m; });
+    }
+    void validate_throw()
+    {
     }
     const RecoverableSignature& signature() const
     {

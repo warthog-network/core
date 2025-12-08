@@ -32,7 +32,8 @@ void MiningCache::update_validity(CacheValidity cv)
     cacheValidity = cv;
 }
 
-auto MiningCache::lookup(const Address& a, bool disableTxs) const -> const value_t*
+auto MiningCache::lookup(const Address& a, bool disableTxs) const
+    -> const value_t*
 {
     auto iter { std::find_if(cache.begin(), cache.end(), [&](const Item& i) {
         return i.address == a && i.disableTxs == disableTxs;
@@ -42,13 +43,15 @@ auto MiningCache::lookup(const Address& a, bool disableTxs) const -> const value
     return nullptr;
 }
 
-auto MiningCache::insert(const Address& a, bool disableTxs, value_t v) -> const value_t&
+auto MiningCache::insert(const Address& a, bool disableTxs, value_t v)
+    -> const value_t&
 {
     cache.push_back({ a, disableTxs, std::move(v) });
     return cache.back().b;
 }
 
-State::State(ChainDB& db, BatchRegistry& br, wrt::optional<SnapshotSigner> snapshotSigner)
+State::State(ChainDB& db, BatchRegistry& br,
+    wrt::optional<SnapshotSigner> snapshotSigner)
     : db(db)
     , dbcache(db)
     , batchRegistry(br)
@@ -67,7 +70,8 @@ wrt::optional<api::HeaderInfo> State::get_header(Height h) const
     return {};
 }
 
-auto State::api_get_header(const api::HeightOrHash& hh) const -> Result<api::HeaderInfo>
+auto State::api_get_header(const api::HeightOrHash& hh) const
+    -> Result<api::HeaderInfo>
 {
     if (std::holds_alternative<Height>(hh.data)) {
         return get_header(std::get<Height>(hh.data));
@@ -95,7 +99,8 @@ wrt::optional<Hash> State::get_hash(Height h) const
     return chainstate.headers().get_hash(h);
 }
 
-wrt::optional<api::BlockBinary> State::api_get_block_binary(const api::HeightOrHash& hh) const
+wrt::optional<api::BlockBinary>
+State::api_get_block_binary(const api::HeightOrHash& hh) const
 {
     if (std::holds_alternative<Height>(hh.data)) {
         return api_get_block_binary(std::get<Height>(hh.data));
@@ -117,32 +122,34 @@ Result<api::Block> State::api_get_block(const api::HeightOrHash& hh) const
 
 namespace {
 
-void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p, chainserver::DBCache& c,
-    PinFloor pinFloor)
+void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p,
+    chainserver::DBCache& c, PinFloor pinFloor)
 {
     auto& [hid, e] { p };
     auto signed_info_data { [&](const history::SignData& sd) {
-        return api::block::SignedInfoData(e.hash, hid, sd.origin_account_id(), c.addresses.fetch(sd.origin_account_id()), sd.fee(), sd.pin_nonce().id, sd.pin_nonce().pin_height_from_floored(pinFloor));
+        return api::block::SignedInfoData(
+            e.hash, hid, sd.origin_account_id(),
+            c.addresses.fetch(sd.origin_account_id()), sd.fee(), sd.pin_nonce().id,
+            sd.pin_nonce().pin_height_from_floored(pinFloor));
     } };
     e.data.visit_overload(
         [&](const history::WartTransferData& d) {
-            b.actions.wartTransfers.push_back({ signed_info_data(d.sign_data()),
-                api::block::WartTransferData {
-                    .toAddress = c.addresses.fetch(d.to_id()),
-                    .amount = d.wart() } });
+            b.actions.wartTransfers.push_back(
+                { signed_info_data(d.sign_data()),
+                    api::block::WartTransferData { .toAddress = c.addresses.fetch(d.to_id()),
+                        .amount = d.wart() } });
         },
         [&](const history::RewardData& d) {
             auto toAddress = c.addresses.fetch(d.to_id());
             b.set_reward({ e.hash, hid, { toAddress, d.wart() } });
         },
         [&](const history::AssetCreationData& d) {
-            b.actions.assetCreations.push_back(
-                { signed_info_data(d.sign_data()),
-                    {
-                        .name { d.asset_name() },
-                        .supply { d.supply() },
-                        .assetId { d.asset_id() },
-                    } });
+            b.actions.assetCreations.push_back({ signed_info_data(d.sign_data()),
+                {
+                    .name { d.asset_name() },
+                    .supply { d.supply() },
+                    .assetId { d.asset_id() },
+                } });
         },
         [&](const history::TokenTransferData& d) {
             auto& assetData { c.assetsById[d.token_id().asset_id()] };
@@ -156,22 +163,22 @@ void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p, 
         },
         [&](const history::OrderData& d) {
             auto& assetData { c.assetsById[d.asset_id()] };
-            b.actions.newOrders.push_back(
-                { signed_info_data(d.sign_data()),
-                    {
-                        .assetInfo { assetData },
-                        .amount { d.amount() },
-                        .limit { d.limit() },
-                        .buy = d.buy(),
-                    } });
+            b.actions.newOrders.push_back({ signed_info_data(d.sign_data()),
+                {
+                    .assetInfo { assetData },
+                    .amount { d.amount() },
+                    .limit { d.limit() },
+                    .buy = d.buy(),
+                } });
         },
         [&](const history::CancelationData& d) {
-            b.actions.cancelations.push_back({ signed_info_data(d.sign_data()),
-                { d.cancel_txid() } });
+            b.actions.cancelations.push_back(
+                { signed_info_data(d.sign_data()), { d.cancel_txid() } });
         },
         [&](const history::OrderCancelationData& d) {
             auto& asset { c.assetsById[d.asset_id()] };
-            b.actions.orderCancelations.push_back({ e.hash, hid,
+            b.actions.orderCancelations.push_back({ e.hash,
+                hid,
                 { .cancelTxid { d.cancel_txid() },
                     .buy = d.buy(),
                     .assetInfo { asset },
@@ -180,7 +187,8 @@ void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p, 
         },
         [&](const history::MatchData& d) {
             auto& asset { c.assetsById[d.asset_id()] };
-            b.actions.matches.push_back({ e.hash, hid,
+            b.actions.matches.push_back({ e.hash,
+                hid,
                 { .assetInfo { asset },
                     .poolBefore { d.pool_before() },
                     .poolAfter { d.pool_after() },
@@ -189,12 +197,11 @@ void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p, 
         },
         [&](const history::LiquidityDeposit& ld) {
             auto& asset { c.assetsById[ld.asset_id()] };
-            b.actions.liquidityDeposit.push_back(
-                { signed_info_data(ld.sign_data()),
-                    { .assetInfo { asset },
-                        .baseDeposited { ld.base() },
-                        .quoteDeposited { ld.quote() },
-                        .sharesReceived { ld.shares() } } });
+            b.actions.liquidityDeposit.push_back({ signed_info_data(ld.sign_data()),
+                { .assetInfo { asset },
+                    .baseDeposited { ld.base() },
+                    .quoteDeposited { ld.quote() },
+                    .sharesReceived { ld.shares() } } });
         },
         [&](const history::LiquidityWithdraw& lw) {
             auto& asset { c.assetsById[lw.asset_id()] };
@@ -208,21 +215,17 @@ void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p, 
                     } });
         });
 }
-}
+} // namespace
 
 wrt::optional<api::BlockBinary> State::api_get_block_binary(Height h) const
 {
     return db.consensus_block_id(h)
-        .and_then([&](BlockId id) {
-            return db.get_block_data(id);
-        })
+        .and_then([&](BlockId id) { return db.get_block_data(id); })
         .transform([](BlockData&& bd) {
             ParseAnnotations annotations;
             auto parsed { std::move(bd).parse_throw(&annotations) };
-            return api::BlockBinary {
-                .data { std::move(parsed.body.data) },
-                .annotations { std::move(annotations) }
-            };
+            return api::BlockBinary { .data { std::move(parsed.body.data) },
+                .annotations { std::move(annotations) } };
         });
 }
 
@@ -233,8 +236,7 @@ wrt::optional<api::Block> State::api_get_block(Height zh) const
     auto h { zh.nonzero_assert() };
     auto pinFloor { h.pin_floor() };
     auto lower = chainstate.history_offset(h);
-    auto upper = (h == chainlength() ? HistoryId { 0 }
-                                     : chainstate.history_offset(h + 1));
+    auto upper = (h == chainlength() ? HistoryId { 0 } : chainstate.history_offset(h + 1));
     auto header = chainstate.headers()[h];
 
     auto entries { db.lookup_history_range(lower, upper) };
@@ -249,26 +251,25 @@ auto State::api_tx_cache() const -> const TransactionIds
     return chainstate.txids();
 }
 
-api::Transaction State::api_dispatch_mempool(const TxHash& txHash, TransactionMessage&& tx) const
+api::Transaction State::api_dispatch_mempool(const TxHash& txHash,
+    TransactionMessage&& tx) const
 {
     auto gen_temporal = []() { return api::TemporalInfo { 0, Height(0), 0 }; };
 
-    auto make_signed_info {
-        [&txHash](auto& tx) {
-            return api::block::SignedInfoData(txHash, wrt::nullopt, tx.from_id(), tx.from_address(txHash), tx.fee(), tx.nonce_id(), tx.pin_height());
-        }
-    };
+    auto make_signed_info { [&txHash](auto& tx) {
+        return api::block::SignedInfoData(txHash, wrt::nullopt, tx.from_id(),
+            tx.from_address(txHash), tx.fee(),
+            tx.nonce_id(), tx.pin_height());
+    } };
 
     return std::move(tx).visit_overload(
         [&](WartTransferMessage&& wtm) -> api::Transaction {
-            return api::WartTransferTransaction {
-                gen_temporal(),
+            return api::WartTransferTransaction { gen_temporal(),
                 { make_signed_info(wtm),
                     {
                         .toAddress = wtm.to_addr(),
                         .amount = wtm.wart(),
-                    } }
-            };
+                    } } };
         },
         [&](TokenTransferMessage&& ttm) -> api::Transaction {
             // ttm.byte_size
@@ -286,16 +287,14 @@ api::Transaction State::api_dispatch_mempool(const TxHash& txHash, TransactionMe
         },
         [&](LimitSwapMessage&& o) -> api::Transaction {
             auto& a { dbcache.assetsByHash.fetch(o.asset_hash()) };
-            return api::NewOrderTransaction {
-                gen_temporal(),
+            return api::NewOrderTransaction { gen_temporal(),
                 { make_signed_info(o),
                     {
                         .assetInfo { a },
                         .amount { o.amount() },
                         .limit { o.limit() },
                         .buy = o.buy(),
-                    } }
-            };
+                    } } };
         },
         [&](CancelationMessage&& a) -> api::Transaction {
             return api::CancelationTransaction {
@@ -330,29 +329,33 @@ api::Transaction State::api_dispatch_mempool(const TxHash& txHash, TransactionMe
             };
         },
         [&](AssetCreationMessage&& rm) -> api::Transaction {
-            return api::AssetCreationTransaction {
-                gen_temporal(),
+            return api::AssetCreationTransaction { gen_temporal(),
                 { make_signed_info(rm),
                     {
                         .name { rm.asset_name() },
                         .supply { rm.supply() },
                         .assetId { wrt::nullopt },
-                    } }
-            };
+                    } } };
         });
 }
 
-api::Transaction State::api_dispatch_history(const TxHash& txHash, HistoryId hid, history::HistoryVariant&& tx, NonzeroHeight h) const
+api::Transaction State::api_dispatch_history(const TxHash& txHash,
+    HistoryId hid,
+    history::HistoryVariant&& tx,
+    NonzeroHeight h) const
 {
-    auto gen_temporal = [&]() { return api::TemporalInfo { (chainlength() + 1) - h, h, get_headers()[h].timestamp() }; };
-    auto fetch_addr { [&](AccountId aid) {
-        return dbcache.addresses.fetch(aid);
-    } };
-    auto make_signed_info {
-        [&](auto& tx) {
-            return api::block::SignedInfoData(txHash, hid, tx.sign_data().origin_account_id(), fetch_addr(tx.sign_data().origin_account_id()), tx.sign_data().fee(), tx.sign_data().pin_nonce().id, tx.sign_data().pin_nonce().pin_height_from_floored(h.pin_floor()));
-        }
+    auto gen_temporal = [&]() {
+        return api::TemporalInfo { (chainlength() + 1) - h, h,
+            get_headers()[h].timestamp() };
     };
+    auto fetch_addr { [&](AccountId aid) { return dbcache.addresses.fetch(aid); } };
+    auto make_signed_info { [&](auto& tx) {
+        return api::block::SignedInfoData(
+            txHash, hid, tx.sign_data().origin_account_id(),
+            fetch_addr(tx.sign_data().origin_account_id()), tx.sign_data().fee(),
+            tx.sign_data().pin_nonce().id,
+            tx.sign_data().pin_nonce().pin_height_from_floored(h.pin_floor()));
+    } };
     return std::move(tx).visit_overload(
         [&](history::WartTransferData&& wtm) -> api::Transaction {
             // wtm.
@@ -380,22 +383,19 @@ api::Transaction State::api_dispatch_history(const TxHash& txHash, HistoryId hid
         },
         [&](history::OrderData&& o) -> api::Transaction {
             auto& a { dbcache.assetsById[o.asset_id()] };
-            return api::NewOrderTransaction {
-                gen_temporal(),
+            return api::NewOrderTransaction { gen_temporal(),
                 { make_signed_info(o),
                     {
                         .assetInfo { a },
                         .amount { o.amount() },
                         .limit { o.limit() },
                         .buy = o.buy(),
-                    } }
-            };
+                    } } };
         },
         [&](history::CancelationData&& c) -> api::Transaction {
             return api::CancelationTransaction {
                 gen_temporal(),
-                { make_signed_info(c),
-                    { .cancelTxid { c.cancel_txid() } } }
+                { make_signed_info(c), { .cancelTxid { c.cancel_txid() } } }
             };
         },
         [&](history::OrderCancelationData&& c) -> api::Transaction {
@@ -403,8 +403,7 @@ api::Transaction State::api_dispatch_history(const TxHash& txHash, HistoryId hid
             return api::OrderCancelationTransaction {
                 gen_temporal(),
                 { txHash, hid,
-                    api::block::OrderCancelationData {
-                        .cancelTxid { c.cancel_txid() },
+                    api::block::OrderCancelationData { .cancelTxid { c.cancel_txid() },
                         .buy = c.buy(),
                         .assetInfo { a },
                         .historyId { c.order_id() },
@@ -416,7 +415,10 @@ api::Transaction State::api_dispatch_history(const TxHash& txHash, HistoryId hid
             return api::LiquidityDepositTransaction {
                 gen_temporal(),
                 { make_signed_info(ld),
-                    { .assetInfo { a }, .baseDeposited { ld.base() }, .quoteDeposited { ld.quote() }, .sharesReceived { ld.shares() } } }
+                    { .assetInfo { a },
+                        .baseDeposited { ld.base() },
+                        .quoteDeposited { ld.quote() },
+                        .sharesReceived { ld.shares() } } }
             };
         },
         [&](history::LiquidityWithdraw&& lw) -> api::Transaction {
@@ -424,38 +426,41 @@ api::Transaction State::api_dispatch_history(const TxHash& txHash, HistoryId hid
             return api::LiquidityWithdrawalTransaction {
                 gen_temporal(),
                 { make_signed_info(lw),
-                    { .assetInfo { a }, .sharesRedeemed { lw.shares() }, .baseReceived { lw.base() }, .quoteReceived { lw.quote() } } }
+                    { .assetInfo { a },
+                        .sharesRedeemed { lw.shares() },
+                        .baseReceived { lw.base() },
+                        .quoteReceived { lw.quote() } } }
             };
         },
         [&](history::RewardData&& rm) -> api::Transaction {
             return api::RewardTransaction {
-                gen_temporal(), { txHash, hid, { .toAddress { fetch_addr(rm.to_id()) }, .wart { rm.wart() } } }
+                gen_temporal(),
+                { txHash,
+                    hid,
+                    { .toAddress { fetch_addr(rm.to_id()) }, .wart { rm.wart() } } }
             };
         },
         [&](history::AssetCreationData&& rm) -> api::Transaction {
-            return api::AssetCreationTransaction {
-                gen_temporal(),
+            return api::AssetCreationTransaction { gen_temporal(),
                 { make_signed_info(rm),
                     {
                         .name { rm.asset_name() },
                         .supply { rm.supply() },
                         .assetId { rm.asset_id() },
-                    } }
-            };
+                    } } };
         },
         [&](history::MatchData&& rm) -> api::Transaction {
             auto& a { dbcache.assetsById[rm.asset_id()] };
-            return api::MatchTransaction {
-                gen_temporal(),
-                { txHash, hid,
+            return api::MatchTransaction { gen_temporal(),
+                { txHash,
+                    hid,
                     {
                         .assetInfo { a },
                         .poolBefore { rm.pool_before() },
                         .poolAfter { rm.pool_after() },
                         .buySwaps { rm.buy_swaps() },
                         .sellSwaps { rm.sell_swaps() },
-                    } }
-            };
+                    } } };
             // AssetIdEl, PoolBeforeEl, PoolAfterEl, BuySwapsEl, SellSwapsEl
         }
 
@@ -482,7 +487,8 @@ auto State::api_get_latest_txs(size_t N) const -> api::TransactionsByBlocks
 {
     HistoryId upper { db.next_history_id() };
     // note: history ids start with 1
-    HistoryId lower { (upper.value() > N + 1) ? db.next_history_id() - N : HistoryId { 1 } };
+    HistoryId lower { (upper.value() > N + 1) ? db.next_history_id() - N
+                                              : HistoryId { 1 } };
     return api_get_transaction_range(lower, upper);
 }
 
@@ -490,12 +496,14 @@ auto State::api_get_latest_blocks(size_t N) const -> api::TransactionsByBlocks
 {
     HistoryId upper { db.next_history_id() };
     auto l { chainlength().value() };
-    auto hLower { l > N ? Height(l + 1 - N).nonzero_assert() : Height { 1 }.nonzero_assert() };
+    auto hLower { l > N ? Height(l + 1 - N).nonzero_assert()
+                        : Height { 1 }.nonzero_assert() };
     HistoryId lower { chainstate.history_offset(hLower) };
     return api_get_transaction_range(lower, upper);
 }
 
-auto State::api_get_miner(NonzeroHeight h) const -> wrt::optional<api::AddressWithId>
+auto State::api_get_miner(NonzeroHeight h) const
+    -> wrt::optional<api::AddressWithId>
 {
     if (chainlength() < h)
         return {};
@@ -504,13 +512,11 @@ auto State::api_get_miner(NonzeroHeight h) const -> wrt::optional<api::AddressWi
 
     assert(std::holds_alternative<history::RewardData>(parsed));
     auto minerId { std::get<history::RewardData>(parsed).to_id() };
-    return api::AddressWithId {
-        db.fetch_address(minerId),
-        minerId
-    };
+    return api::AddressWithId { db.fetch_address(minerId), minerId };
 }
 
-auto State::api_get_miners(HeightRange hr) const -> std::vector<api::AddressWithId>
+auto State::api_get_miners(HeightRange hr) const
+    -> std::vector<api::AddressWithId>
 {
     std::vector<api::AddressWithId> res;
     for (auto h : hr) {
@@ -521,12 +527,14 @@ auto State::api_get_miners(HeightRange hr) const -> std::vector<api::AddressWith
     return res;
 }
 
-auto State::api_get_latest_miners(uint32_t N) const -> std::vector<api::AddressWithId>
+auto State::api_get_latest_miners(uint32_t N) const
+    -> std::vector<api::AddressWithId>
 {
     return api_get_miners(chainlength().latest(N));
 }
 
-auto State::api_get_transaction_range(HistoryId lower, HistoryId upper) const -> api::TransactionsByBlocks
+auto State::api_get_transaction_range(HistoryId lower, HistoryId upper) const
+    -> api::TransactionsByBlocks
 {
     api::TransactionsByBlocks res { .fromId { lower }, .blocks_reversed {} };
     if (upper.value() == 0)
@@ -583,7 +591,8 @@ Batch State::get_headers_concurrent(BatchSelector s) const
     }
 }
 
-wrt::optional<HeaderView> State::get_header_concurrent(Descriptor descriptor, Height height) const
+wrt::optional<HeaderView> State::get_header_concurrent(Descriptor descriptor,
+    Height height) const
 {
     std::lock_guard l(chainstateMutex);
     if (descriptor == chainstate.descriptor()) {
@@ -604,115 +613,135 @@ Result<ChainMiningTask> State::mining_task(const Address& a)
     return mining_task(a, config().node.disableTxsMining);
 }
 
-Result<ChainMiningTask> State::mining_task(const Address& miner, bool disableTxs)
+Result<ChainMiningTask> State::mining_task(const Address& miner,
+    bool disableTxs)
 {
     auto md = chainstate.mining_data();
 
     NonzeroHeight height { next_height() };
+    BlockVersion v { BlockVersion::hardcoded_for_params(height) };
     if (height.value() < NEWBLOCKSTRUCUTREHEIGHT && !is_testnet())
         return Error(ENOTSYNCED);
 
-    auto make_body {
-        [&]() -> Body {
-            std::vector<TransactionMessage> transactions;
-            if (!disableTxs)
-                transactions = chainstate.mempool().get_transactions(400, height);
+    auto make_body { [&]() -> Body {
+        std::vector<TransactionMessage> transactions;
+        if (!disableTxs)
+            transactions = chainstate.mempool().get_transactions(400, height);
 
-            auto minerReward { height.reward() };
+        auto minerReward { height.reward() };
 
-            using namespace block;
-            AccountId nextAccountId { db.next_id() };
+        using namespace block;
+        AccountId nextAccountId { db.next_id() };
 
-            std::vector<Address> newAddresses;
-            auto addr_id {
-                [&, map = std::map<Address, AccountId> {}](const Address& address) mutable -> AccountId {
-                    auto a { db.lookup_account(address) };
-                    if (a)
-                        return a.value();
-                    auto [iter, inserted] { map.try_emplace(address, nextAccountId) };
-                    if (inserted) {
-                        nextAccountId++;
-                        newAddresses.push_back(address);
+        std::vector<Address> newAddresses;
+        auto addr_id { [&, map = std::map<Address, AccountId> {}](
+                           const Address& address) mutable -> AccountId {
+            auto a { db.lookup_account(address) };
+            if (a)
+                return a.value();
+            auto [iter, inserted] { map.try_emplace(address, nextAccountId) };
+            if (inserted) {
+                nextAccountId++;
+                newAddresses.push_back(address);
+            }
+            return iter->second;
+        } };
+        const AccountId minerAccId { addr_id(miner) };
+        body::Entries entries;
+        auto asset { [&, assetOffsets = std::map<AssetHash, size_t> {}](
+                         AssetHash hash) mutable -> auto& {
+            auto [it, inserted] = assetOffsets.try_emplace(hash, entries.tokens().size());
+            if (inserted)
+                entries.tokens().push_back({ dbcache.assetsByHash.fetch(hash).id });
+            return entries.tokens()[it->second];
+        } };
+
+        auto dispatch_message { [&]<typename... Handlers>(TransactionMessage&& m,
+                                    Handlers&&... handlers) {
+            wrt::Overload o { std::forward<Handlers>(handlers)... };
+            std::move(m).visit([&]<typename Message>(Message&& message) {
+                if (!message.allows_blockversion(v))
+                    return;
+                o(std::forward<Message>(message));
+            });
+        } };
+        for (auto& tx : transactions) {
+            minerReward.add_assert(tx.fee()); // assert because
+            dispatch_message(
+                std::move(tx),
+                [&](WartTransferMessage&& m) {
+                    entries.wart_transfers().push_back(
+                        { m.from_id(), m.pin_nonce_throw(height), m.compact_fee(),
+                            addr_id(m.to_addr()), m.wart(), m.signature() });
+                },
+                [&](TokenTransferMessage&& m) {
+                    auto pn {
+                        PinNonce::make_pin_nonce(m.nonce_id(), height, m.pin_height())
+                    };
+                    if (!pn)
+                        throw std::runtime_error("Cannot make pin_nonce");
+                    auto& s { asset(m.asset_hash()) };
+                    if (m.is_liquidity()) {
+                        auto& transfers = s.liquidity_transfers();
+                        transfers.push_back({ m.from_id(), m.pin_nonce_throw(height),
+                            m.compact_fee(), addr_id(m.to_addr()),
+                            m.amount(), m.signature() });
+                    } else {
+                        auto& transfers = s.asset_transfers();
+                        transfers.push_back({ m.from_id(), m.pin_nonce_throw(height),
+                            m.compact_fee(), addr_id(m.to_addr()),
+                            m.amount(), m.signature() });
                     }
-                    return iter->second;
-                }
-            };
-            const AccountId minerAccId { addr_id(miner) };
-            body::Entries entries;
-            auto asset {
-                [&, assetOffsets = std::map<AssetHash, size_t> {}](AssetHash hash) mutable -> auto& {
-                    auto [it, inserted] = assetOffsets.try_emplace(hash, entries.tokens().size());
-                    if (inserted)
-                        entries.tokens().push_back({ dbcache.assetsByHash.fetch(hash).id });
-                    return entries.tokens()[it->second];
-                }
-            };
-
-            for (auto& tx : transactions) {
-                minerReward.add_assert(tx.fee()); // assert because
-                std::move(tx).visit_overload(
-                    [&](WartTransferMessage&& m) {
-                        entries.wart_transfers().push_back({ m.from_id(), m.pin_nonce_throw(height), m.compact_fee(), addr_id(m.to_addr()), m.wart(), m.signature() });
-                    },
-                    [&](TokenTransferMessage&& m) {
-                        auto pn { PinNonce::make_pin_nonce(m.nonce_id(), height, m.pin_height()) };
-                        if (!pn)
-                            throw std::runtime_error("Cannot make pin_nonce");
-                        auto& s { asset(m.asset_hash()) };
-                        if (m.is_liquidity()){
-                            auto& transfers = s.liquidity_transfers();
-                            transfers.push_back({ m.from_id(), m.pin_nonce_throw(height), m.compact_fee(), addr_id(m.to_addr()), m.amount(), m.signature() });
-                        }else{
-                            auto& transfers = s.asset_transfers();
-                            transfers.push_back({ m.from_id(), m.pin_nonce_throw(height), m.compact_fee(), addr_id(m.to_addr()), m.amount(), m.signature() });
-                        }
-                    },
-                    [&](LimitSwapMessage&& m) {
-                        asset(m.asset_hash())
-                            .orders()
-                            .push_back({ m.from_id(), m.pin_nonce_throw(height), m.compact_fee(), m.buy(), m.amount(), m.limit(), m.signature() });
-                    },
-                    [&](CancelationMessage&& m) {
-                        entries
-                            .cancelations()
-                            .push_back({ m.from_id(), m.pin_nonce_throw(height), m.compact_fee(), m.cancel_height(), m.cancel_nonceid(), m.signature() });
-                    },
-                    [&](LiquidityDepositMessage&& m) {
-                        asset(m.asset_hash())
-                            .liquidity_deposits()
-                            .push_back({ m.from_id(), m.pin_nonce_throw(height), m.compact_fee(), m.base(), m.quote(), m.signature() });
-                    },
-                    [&](LiquidityWithdrawalMessage&& m) {
-                        asset(m.asset_hash())
-                            .liquidity_withdrawals()
-                            .push_back({ m.from_id(), m.pin_nonce_throw(height), m.compact_fee(), m.amount(), m.signature() });
-                    },
-                    [&](AssetCreationMessage&& m) {
-                        entries.asset_creations()
-                            .push_back({ m.from_id(), m.pin_nonce_throw(height), m.compact_fee(), AssetSupplyEl(m.supply()), m.asset_name(), m.signature() });
-                    });
-            }
-            return Body::serialize({ std::move(newAddresses), { minerAccId, minerReward }, std::move(entries) });
+                },
+                [&](LimitSwapMessage&& m) {
+                    asset(m.asset_hash())
+                        .orders()
+                        .push_back({ m.from_id(), m.pin_nonce_throw(height),
+                            m.compact_fee(), m.buy(), m.amount(), m.limit(),
+                            m.signature() });
+                },
+                [&](CancelationMessage&& m) {
+                    entries.cancelations().push_back(
+                        { m.from_id(), m.pin_nonce_throw(height), m.compact_fee(),
+                            m.cancel_height(), m.cancel_nonceid(), m.signature() });
+                },
+                [&](LiquidityDepositMessage&& m) {
+                    asset(m.asset_hash())
+                        .liquidity_deposits()
+                        .push_back({ m.from_id(), m.pin_nonce_throw(height),
+                            m.compact_fee(), m.base(), m.quote(),
+                            m.signature() });
+                },
+                [&](LiquidityWithdrawalMessage&& m) {
+                    asset(m.asset_hash())
+                        .liquidity_withdrawals()
+                        .push_back({ m.from_id(), m.pin_nonce_throw(height),
+                            m.compact_fee(), m.amount(), m.signature() });
+                },
+                [&](AssetCreationMessage&& m) {
+                    entries.asset_creations().push_back(
+                        { m.from_id(), m.pin_nonce_throw(height), m.compact_fee(),
+                            AssetSupplyEl(m.supply()), m.asset_name(), m.signature() });
+                });
         }
-    };
+        return Body::serialize({ std::move(newAddresses),
+            { minerAccId, minerReward },
+            std::move(entries) });
+    } };
 
-    const auto b {
-        [&]() -> const auto& {
-            _miningCache.update_validity(mining_cache_validity());
-            if (auto* p { _miningCache.lookup(miner, disableTxs) }; p != nullptr) {
-                return *p;
-            } else {
-                auto body { make_body() };
-                return _miningCache.insert(miner, disableTxs, std::move(body));
-            }
-        }()
-    };
+    const auto b { [&]() -> const auto& {
+        _miningCache.update_validity(mining_cache_validity());
+        if (auto* p { _miningCache.lookup(miner, disableTxs) }; p != nullptr) {
+            return *p;
+        } else {
+            auto body { make_body() };
+            return _miningCache.insert(miner, disableTxs, std::move(body));
+        }
+    }() };
 
     try {
         HeaderGenerator hg(md.prevhash, b, md.target, md.timestamp, height);
-        return ChainMiningTask {
-            .block { height, hg.make_header(0), std::move(b) }
-        };
+        return ChainMiningTask { .block { height, hg.make_header(0), std::move(b) } };
     } catch (const Error& e) {
         spdlog::warn("Cannot create mining task: {}", e.strerror());
         return Error(EBUG);
@@ -739,7 +768,8 @@ stage_operation::StageSetStatus State::set_stage(Headerchain&& hc)
         blockCache.schedule_discard(dk);
     } else {
         newProtectBegin = fh2;
-        spdlog::debug("Blocks already in stage: [{},{}], drop from {}", fh1.value(), fh2.value() - 1, fh2.value());
+        spdlog::debug("Blocks already in stage: [{},{}], drop from {}", fh1.value(),
+            fh2.value() - 1, fh2.value());
         auto dk { db.schedule_protected_part(stage, fh2) };
         blockCache.schedule_discard(dk);
     }
@@ -758,14 +788,18 @@ stage_operation::StageSetStatus State::set_stage(Headerchain&& hc)
 
     stage.shrink(h - 1);
     if (h > newProtectBegin) {
-        spdlog::debug("MISSING: [{},{}), protected downloaded blocks [{},{}]", h.value(), l.value(), newProtectBegin->value(), (h - 1).value());
+        spdlog::debug("MISSING: [{},{}), protected downloaded blocks [{},{}]",
+            h.value(), l.value(), newProtectBegin->value(),
+            (h - 1).value());
     } else {
-        spdlog::debug("MISSING: [{},{}), protected no blocks", h.value(), l.value());
+        spdlog::debug("MISSING: [{},{}), protected no blocks", h.value(),
+            l.value());
     }
     return { h };
 }
 
-auto State::add_stage(const std::vector<Block>& blocks, const Headerchain& hc) -> StageActionResult
+auto State::add_stage(const std::vector<Block>& blocks, const Headerchain& hc)
+    -> StageActionResult
 {
     if (signedSnapshot && !signedSnapshot->compatible(stage)) {
         return { { { ELEADERMISMATCH, signedSnapshot->height() } }, {}, {} };
@@ -795,12 +829,10 @@ auto State::add_stage(const std::vector<Block>& blocks, const Headerchain& hc) -
 
         if (r.status.ce.is_error()) {
             assert(r.errorWorksum.has_value());
-            // Something went wrong on block body level so block header must be also tainted
-            // as we checked for correct merkleroot already
+            // Something went wrong on block body level so block header must be also
+            // tainted as we checked for correct merkleroot already
             // => we need to collect data on rogue header
-            RogueHeaderData rogueHeaderData(
-                r.status.ce,
-                r.errorHeader.value(),
+            RogueHeaderData rogueHeaderData(r.status.ce, r.errorHeader.value(),
                 r.errorWorksum.value());
             return { { r.status }, std::move(rogueHeaderData), std::move(r.update) };
         } else {
@@ -872,74 +904,103 @@ private:
     }
 
 public:
-    RollbackSession(const ChainDB& db, NonzeroHeight beginHeight, HistoryId oldHistoryIdStart, BlockId firstId)
-        : RollbackSession(db, beginHeight, oldHistoryIdStart, rollback::Data(fetch_undo(db, firstId).rawUndo))
+    RollbackSession(const ChainDB& db, NonzeroHeight beginHeight,
+        HistoryId oldHistoryIdStart, BlockId firstId)
+        : RollbackSession(db, beginHeight, oldHistoryIdStart,
+              rollback::Data(fetch_undo(db, firstId).rawUndo))
     {
     }
 
 private:
-    void put_txs_into_mempool(const block::ParsedBody& body, NonzeroHeight height, DBCache& c)
+    void put_txs_into_mempool(const block::ParsedBody& body, NonzeroHeight height,
+        DBCache& c)
     {
         auto pinFloor { height.pin_floor() };
-        auto apply_to_array {
-            [&](auto&& arr, auto&&... lambdas) {
-                auto bindPinheight {
-                    [&](auto&& lambda2) {
-                        // if we have a lambda with two arguments (pinHeight, tx), then create a lambda that only accepts tx and only calls
-                        // it if the pinHeight is not too new (if it is too new, after rollback the tx cannot exist)
-                        if constexpr (std::is_same_v<typename function_traits<decltype(lambda2)>::template arg<0>::type, PinHeight>) {
-                            using ret_t = typename function_traits<decltype(lambda2)>::template arg<1>::type;
-                            return [&](const std::remove_cvref_t<ret_t>& tx) {
-                                PinHeight pinHeight = tx.pin_nonce().pin_height_from_floored(pinFloor);
-                                if (pinHeight <= newPinFloor)
-                                    lambda2(pinHeight, tx);
-                            };
-                        } else {
-                            return lambda2;
-                        }
-                    }
-                };
-                arr.visit_components_overload(
-                    bindPinheight(std::forward<decltype(lambdas)>(lambdas))...);
-            }
-        };
+        auto apply_to_array { [&](auto&& arr, auto&&... lambdas) {
+            auto bindPinheight { [&](auto&& lambda2) {
+                // if we have a lambda with two arguments (pinHeight, tx), then create a
+                // lambda that only accepts tx and only calls it if the pinHeight is not
+                // too new (if it is too new, after rollback the tx cannot exist)
+                if constexpr (std::is_same_v<
+                                  typename function_traits<
+                                      decltype(lambda2)>::template arg<0>::type,
+                                  PinHeight>) {
+                    using ret_t = typename function_traits<
+                        decltype(lambda2)>::template arg<1>::type;
+                    return [&](const std::remove_cvref_t<ret_t>& tx) {
+                        PinHeight pinHeight = tx.pin_nonce().pin_height_from_floored(pinFloor);
+                        if (pinHeight <= newPinFloor)
+                            lambda2(pinHeight, tx);
+                    };
+                } else {
+                    return lambda2;
+                }
+            } };
+            arr.visit_components_overload(
+                bindPinheight(std::forward<decltype(lambdas)>(lambdas))...);
+        } };
 
         using namespace block::body;
-        apply_to_array(body,
+        apply_to_array(
+            body,
             // Wart transfer lambda
             [&](PinHeight pinHeight, const WartTransfer& t) {
-                        auto toAddress { c.addresses.fetch(t.to_id()) };
-                       // t.wart() cannot be of type NonzeroWart because we had some zero amounts sent in the early days, 
-                       // so it is possible to have zero WART amount in the blocks
-                       if (!t.wart().is_zero()) 
-                        toMempool.push_back(WartTransferMessage(t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(), toAddress, t.wart().nonzero_assert(), t.signature())); },
+                auto toAddress { c.addresses.fetch(t.to_id()) };
+                // t.wart() cannot be of type NonzeroWart because we had some zero
+                // amounts sent in the early days, so it is possible to have zero WART
+                // amount in the blocks
+                if (!t.wart().is_zero())
+                    toMempool.push_back(WartTransferMessage(
+                        t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(),
+                        toAddress, t.wart().nonzero_assert(), t.signature()));
+            },
 
             // Cancelation lambda
-            [&](PinHeight pinHeight, const Cancelation& t) { toMempool.push_back(CancelationMessage(t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(), t.cancel_height(), t.cancel_nonceid(), t.signature())); },
+            [&](PinHeight pinHeight, const Cancelation& t) {
+                toMempool.push_back(CancelationMessage(
+                    t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(),
+                    t.cancel_height(), t.cancel_nonceid(), t.signature()));
+            },
 
             // Token section lambda only has one argument
             [&](const TokenSection& s) {
-                    auto asset { c.assetsById[s.asset_id()] };
-                    apply_to_array(s,
-                        [&](PinHeight pinHeight, const AssetTransfer& t) {
-                                auto toAddress { c.addresses.fetch(t.to_id()) };
-                                toMempool.push_back(TokenTransferMessage(t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(), asset.hash, false, toAddress, t.amount(), t.signature()));
-                        },
-                        [&](PinHeight pinHeight, const LiquidityTransfer& t) {
-                                auto toAddress { c.addresses.fetch(t.to_id()) };
-                                toMempool.push_back(TokenTransferMessage(t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(), asset.hash, true, toAddress, t.shares(), t.signature()));
-                        },
-                        [&](PinHeight pinHeight, const Order& t) {
-                                toMempool.push_back(LimitSwapMessage(t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(), asset.hash, t.buy(), t.amount(), t.limit(), t.signature()));
-                        },
-                        [&](PinHeight pinHeight, const LiquidityDeposit& t) {
-                                toMempool.push_back(LiquidityDepositMessage(t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(), asset.hash, t.base(), t.quote(), t.signature()));
-                        },
-                        [&](PinHeight pinHeight, const LiquidityWithdrawal& t) {
-                                toMempool.push_back(LiquidityWithdrawalMessage(t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(), asset.hash, t.amount(), t.signature()));
-                        }); },
+                auto asset { c.assetsById[s.asset_id()] };
+                apply_to_array(
+                    s,
+                    [&](PinHeight pinHeight, const AssetTransfer& t) {
+                        auto toAddress { c.addresses.fetch(t.to_id()) };
+                        toMempool.push_back(TokenTransferMessage(
+                            t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(),
+                            asset.hash, false, toAddress, t.amount(), t.signature()));
+                    },
+                    [&](PinHeight pinHeight, const LiquidityTransfer& t) {
+                        auto toAddress { c.addresses.fetch(t.to_id()) };
+                        toMempool.push_back(TokenTransferMessage(
+                            t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(),
+                            asset.hash, true, toAddress, t.shares(), t.signature()));
+                    },
+                    [&](PinHeight pinHeight, const Order& t) {
+                        toMempool.push_back(LimitSwapMessage(
+                            t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(),
+                            asset.hash, t.buy(), t.amount(), t.limit(), t.signature()));
+                    },
+                    [&](PinHeight pinHeight, const LiquidityDeposit& t) {
+                        toMempool.push_back(LiquidityDepositMessage(
+                            t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(),
+                            asset.hash, t.base(), t.quote(), t.signature()));
+                    },
+                    [&](PinHeight pinHeight, const LiquidityWithdrawal& t) {
+                        toMempool.push_back(LiquidityWithdrawalMessage(
+                            t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(),
+                            asset.hash, t.amount(), t.signature()));
+                    });
+            },
             // asset creation lambda
-            [&](PinHeight pinHeight, const AssetCreation& t) { toMempool.push_back(AssetCreationMessage(t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(), t.supply(), t.asset_name(), t.signature())); });
+            [&](PinHeight pinHeight, const AssetCreation& t) {
+                toMempool.push_back(AssetCreationMessage(
+                    t.txid(pinHeight), t.pin_nonce().reserved, t.compact_fee(),
+                    t.supply(), t.asset_name(), t.signature()));
+            });
     }
 
 public:
@@ -954,19 +1015,19 @@ public:
 
             // roll back state modifications
             rollback::Data rbv(d.rawUndo);
-            rbv.foreach_changed_balance(
-                [&](const IdBalance& entry) {
-                    if (is_deprecated_id(entry.id))
-                        return;
-                    const auto& bal { entry.balance };
-                    const BalanceId& id { entry.id };
-                    auto b { db.get_token_balance(id) };
-                    if (!b.has_value())
-                        throw std::runtime_error("Database corrupted, cannot roll back");
+            rbv.foreach_changed_balance([&](const IdBalance& entry) {
+                if (is_deprecated_id(entry.id))
+                    return;
+                const auto& bal { entry.balance };
+                const BalanceId& id { entry.id };
+                auto b { db.get_token_balance(id) };
+                if (!b.has_value())
+                    throw std::runtime_error("Database corrupted, cannot roll back");
 
-                    freeBalanceUpdates.insert_or_assign(AccountToken { b->accountId, b->tokenId }, bal.free_assert());
-                    balanceUpdates.try_emplace(id, bal);
-                });
+                freeBalanceUpdates.insert_or_assign(
+                    AccountToken { b->accountId, b->tokenId }, bal.free_assert());
+                balanceUpdates.try_emplace(id, bal);
+            });
             rbv.foreach_deleted_order([&](const rollback::OrderData& o) {
                 if (is_deprecated_id(o.id))
                     return;
@@ -980,8 +1041,9 @@ public:
                     return;
                 auto& action { orderActions.try_emplace(o.id).first->second };
 
-                // we run through blocks in order and in each block either the order was deleted or updated.
-                // If it was updated, then it cannot have been deleted before, so there cannot be a create entry
+                // we run through blocks in order and in each block either the order was
+                // deleted or updated. If it was updated, then it cannot have been
+                // deleted before, so there cannot be a create entry
                 assert(!action.create.has_value());
 
                 // assign the fillstate
@@ -990,7 +1052,9 @@ public:
             rbv.foreach_changed_poolstate([&](const rollback::Poolstate& s) {
                 if (is_deprecated_id(s.id))
                     return;
-                poolActions.try_emplace(s.id, UpdatePool { s.id, defi::Pool_uint64 { s.base, s.quote, s.shares } });
+                poolActions.try_emplace(
+                    s.id,
+                    UpdatePool { s.id, defi::Pool_uint64 { s.base, s.quote, s.shares } });
             });
             rbv.foreach_newly_created_pool([&](const AssetId& id) {
                 if (is_deprecated_id(id))
@@ -998,15 +1062,13 @@ public:
                 poolActions.try_emplace(id, DeletePool {});
             });
         } catch (const Error& e) {
-            throw std::runtime_error(
-                "Cannot rollback block at height" + std::to_string(height) + ":" + e.err_name());
+            throw std::runtime_error("Cannot rollback block at height" + std::to_string(height) + ":" + e.err_name());
         }
     }
 };
-}
+} // namespace
 
-RollbackResult
-State::rollback(const Height newlength) const
+RollbackResult State::rollback(const Height newlength) const
 {
     assert(newlength < chainlength());
     const Height oldlength { chainlength() };
@@ -1027,8 +1089,9 @@ State::rollback(const Height newlength) const
         NonzeroHeight height = beginHeight + i;
         // note that the blocks are rolled back in increasing height order,
         // the rollback data supports this rollback style and it is more efficient
-        // because for example only the earliest occurrence of a balance update is the
-        // final rolled back balance when considering the blocks in increasing order.
+        // because for example only the earliest occurrence of a balance update is
+        // the final rolled back balance when considering the blocks in increasing
+        // order.
         rs.rollback_block_inc_order(ids[i], height, dbcache);
     }
 
@@ -1057,12 +1120,8 @@ State::rollback(const Height newlength) const
     }
     for (auto& [id, a] : rs.poolActions) {
         a.visit_overload(
-            [&](RollbackSession::DeletePool&) {
-                db.delete_pool(id);
-            },
-            [&](RollbackSession::UpdatePool& p) {
-                db.update_pool(p);
-            });
+            [&](RollbackSession::DeletePool&) { db.delete_pool(id); },
+            [&](RollbackSession::UpdatePool& p) { db.update_pool(p); });
     }
 
     return chainserver::RollbackResult {
@@ -1079,7 +1138,9 @@ auto State::apply_stage(ChainDBTransaction&& t) -> ApplyStageResult
     dbCacheValidity += 1;
     assert(!signedSnapshot || signedSnapshot->compatible(stage));
     assert(stage.total_work() > chainstate.headers().total_work());
-    const NonzeroHeight fh { fork_height(chainstate.headers(), stage) }; // first different height
+    const NonzeroHeight fh {
+        fork_height(chainstate.headers(), stage)
+    }; // first different height
 
     chainserver::ApplyStageTransaction tr { *this, std::move(t) };
     tr.consider_rollback(fh - 1);
@@ -1095,7 +1156,8 @@ auto State::apply_stage(ChainDBTransaction&& t) -> ApplyStageResult
         assert(status.height() < stage.length());
         errorWorksum = stage.total_work_at(status.height());
         errorHeader = stage[status.height()];
-        spdlog::warn("Invalid block at height {}: {}", status.height().value(), status.err_name());
+        spdlog::warn("Invalid block at height {}: {}", status.height().value(),
+            status.err_name());
         stage.shrink(status.height() - 1);
         if (stage.total_work_at(status.height() - 1) <= chainstate.headers().total_work()) {
             return {
@@ -1113,7 +1175,8 @@ auto State::apply_stage(ChainDBTransaction&& t) -> ApplyStageResult
     return { { status }, errorWorksum, errorHeader, update };
 }
 
-auto State::apply_signed_snapshot(SignedSnapshot&& ssnew) -> wrt::optional<StateUpdateWithAPIBlocks>
+auto State::apply_signed_snapshot(SignedSnapshot&& ssnew)
+    -> wrt::optional<StateUpdateWithAPIBlocks>
 {
     if (signedSnapshot >= ssnew) {
         return {};
@@ -1128,8 +1191,7 @@ auto State::apply_signed_snapshot(SignedSnapshot&& ssnew) -> wrt::optional<State
     state_update::StateUpdateWithAPIBlocks res {
         .update {
             .chainstateUpdate = state_update::SignedSnapshotApply {
-                .rollback {},
-                .signedSnapshot { *signedSnapshot } },
+                .rollback {}, .signedSnapshot { *signedSnapshot } },
             .mempoolUpdates {},
         },
         .appendedBlocks {}
@@ -1162,7 +1224,8 @@ auto State::apply_signed_snapshot(SignedSnapshot&& ssnew) -> wrt::optional<State
     return res;
 }
 
-auto State::append_mined_block(const Block& b, bool verifyPOW) -> StateUpdateWithAPIBlocks
+auto State::append_mined_block(const Block& b, bool verifyPOW)
+    -> StateUpdateWithAPIBlocks
 {
     auto nextHeight { next_height() };
     if (nextHeight != b.height)
@@ -1204,14 +1267,14 @@ auto State::append_mined_block(const Block& b, bool verifyPOW) -> StateUpdateWit
     dbCacheValidity += 1;
     return { .update {
                  .chainstateUpdate { state_update::Append {
-                     headerchainAppend,
-                     try_sign_locked_chainstate() } },
+                     headerchainAppend, try_sign_locked_chainstate() } },
                  .mempoolUpdates { chainstate.pop_mempool_updates() },
              },
         .appendedBlocks { std::move(apiBlock) } };
 }
 
-std::pair<mempool::Updates, TxHash> State::append_gentx(const TransactionCreate& m)
+std::pair<mempool::Updates, TxHash>
+State::append_gentx(const TransactionCreate& m)
 {
     try {
         auto txhash { chainstate.create_tx(m) };
@@ -1235,7 +1298,8 @@ api::WartBalance State::api_get_wart_balance(api::AccountIdOrAddress a) const
     return res;
 }
 
-auto State::normalize(api::TokenIdOrSpec token) const -> wrt::optional<api::NormalizedToken>
+auto State::normalize(api::TokenIdOrSpec token) const
+    -> wrt::optional<api::NormalizedToken>
 {
     return token.visit_overload(
         [&](TokenId id) -> wrt::optional<api::NormalizedToken> {
@@ -1277,10 +1341,13 @@ size_t State::on_mempool_constraint_update()
 }
 wrt::optional<AccountId> State::normalize(api::AccountIdOrAddress a) const
 {
-    return a.map_alternative([&](const Address& a) { return db.lookup_account(a); });
+    return a.map_alternative(
+        [&](const Address& a) { return db.lookup_account(a); });
 }
 
-api::TokenBalance State::api_get_token_balance_recursive(api::AccountIdOrAddress account, api::TokenIdOrSpec spec) const
+api::TokenBalance
+State::api_get_token_balance_recursive(api::AccountIdOrAddress account,
+    api::TokenIdOrSpec spec) const
 {
     auto accountId { normalize(account) };
     auto token { normalize(spec) };
@@ -1289,7 +1356,8 @@ api::TokenBalance State::api_get_token_balance_recursive(api::AccountIdOrAddress
     return api_get_token_balance_recursive(*accountId, token->id);
 }
 
-api::TokenBalance State::api_get_token_balance_recursive(AccountId aid, TokenId tid) const
+api::TokenBalance State::api_get_token_balance_recursive(AccountId aid,
+    TokenId tid) const
 {
     if (auto addr { db.lookup_address(aid) }) {
         api::AssetLookupTrace trace;
@@ -1302,22 +1370,28 @@ api::TokenBalance State::api_get_token_balance_recursive(AccountId aid, TokenId 
             } else {
                 prec = db.lookup_asset(nw->asset_id())->precision;
             }
-        } else { // means that token id is that of WART or pool liquidity (has WART precision by definition)
+        } else { // means that token id is that of WART or pool liquidity (has WART
+                 // precision by definition)
             prec = Wart::precision;
         }
         if (!prec)
             return api::TokenBalance::notfound();
-        return api::TokenBalance::found(*addr, aid, std::move(trace), FundsDecimal(b.balance.total, *prec), FundsDecimal(b.balance.locked, *prec));
+        return api::TokenBalance::found(*addr, aid, std::move(trace),
+            FundsDecimal(b.balance.total, *prec),
+            FundsDecimal(b.balance.locked, *prec));
     }
     return api::TokenBalance::notfound();
 }
 
-// wrt::optional<AssetDetail> State::db_lookup_token(const api::AssetIdOrHash& token) const
+// wrt::optional<AssetDetail> State::db_lookup_token(const api::AssetIdOrHash&
+// token) const
 // {
-//     return token.visit([&](const auto& token) { return db.lookup_asset(token); });
+//     return token.visit([&](const auto& token) { return
+//     db.lookup_asset(token); });
 // }
 
-auto State::insert_txs(const TxVec& txs) -> std::pair<std::vector<Error>, mempool::Updates>
+auto State::insert_txs(const TxVec& txs)
+    -> std::pair<std::vector<Error>, mempool::Updates>
 {
     return { chainstate.insert_txs(txs), chainstate.pop_mempool_updates() };
 }
@@ -1347,20 +1421,22 @@ auto State::api_get_mempool(size_t n) const -> api::MempoolEntries
     assert(hashes.size() == entries.size());
     api::MempoolEntries out;
     for (size_t i = 0; i < hashes.size(); ++i) {
-        out.entries.push_back(api::MempoolEntry {
-            entries[i], hashes[i] });
+        out.entries.push_back(api::MempoolEntry { entries[i], hashes[i] });
     }
     return out;
 }
 
-auto State::api_get_history(const api::AccountIdOrAddress& a, int64_t beforeId) const -> wrt::optional<api::AccountHistory>
+auto State::api_get_history(const api::AccountIdOrAddress& a,
+    int64_t beforeId) const
+    -> wrt::optional<api::AccountHistory>
 {
     auto p = a.map_alternative([&](const Address& a) { return db.lookup_account(a); });
     ;
     if (!p)
         return {};
     auto& accountId(*p);
-    auto wartBalance(db.get_token_balance_recursive(accountId, TokenId::WART).balance);
+    auto wartBalance(
+        db.get_token_balance_recursive(accountId, TokenId::WART).balance);
 
     std::vector entries_desc = db.lookup_history_100_desc(accountId, beforeId);
     std::vector<api::Block> blocks_reversed;
@@ -1382,11 +1458,10 @@ auto State::api_get_history(const api::AccountIdOrAddress& a, int64_t beforeId) 
             pinFloor = height.pin_floor();
             auto header = chainstate.headers()[height];
             bool b = height == chainlength();
-            nextHistoryOffset = (b
-                    ? HistoryId { std::numeric_limits<uint64_t>::max() }
-                    : chainstate.history_offset(height + 1));
-            blocks_reversed.push_back(
-                api::Block(header, height, 1 + (chainlength() - height), std::move(actions)));
+            nextHistoryOffset = (b ? HistoryId { std::numeric_limits<uint64_t>::max() }
+                                   : chainstate.history_offset(height + 1));
+            blocks_reversed.push_back(api::Block(
+                header, height, 1 + (chainlength() - height), std::move(actions)));
             actions = {};
         }
         api::Block& b = blocks_reversed.back();
@@ -1401,14 +1476,17 @@ auto State::api_get_history(const api::AccountIdOrAddress& a, int64_t beforeId) 
     };
 }
 
-auto State::api_get_richlist(api::TokenIdOrSpec spec, size_t limit) const -> Result<api::RichlistInfo>
+auto State::api_get_richlist(api::TokenIdOrSpec spec, size_t limit) const
+    -> Result<api::RichlistInfo>
 {
     if (auto token { normalize(spec) })
-        return api::RichlistInfo { db.lookup_richlist(token->id, limit), std::move(*token) };
+        return api::RichlistInfo { db.lookup_richlist(token->id, limit),
+            std::move(*token) };
     return Error(ETOKIDNOTFOUND);
 }
 
-auto State::get_body_data(DescriptedBlockRange range) const -> std::vector<BodyData>
+auto State::get_body_data(DescriptedBlockRange range) const
+    -> std::vector<BodyData>
 {
     assert(range.first() != 0);
     assert(range.last() >= range.first());
@@ -1437,12 +1515,14 @@ auto State::get_body_data(DescriptedBlockRange range) const -> std::vector<BodyD
     return res;
 }
 
-auto State::get_mempool_tx(TransactionId txid) const -> wrt::optional<TransactionMessage>
+auto State::get_mempool_tx(TransactionId txid) const
+    -> wrt::optional<TransactionMessage>
 {
     return chainstate.mempool()[txid];
 }
 
-auto State::commit_fork(RollbackResult&& rr, AppendBlocksResult&& abr) -> StateUpdate
+auto State::commit_fork(RollbackResult&& rr, AppendBlocksResult&& abr)
+    -> StateUpdate
 {
     assert(!signedSnapshot || signedSnapshot->compatible(stage));
     auto headers_ptr { blockCache.add_old_chain(chainstate, rr.deletionKey) };
@@ -1456,8 +1536,7 @@ auto State::commit_fork(RollbackResult&& rr, AppendBlocksResult&& abr) -> StateU
 
     state_update::Fork forkMsg {
         chainstate.headers().get_fork(rr.shrink, chainstate.descriptor()),
-        std::move(headers_ptr),
-        try_sign_locked_chainstate()
+        std::move(headers_ptr), try_sign_locked_chainstate()
     };
 
     return StateUpdate {
@@ -1476,11 +1555,10 @@ auto State::commit_append(AppendBlocksResult&& abr) -> StateUpdate
     }) };
 
     return {
-        .chainstateUpdate {
-            state_update::Append {
-                headerchainAppend,
-                try_sign_locked_chainstate(),
-            } },
+        .chainstateUpdate { state_update::Append {
+            headerchainAppend,
+            try_sign_locked_chainstate(),
+        } },
         .mempoolUpdates { chainstate.pop_mempool_updates() },
     };
 }
@@ -1488,10 +1566,9 @@ auto State::commit_append(AppendBlocksResult&& abr) -> StateUpdate
 wrt::optional<SignedSnapshot> State::try_sign_locked_chainstate()
 {
     // here, chainstateMutex should be locked already
-    if ((!signedSnapshot.has_value() || (signedSnapshot->height() < chainstate.length()))
-        && (signAfter < std::chrono::steady_clock::now() && signingEnabled)
-        && snapshotSigner.has_value()) {
-        spdlog::info("Signing chain state at height {}", chainstate.length().value());
+    if ((!signedSnapshot.has_value() || (signedSnapshot->height() < chainstate.length())) && (signAfter < std::chrono::steady_clock::now() && signingEnabled) && snapshotSigner.has_value()) {
+        spdlog::info("Signing chain state at height {}",
+            chainstate.length().value());
         signedSnapshot = snapshotSigner->sign(chainstate);
         db.set_signed_snapshot(*signedSnapshot);
         return signedSnapshot;
@@ -1501,11 +1578,9 @@ wrt::optional<SignedSnapshot> State::try_sign_locked_chainstate()
 
 MiningCache::CacheValidity State::mining_cache_validity() const
 {
-    return { dbCacheValidity, chainstate.mempool().cache_validity(), now_timestamp() };
+    return { dbCacheValidity, chainstate.mempool().cache_validity(),
+        now_timestamp() };
 }
 
-size_t State::api_db_size() const
-{
-    return db.byte_size();
-}
-}
+size_t State::api_db_size() const { return db.byte_size(); }
+} // namespace chainserver

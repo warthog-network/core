@@ -13,9 +13,9 @@ src_wh=[
   [
     './platformassert.cpp',
     './src/block/block.cpp',
-    './src/block/body/merkle_write_hooker.cpp',
     './src/block/body/body.cpp',
     './src/block/body/container.cpp',
+    './src/block/body/merkle_write_hooker.cpp',
     './src/block/body/nonce.cpp',
     './src/block/body/transaction_id.cpp',
     './src/block/chain/height.cpp',
@@ -25,6 +25,7 @@ src_wh=[
     './src/block/header/header.cpp',
     './src/block/header/pow_version.cpp',
     './src/block/header/view.cpp',
+    './src/block/version.cpp',
     './src/communication/create_transaction.cpp',
     './src/crypto/address.cpp',
     './src/crypto/crypto.cpp',
