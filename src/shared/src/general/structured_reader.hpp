@@ -2,11 +2,10 @@
 
 #include "block/body/body_fwd.hpp"
 #include "crypto/hasher_sha256.hpp"
+#include "general/merkle_leaves.hpp"
 #include "general/reader.hpp"
 #include "structured_reader_fwd.hpp"
-#include "general/merkle_leaves.hpp"
 #include <vector>
-
 
 // The ParseNode class is used for representation and construction of
 // structured description of parsing from binary. It is used applied
@@ -149,8 +148,9 @@ class Tag : public T {
 public:
     using T::T;
     // Tag(T t):T(std::move(t)){}
-    Tag(StructuredReader& s)
-        : T(s.annotate(annotation.to_string()).reader)
+    template <typename... Args>
+    Tag(StructuredReader& s, Args&&... args)
+        : T(s.annotate(annotation.to_string()).reader, std::forward<Args>(args)...)
     {
     }
     using parent_t = Tag;

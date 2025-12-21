@@ -53,24 +53,114 @@ struct VectorEntries : public std::vector<T> {
             this->push_back(T(r));
         }
     }
-    VectorEntries(size_t n, StructuredReader& m)
+    template <typename... Args>
+    VectorEntries(StructuredReader& r, size_t n, Args&&... args)
     {
         for (size_t i { 0 }; i < n; ++i) {
-            this->push_back(T(m.merkle_frame().reader));
+            this->push_back(T(r.merkle_frame().reader, std::forward<Args>(args)...));
         }
     }
 };
 
-template <StaticString annotation, typename T>
-struct TaggedVectorElements : public VectorEntries<T> {
-    TaggedVectorElements()
+template <typename UInt, typename Elem>
+struct SizeVector : public VectorEntries<Elem> {
+
+    using VectorEntries<Elem>::entries;
+    void serialize(MerkleSerializer auto& w) const
     {
+        w.writer << UInt(this->size());
+        VectorEntries<Elem>::serialize(w);
     }
-    TaggedVectorElements(size_t n, StructuredReader& m)
-        : VectorEntries<T>(n, m.annotate(annotation.to_string()).reader)
+    SizeVector() { }
+    template <typename... Args>
+    SizeVector(StructuredReader& r, Args&&... args)
+        : VectorEntries<Elem> { [&]() {
+            if (r.remaining() == 0) {
+                return VectorEntries<Elem> {};
+            } else {
+                UInt len(r.annotate("length").reader);
+                return VectorEntries<Elem> { r, len, std::forward<Args>(args)... };
+            };
+        }() }
     {
     }
 };
+
+template <typename Vector>
+struct VectorValidateBlockversion {
+private:
+    Vector vector;
+
+public:
+    using elem_t = Vector::elem_t;
+    VectorValidateBlockversion()
+    {
+    }
+    VectorValidateBlockversion(StructuredReader& r, BlockVersion& v)
+        : vector(r)
+    {
+        if (!vector.empty())
+            elem_t::validate_blockversion_throw(v);
+    }
+    VectorValidateBlockversion(StructuredReader& r, BlockVersion& v, size_t N)
+        : vector(r, N)
+    {
+        if (!vector.empty())
+            elem_t::validate_blockversion_throw(v);
+    }
+    template <typename... Args>
+    VectorValidateBlockversion(StructuredReader& r, BlockVersion& v, Args&&... args)
+        : vector(r, std::forward<Args>(args)...)
+    {
+        if (!vector.empty())
+            elem_t::validate_blockversion_throw(v);
+    }
+    void push_back(elem_t e, BlockVersion v)
+    {
+        assert(elem_t::allows_blockversion(v));
+        vector.push_back(std::move(e));
+    }
+    void serialize(Serializer auto&& s) const
+    {
+        vector.serialize(std::forward<decltype(s)>(s));
+    }
+    auto& entries() const { return vector; }
+    auto& entries() { return *this; }
+    void append_txids(std::vector<TransactionId>& v, PinFloor pf, PinHeight minPinHeight) const
+    {
+        return entries().append_txids(v, pf, minPinHeight);
+    }
+};
+
+template <StaticString tag, typename Elem>
+struct TransactionEntries : public VectorValidateBlockversion<Tag<tag, VectorEntries<Elem>>> {
+    using VectorValidateBlockversion<Tag<tag, VectorEntries<Elem>>>::VectorValidateBlockversion;
+};
+
+template <StaticString tag, typename UInt, typename Elem>
+struct TransactionVector : public VectorValidateBlockversion<Tag<tag, SizeVector<UInt, Elem>>> {
+    using VectorValidateBlockversion<Tag<tag, SizeVector<UInt, Elem>>>::VectorValidateBlockversion;
+};
+
+template <typename T>
+void apply_to_entries(T&& t, auto&& lambda)
+{
+    lambda(t);
+}
+
+template <StaticString tag, typename UInt, typename Elem>
+void apply_to_entries(TransactionVector<tag, UInt, Elem>& v, auto&& lambda)
+{
+    for (auto& e : v)
+        apply_to_entries(e, lambda);
+}
+
+template <typename UInt, typename Elem>
+void apply_to_entries(SizeVector<UInt, Elem>& v, auto&& lambda)
+{
+    for (auto& e : v)
+        apply_to_entries(e, lambda);
+}
 
 class NewAddresses {
 public:
@@ -101,30 +191,30 @@ namespace elements {
 
 namespace tokens {
 
-struct AssetTransfers : public IsTokenTransfer, public TaggedVectorElements<"assetTransfers", body::AssetTransfer> {
-    using TaggedVectorElements::TaggedVectorElements;
+struct AssetTransfers : public TransactionEntries<"assetTransfers", body::AssetTransfer> {
+    using TransactionEntries::TransactionEntries;
     auto& asset_transfers() const { return entries(); }
-    auto& asset_transfers() { return entries(); }
+    auto& asset_transfers() { return *this; }
 };
-struct LiquidityTransfers : public IsTokenTransfer, public TaggedVectorElements<"shareTransfers", body::LiquidityTransfer> {
-    using TaggedVectorElements::TaggedVectorElements;
+struct LiquidityTransfers : public TransactionEntries<"shareTransfers", body::LiquidityTransfer> {
+    using TransactionEntries::TransactionEntries;
     auto& liquidity_transfers() const { return entries(); }
-    auto& liquidity_transfers() { return entries(); }
+    auto& liquidity_transfers() { return *this; }
 };
-struct Orders : public IsLimitSwap, public TaggedVectorElements<"orders", body::Order> {
-    using TaggedVectorElements::TaggedVectorElements;
-    auto& orders() const { return entries(); }
-    auto& orders() { return entries(); }
+struct Orders : public TransactionEntries<"orders", body::Order> {
+    using TransactionEntries::TransactionEntries;
+    auto& orders() const { return *this; }
+    auto& orders() { return *this; }
 };
-struct LiquidityDeposits : public IsLiquidityDeposit, public TaggedVectorElements<"liquidityDeposits", body::LiquidityDeposit> {
-    using TaggedVectorElements::TaggedVectorElements;
-    auto& liquidity_deposits() const { return entries(); }
-    auto& liquidity_deposits() { return entries(); }
+struct LiquidityDeposits : public TransactionEntries<"liquidityDeposits", body::LiquidityDeposit> {
+    using TransactionEntries::TransactionEntries;
+    auto& liquidity_deposits() const { return *this; }
+    auto& liquidity_deposits() { return *this; }
 };
-struct LiquidityWithdrawals : public IsLiquidityWithdrawal, public TaggedVectorElements<"liquidityWithdrawals", body::LiquidityWithdrawal> {
-    using TaggedVectorElements::TaggedVectorElements;
-    auto& liquidity_withdrawals() const { return entries(); }
-    auto& liquidity_withdrawals() { return entries(); }
+struct LiquidityWithdrawals : public TransactionEntries<"liquidityWithdrawals", body::LiquidityWithdrawal> {
+    using TransactionEntries::TransactionEntries;
+    auto& liquidity_withdrawals() const { return *this; }
+    auto& liquidity_withdrawals() { return *this; }
 };
 
 template <size_t N>
@@ -194,8 +284,8 @@ struct TokenEntries : public Ts... {
 private:
     using bits_t = TenBitLengths<sizeof...(Ts)>;
     template <size_t... Is>
-    TokenEntries(std::index_sequence<Is...>, const bits_t& lengths, StructuredReader& m)
-        : Ts(lengths.template at<Is>(), m)...
+    TokenEntries(std::index_sequence<Is...>, const bits_t& lengths, StructuredReader& r, BlockVersion v)
+        : Ts(r, v, lengths.template at<Is>())...
     {
     }
 
@@ -225,8 +315,8 @@ public:
     {
         visit_components(Overload { std::forward<Ls>(lambdas)... });
     }
-    TokenEntries(StructuredReader& r)
-        : TokenEntries { std::index_sequence_for<Ts...>(), bits_t(r), r }
+    TokenEntries(StructuredReader& r, BlockVersion v)
+        : TokenEntries { std::index_sequence_for<Ts...>(), bits_t(r), r, v }
     {
     }
     auto& token_entries() const { return *this; }
@@ -272,7 +362,7 @@ public:
         s.writer << assetId;
         s << token_entries();
     }
-    TokenSection(StructuredReader& m);
+    TokenSection(StructuredReader& m, BlockVersion v);
     TokenSection(AssetId tid)
         : AssetIdElement(tid) { };
     void append_txids(std::vector<TransactionId>& out, PinFloor pf, PinHeight minPinHeight) const
@@ -282,65 +372,28 @@ public:
 };
 }
 
-template <typename UInt, typename Elem>
-struct UntaggedSizeVector : public VectorEntries<Elem> {
-
-    using VectorEntries<Elem>::entries;
-    void serialize(MerkleSerializer auto& w) const
-    {
-        w.writer << UInt(this->size());
-        VectorEntries<Elem>::serialize(w);
-    }
-    UntaggedSizeVector() { }
-    UntaggedSizeVector(StructuredReader& r)
-        : VectorEntries<Elem> { [&]() {
-            if (r.remaining() == 0) {
-                return VectorEntries<Elem> {};
-            } else {
-                UInt len(r.annotate("length").reader);
-                return VectorEntries<Elem> { len, r };
-            };
-        }() }
-    {
-    }
-};
-template <StaticString tag, typename UInt, typename Elem>
-using SizeVector = Tag<tag, UntaggedSizeVector<UInt, Elem>>;
-
-template <typename T>
-void apply_to_entries(T&& t, auto&& lambda)
-{
-    lambda(t);
-}
-
-template <typename UInt, typename Elem>
-void apply_to_entries(UntaggedSizeVector<UInt, Elem>& v, auto&& lambda)
-{
-    for (auto& e : v)
-        apply_to_entries(e, lambda);
-}
-
-struct WartTransfers : public IsWartTransfer, public SizeVector<"wartTransfers", uint32_t, body::WartTransfer> {
-    using Tag::Tag;
+struct WartTransfers : TransactionVector<"wartTransfers", uint32_t, body::WartTransfer> {
+    using TransactionVector::TransactionVector;
     auto& wart_transfers() const { return entries(); }
-    auto& wart_transfers() { return entries(); }
+    auto& wart_transfers() { return *this; }
 };
 
-struct TokenSections : public SizeVector<"tokenSections", uint16_t, Tag<"tokenSection", tokens::TokenSection>> {
-    auto& tokens() const { return entries(); }
-    auto& tokens() { return entries(); }
+struct TokenSections : public Tag<"tokenSections", SizeVector<uint16_t, Tag<"tokenSection", tokens::TokenSection>>> {
+    using Tag::Tag;
+    auto& tokens() const { return *this; }
+    auto& tokens() { return *this; }
 };
 
-struct Cancelations : public IsCancelation, public SizeVector<"cancelations", uint16_t, body::Cancelation> {
-    using SizeVector<"cancelations", uint16_t, body::Cancelation>::SizeVector;
+struct Cancelations : public TransactionVector<"cancelations", uint16_t, body::Cancelation> {
+    using TransactionVector::TransactionVector;
     auto& cancelations() const { return entries(); }
-    auto& cancelations() { return entries(); }
+    auto& cancelations() { return *this; }
 };
 
-struct AssetCreations : public IsAssetCreate, public SizeVector<"assetCreations", uint16_t, body::AssetCreation> {
-    using SizeVector<"assetCreations", uint16_t, body::AssetCreation>::SizeVector;
+struct AssetCreations : TransactionVector<"assetCreations", uint16_t, body::AssetCreation> {
+    using TransactionVector::TransactionVector;
     auto& asset_creations() const { return entries(); }
-    auto& asset_creations() { return entries(); }
+    auto& asset_creations() { return *this; }
 };
 
 template <typename... Ts>
@@ -352,8 +405,9 @@ private:
     };
 
 public:
-    CombineElements(StructuredReader& r)
-        : Ts(r)...
+    template <typename... Args>
+    CombineElements(StructuredReader& r, Args&&... args)
+        : Ts(r, std::forward<Args>(args)...)...
     {
     }
     CombineElements() { }
@@ -395,14 +449,6 @@ struct Entries : public CombineElements<WartTransfers, Cancelations, TokenSectio
     using CombineElements::CombineElements;
     Entries& entries() { return *this; }
     const Entries& entries() const { return *this; }
-    void validate_version(BlockVersion version)
-    {
-        if (version.value() < 4) {
-            if (!cancelations().empty() || !tokens().empty() || !asset_creations().empty()) {
-                throw Error(EBLOCKV4);
-            }
-        };
-    }
 };
 }
 

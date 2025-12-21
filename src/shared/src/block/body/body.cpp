@@ -6,9 +6,9 @@
 namespace block {
 namespace body {
 namespace elements {
-TokenSection::TokenSection(StructuredReader& r)
+TokenSection::TokenSection(StructuredReader& r, BlockVersion v)
     : AssetIdElement(r.merkle_frame().reader)
-    , TokenEntries(r)
+    , TokenEntries(r, v)
 {
 }
 }
@@ -60,7 +60,7 @@ std::pair<ParsedBody, MerkleLeaves> ParsedBody::parse_throw(std::span<const uint
             }() };
 
             // read addresses
-            addresses = { len, r };
+            addresses = {  r,len };
         }
         auto reward {
             [&]() {
@@ -72,8 +72,7 @@ std::pair<ParsedBody, MerkleLeaves> ParsedBody::parse_throw(std::span<const uint
                 return body::Reward { r.annotate("reward") };
             }()
         };
-        body::Entries entries(r);
-        entries.validate_version(version);
+        body::Entries entries(r, version);
         return { ParsedBody { std::move(addresses), std::move(reward), std::move(entries) }, std::move(r).move_leaves() };
     } catch (const Error& e) {
         if (e.code == EMSGINTEGRITY)

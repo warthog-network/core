@@ -31,7 +31,7 @@ public:
     inline void set_merkleroot(std::array<uint8_t, 32>);
     inline uint32_t timestamp() const;
     void set_timestamp(std::array<uint8_t, 4>);
-    inline BlockVersion version() const;
+    BlockVersion version() const;
     inline TargetV1 target_v1() const;
     inline TargetV2 target_v2() const;
     inline double janus_number() const;

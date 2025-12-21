@@ -672,7 +672,8 @@ Result<ChainMiningTask> State::mining_task(const Address& miner,
                 [&](WartTransferMessage&& m) {
                     entries.wart_transfers().push_back(
                         { m.from_id(), m.pin_nonce_throw(height), m.compact_fee(),
-                            addr_id(m.to_addr()), m.wart(), m.signature() });
+                            addr_id(m.to_addr()), m.wart(), m.signature() },
+                        v);
                 },
                 [&](TokenTransferMessage&& m) {
                     auto pn {
@@ -684,44 +685,49 @@ Result<ChainMiningTask> State::mining_task(const Address& miner,
                     if (m.is_liquidity()) {
                         auto& transfers = s.liquidity_transfers();
                         transfers.push_back({ m.from_id(), m.pin_nonce_throw(height),
-                            m.compact_fee(), addr_id(m.to_addr()),
-                            m.amount(), m.signature() });
+                                                m.compact_fee(), addr_id(m.to_addr()),
+                                                m.amount(), m.signature() },
+                            v);
                     } else {
                         auto& transfers = s.asset_transfers();
                         transfers.push_back({ m.from_id(), m.pin_nonce_throw(height),
-                            m.compact_fee(), addr_id(m.to_addr()),
-                            m.amount(), m.signature() });
+                                                m.compact_fee(), addr_id(m.to_addr()),
+                                                m.amount(), m.signature() },
+                            v);
                     }
                 },
                 [&](LimitSwapMessage&& m) {
                     asset(m.asset_hash())
                         .orders()
                         .push_back({ m.from_id(), m.pin_nonce_throw(height),
-                            m.compact_fee(), m.buy(), m.amount(), m.limit(),
-                            m.signature() });
+                                       m.compact_fee(), m.buy(), m.amount(), m.limit(),
+                                       m.signature() },
+                            v);
                 },
                 [&](CancelationMessage&& m) {
                     entries.cancelations().push_back(
                         { m.from_id(), m.pin_nonce_throw(height), m.compact_fee(),
-                            m.cancel_height(), m.cancel_nonceid(), m.signature() });
+                            m.cancel_height(), m.cancel_nonceid(), m.signature() },
+                        v);
                 },
                 [&](LiquidityDepositMessage&& m) {
                     asset(m.asset_hash())
                         .liquidity_deposits()
                         .push_back({ m.from_id(), m.pin_nonce_throw(height),
-                            m.compact_fee(), m.base(), m.quote(),
-                            m.signature() });
+                                       m.compact_fee(), m.base(), m.quote(),
+                                       m.signature() },
+                            v);
                 },
                 [&](LiquidityWithdrawalMessage&& m) {
                     asset(m.asset_hash())
                         .liquidity_withdrawals()
                         .push_back({ m.from_id(), m.pin_nonce_throw(height),
-                            m.compact_fee(), m.amount(), m.signature() });
+                            m.compact_fee(), m.amount(), m.signature() },v);
                 },
                 [&](AssetCreationMessage&& m) {
                     entries.asset_creations().push_back(
                         { m.from_id(), m.pin_nonce_throw(height), m.compact_fee(),
-                            AssetSupplyEl(m.supply()), m.asset_name(), m.signature() });
+                            AssetSupplyEl(m.supply()), m.asset_name(), m.signature() },v);
                 });
         }
         return Body::serialize({ std::move(newAddresses),

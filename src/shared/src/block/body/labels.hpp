@@ -1,17 +1,20 @@
 #pragma once
 namespace block {
 namespace labels {
-inline constexpr const char reward[] = "reward";
-inline constexpr const char wartTransfer[] = "wartTransfer";
-inline constexpr const char tokenTransfer[] = "tokenTransfer";
-inline constexpr const char assetTransfer[] = "assetTransfer";
-inline constexpr const char liquidityTransfer[] = "liquidityTransfer";
-inline constexpr const char limitSwap[] = "limitSwap";
-inline constexpr const char match[] = "match";
-inline constexpr const char assetCreation[] = "assetCreation";
-inline constexpr const char cancelation[] = "cancelation";
-inline constexpr const char orderCancelation[] = "orderCancelation";
-inline constexpr const char liquidityDeposit[] = "liquidityDeposit";
-inline constexpr const char liquidityWithdrawal[] = "liquidityWithdrawal";
+#define LABEL_TX(VAR, LABEL) inline constexpr const char VAR[] = LABEL;
+LABEL_TX(reward, "reward")
+LABEL_TX(wartTransfer, "wartTransfer")
+LABEL_TX(tokenTransfer, "tokenTransfer")
+LABEL_TX(assetTransfer, "assetTransfer")
+LABEL_TX(liquidityTransfer, "liquidityTransfer")
+LABEL_TX(limitSwap, "limitSwap")
+LABEL_TX(match, "match")
+LABEL_TX(assetCreation, "assetCreation")
+LABEL_TX(cancelation, "cancelation")
+LABEL_TX(orderCancelation, "orderCancelation")
+LABEL_TX(liquidityDeposit, "liquidityDeposit")
+LABEL_TX(liquidityWithdrawal, "liquidityWithdrawal")
+#undef LABEL_TX
+
 }
 }

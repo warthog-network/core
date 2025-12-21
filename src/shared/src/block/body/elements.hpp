@@ -1,6 +1,7 @@
 #pragma once
 #include "block/body/merkle_write_hooker.hpp"
 #include "block/body/transaction_id.hpp"
+#include "block/body/transaction_types.hpp"
 #include "elements_fwd.hpp"
 #include "general/base_elements.hpp"
 #include "general/serializer_fwd.hxx"
@@ -10,8 +11,9 @@ namespace body {
 
 template <typename... Ts>
 struct Combined : public Ts... {
-    Combined(StructuredReader& r)
-        : Ts(r)...
+    template <typename... Args>
+    Combined(StructuredReader& r, Args&&... args)
+        : Ts(r, std::forward<Args>(args)...)...
     {
     }
     Combined(Ts... ts)
@@ -60,8 +62,29 @@ struct SignedCombined : public Combined<OriginAccIdEl, PinNonceEl, CompactFeeEl,
     }
 };
 
-struct CancelationBase : public SignedCombined<CancelHeightEl, CancelNonceEl> {
-    using SignedCombined<CancelHeightEl, CancelNonceEl>::SignedCombined;
+template <typename TransactionType, typename... Elements>
+struct Transaction : public TransactionType, public HookMerkle<TaggedSignedCombined<TransactionType::label, Elements...>> {
+    using parent_t = HookMerkle<TaggedSignedCombined<TransactionType::label, Elements...>>;
+    using parent_t::parent_t;
+};
+
+//////////////////////////////
+// define transaction types
+
+#define DEFINE_TRANSACTION(name, type, ...)               \
+    struct name : public Transaction<type, __VA_ARGS__> { \
+        using Transaction::Transaction;                   \
+    };
+DEFINE_TRANSACTION(WartTransfer, IsWartTransfer, ToAccIdEl, WartEl)
+DEFINE_TRANSACTION(AssetTransfer, IsTokenTransfer, ToAccIdEl, NonzeroAmountEl)
+DEFINE_TRANSACTION(LiquidityTransfer, IsTokenTransfer, ToAccIdEl, NonzeroSharesEl)
+DEFINE_TRANSACTION(AssetCreation, IsAssetCreate, AssetSupplyEl, AssetNameEl)
+DEFINE_TRANSACTION(Order, IsLimitSwap, BuyEl, NonzeroAmountEl, LimitPriceEl)
+DEFINE_TRANSACTION(LiquidityDeposit, IsLiquidityDeposit, BaseEl, QuoteEl)
+DEFINE_TRANSACTION(LiquidityWithdrawal, IsLiquidityWithdrawal, NonzeroAmountEl)
+#undef DEFINE_TRANSACTION
+struct Cancelation : public Transaction<IsCancelation, CancelHeightEl, CancelNonceEl> {
+    using Transaction::Transaction;
     TransactionId canceled_txid() const
     {
         return { origin_account_id(), cancel_height(), cancel_nonceid() };

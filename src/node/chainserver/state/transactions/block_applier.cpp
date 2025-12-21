@@ -941,9 +941,6 @@ private:
         }
     }
 
-    void register_actions(auto& v){
-
-    }
     void register_wart_transfers()
     {
         // Read transfer section for WART coins
