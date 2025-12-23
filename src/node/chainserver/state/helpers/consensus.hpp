@@ -109,11 +109,16 @@ protected:
     Chainstate(std::tuple<std::vector<Batch>, HistoryHeights, State64Heights> init,
         const ChainDB& db, BatchRegistry& br);
 
+private: // private methods
+    void update_allowed_mempool_transaction_types();
+    void set_allowed_mempool_transaction_types();
+
 private:
     const ChainDB& db;
     uint32_t dsc = 0;
     void assert_equal_length();
     ExtendableHeaderchain headerchain;
+    BlockVersion nextBlockversion;
     HistoryHeights historyOffsets;
     State64Heights stateOffsets;
     TransactionIds chainTxIds; // replay protection

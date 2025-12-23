@@ -115,10 +115,13 @@ public:
         if (!vector.empty())
             elem_t::validate_blockversion_throw(v);
     }
-    void push_back(elem_t e, BlockVersion v)
+    bool try_push_back(elem_t e, BlockVersion v)
     {
-        assert(elem_t::allows_blockversion(v));
-        vector.push_back(std::move(e));
+        if (elem_t::allows_blockversion(v)){
+            vector.push_back(std::move(e));
+            return true;
+        }
+        return false;
     }
     void serialize(Serializer auto&& s) const
     {

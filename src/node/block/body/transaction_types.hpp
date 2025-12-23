@@ -3,6 +3,7 @@
 #include "block/version.hpp"
 #include "general/errors.hpp"
 #include "general/static_string.hpp"
+#include "wrt/type_collection.hpp"
 #include <cstdint>
 
 template <uint32_t minversion, Error error>
@@ -26,6 +27,7 @@ struct AcceptAllBlockVersion {
 
 template <StaticString LABEL, typename VersionRule>
 struct MakeTransaction : public VersionRule {
+    using transaction_t = MakeTransaction;
     static constexpr StaticString label { LABEL };
 };
 
@@ -44,3 +46,5 @@ using IsLimitSwap = MakeTransaction<block::labels::limitSwap, MinBlockV4>;
 using IsLiquidityDeposit = MakeTransaction<block::labels::liquidityDeposit, MinBlockV4>;
 using IsLiquidityWithdrawal = MakeTransaction<block::labels::liquidityWithdrawal, MinBlockV4>;
 using IsCancelation = MakeTransaction<block::labels::cancelation, MinBlockV4>;
+
+using TransactionTypes = wrt::TypeCollection<IsWartTransfer, IsTokenTransfer, IsAssetCreate, IsLimitSwap, IsLiquidityDeposit, IsLiquidityWithdrawal, IsCancelation>;

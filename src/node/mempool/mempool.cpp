@@ -1,6 +1,9 @@
 #include "mempool.hpp"
 #include "api/events/emit.hpp"
+#include "block/body/transaction_map.hpp"
+#include "block/version.hpp"
 #include "chainserver/state/helpers/cache.hpp"
+#include "general/format_plural.hpp"
 #include "global/globals.hpp"
 namespace mempool {
 bool LockedBalance::try_set_avail(Funds_uint64 amount)
@@ -161,7 +164,7 @@ std::vector<TransactionId> MempoolTransactions::filter_new(const std::vector<Txi
     return out;
 }
 
-auto Mempool::erase_internal_wartiter(Txset::const_iter_t iter, balance_iterator wartIter, wrt::optional<balance_iterator> tokenIter) -> EraseResult
+auto Mempool::erase_internal(Txset::const_iter_t iter, balance_iterator wartIter, wrt::optional<balance_iterator> tokenIter) -> EraseResult
 {
 
     EraseResult er { false, false };
@@ -198,7 +201,7 @@ void Mempool::erase_internal(Txset::const_iter_t iter)
 {
     auto wartIter = lockedBalances.find({ iter->from_id(), TokenId::WART });
     assert(wartIter != lockedBalances.end());
-    erase_internal_wartiter(iter, wartIter);
+    erase_internal(iter, wartIter);
 }
 
 void Mempool::erase_from_height(NonzeroHeight h)
@@ -234,7 +237,7 @@ void Mempool::set_free_balance(AccountToken at, Funds_uint64 newBalance)
 
         auto iterators { transactions.by_fee_inc_le(at.account_id()) };
         for (size_t i = 0; i < iterators.size(); ++i) {
-            bool allErased = erase_internal_wartiter(iterators[i], tokenIter).erasedWart;
+            bool allErased = erase_internal(iterators[i], tokenIter).erasedWart;
             bool lastIteration = (i == iterators.size() - 1);
             assert(allErased == lastIteration);
             // balanceEntry reference is invalidateed when all entries are erased
@@ -257,13 +260,51 @@ void Mempool::set_free_balance(AccountToken at, Funds_uint64 newBalance)
         assert(!done); // tokenIter != end(), there must be some entries for `at`.
         // We know that `balanceEntry.try_set_avail(newBalance) == false` here, was verified before
         do {
-            bool erasedTokenEntry { erase_internal_wartiter(*iter++, wart_iter, tokenIter).erasedToken };
+            bool erasedTokenEntry { erase_internal(*iter++, wart_iter, tokenIter).erasedToken };
             done = iteration_done();
             assert(erasedTokenEntry == done);
         } while (!done &&
             // by short circuiting, we know that erasedTokenEntry == false and balanceEntry reference is valid.
             !balanceEntry.try_set_avail(newBalance));
     }
+}
+
+void Mempool::set_allowed_blockversions(const std::set<BlockVersion>& newSet)
+{
+    auto supports_transaction { []<typename T>(const std::set<BlockVersion>& vs, T*) {
+        for (auto v : vs) {
+            if (T::allows_blockversion(v))
+                return true;
+        }
+        return false;
+    } };
+    auto tmpAllowedTransactions { allowedTransactions };
+    bool needsDeletion = false;
+    allowedTransactions.for_each([&]<typename T>(T* t, auto& ref) {
+        bool& tmpRef = tmpAllowedTransactions.at<T>();
+        const bool oldAllowsTransaction = tmpRef;
+        const bool newAllowsTransaction = supports_transaction(newSet, t);
+
+        // write new value
+        ref = newAllowsTransaction;
+
+        // write tmp value whether we need to delete
+        // such transactions from mempool,
+        tmpRef = !newAllowsTransaction && oldAllowsTransaction;
+        needsDeletion |= tmpRef;
+    });
+
+    size_t deleted { 0 };
+    if (needsDeletion) {
+        deleted = erase_if([&](const mempool::Entry& e) {
+            return e.visit([&](auto& tx) {
+                // return whether we must delete it from mempool
+                return tmpAllowedTransactions.at<
+                    typename std::remove_cvref_t<decltype(tx)>::transaction_t>();
+            });
+        });
+    }
+    spdlog::debug("Deleted {} of unsupported type from mempool", format_plural(deleted, "transaction"));
 }
 
 Error Mempool::insert_tx(const TransactionMessage& pm, TxHeight txh, const TxHash& hash, chainserver::DBCache& cache)
@@ -311,6 +352,12 @@ void Mempool::insert_tx_throw(const TransactionMessage& pm,
     TxHeight txh,
     const TxHash& txhash, chainserver::DBCache& cache)
 {
+    auto canInsertTxType { pm.visit([&](auto tx) {
+        return allowedTransactions.at<
+            typename std::remove_cvref_t<decltype(tx)>::transaction_t>();
+    }) };
+    if (!canInsertTxType)
+        throw Error(ETXTYPESTATE);
 
     auto fromId { pm.from_id() };
 
@@ -395,7 +442,7 @@ void Mempool::insert_tx_throw(const TransactionMessage& pm,
 
     assert(clear.empty() || wartIter); // if there exist transactions that can be deleted, then there must be some WART locked.
     for (auto& iter : clear)
-        erase_internal_wartiter(iter, *wartIter);
+        erase_internal(iter, *wartIter);
     create_or_get_balance_iter({ fromId, TokenId::WART }, cache)->second.lock(wartSpend);
     if (altId != TokenId::WART)
         create_or_get_balance_iter({ fromId, altId }, cache)->second.lock(tokenSpend);

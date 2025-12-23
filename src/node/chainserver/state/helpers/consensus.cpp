@@ -5,6 +5,15 @@
 #include "global/globals.hpp"
 #include <spdlog/spdlog.h>
 namespace chainserver {
+namespace {
+
+auto next_block_version(const Headerchain& hc)
+{
+    auto nextHeight { hc.length().add1() };
+    return BlockVersion::hardcoded_for_params(nextHeight);
+}
+
+}
 
 Chainstate::Chainstate(const ChainDB& db, BatchRegistry& br)
     : Chainstate(db.get_consensus_headers(), db, br)
@@ -17,9 +26,11 @@ Chainstate::Chainstate(
     BatchRegistry& br)
     : db(db)
     , headerchain(std::move(std::get<0>(init)), br)
+    , nextBlockversion(next_block_version(headerchain))
     , historyOffsets(std::move(std::get<1>(init)))
     , stateOffsets(std::move(std::get<2>(init)))
     , chainTxIds(db.fetch_tx_ids(length()))
+    , _mempool({ nextBlockversion })
 {
     assert(this->historyOffsets.size() == headerchain.length());
     spdlog::info("Cache has {} entries", chainTxIds.size());
@@ -84,9 +95,24 @@ void Chainstate::fork(Chainstate::ForkData&& fd)
     // remove from mempool (do FULL scan)
     for (auto& tid : chainTxIds)
         _mempool.erase(tid);
+    update_allowed_mempool_transaction_types();
 
     // prune transaction ids
     prune_txids();
+}
+
+void Chainstate::update_allowed_mempool_transaction_types()
+{
+    auto newNextBlockversion { next_block_version(headerchain) };
+    if (nextBlockversion != newNextBlockversion) {
+        nextBlockversion = newNextBlockversion;
+        set_allowed_mempool_transaction_types();
+    }
+}
+
+void Chainstate::set_allowed_mempool_transaction_types()
+{
+    _mempool.set_allowed_blockversions({ nextBlockversion });
 }
 
 auto Chainstate::rollback(const RollbackResult& rb) -> HeaderchainRollback
@@ -255,7 +281,6 @@ PinHash Chainstate::pin_hash(PinHeight pinHeight) const
         throw Error(EPINHEIGHT);
     return headers().hash_at(pinHeight);
 }
-
 
 [[nodiscard]] TxHash Chainstate::create_tx(const TransactionCreate& m)
 {

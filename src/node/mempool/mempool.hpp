@@ -1,5 +1,6 @@
 #pragma once
 #include "block/body/messages.hpp"
+#include "block/body/transaction_map.hpp"
 #include "chainserver/state/helpers/cache_fwd.hpp"
 #include "comparators.hpp"
 #include "defi/token/account_token.hpp"
@@ -116,6 +117,7 @@ public:
     [[nodiscard]] auto cache_validity() const { return txs.cache_validity(); }
     std::pair<iter_t, bool> insert(Entry e);
     auto find(TransactionId id) const { return txs().find(id); }
+    auto begin() const { return txs().begin(); }
     auto end() const { return txs().end(); }
     MempoolTransactions(size_t maxSize = 10000)
         : maxSize(maxSize)
@@ -146,9 +148,11 @@ class Mempool {
     using const_iter_t = Transactions::const_iter_t;
 
 public:
-    Mempool(size_t maxSize = 10000)
+    Mempool(const std::set<BlockVersion>& nextBlockversions,
+        size_t maxSize = 10000)
         : transactions(maxSize)
     {
+        set_allowed_blockversions(nextBlockversions);
     }
 
     [[nodiscard]] Updates pop_updates()
@@ -162,6 +166,7 @@ public:
     size_t on_constraint_update();
     void erase(TransactionId id);
     void set_free_balance(AccountToken, Funds_uint64 newBalance);
+    void set_allowed_blockversions(const std::set<BlockVersion>& s);
     void erase_from_height(NonzeroHeight);
     void erase_pinned_before_height(Height);
     [[nodiscard]] auto get_transactions(size_t n, NonzeroHeight height, std::vector<TxHash>* hashes = nullptr) const { return transactions.get_transactions(n, height, hashes); }
@@ -177,6 +182,19 @@ public:
 private:
     using BalanceEntries = std::map<AccountToken, LockedBalance>;
     using balance_iterator = BalanceEntries::iterator;
+
+    auto erase_if(auto&& lambda)
+    {
+        size_t i { 0 };
+        for (auto iter = transactions.begin(); iter != transactions.end();) {
+            auto iter_tmp = iter++;
+            if (std::forward<decltype(lambda)>(lambda)(*iter_tmp)) {
+                i += 1;
+                erase_internal(iter_tmp);
+            }
+        }
+        return i;
+    }
     [[nodiscard]] std::pair<LockedBalance, wrt::optional<balance_iterator>> get_balance(AccountToken at, chainserver::DBCache&);
     [[nodiscard]] wrt::optional<TokenFunds> token_spend_throw(const TransactionMessage& pm, chainserver::DBCache& cache) const;
     void erase_internal(Txset::const_iter_t);
@@ -184,11 +202,12 @@ private:
         bool erasedWart;
         bool erasedToken;
     };
-    EraseResult erase_internal_wartiter(Txset::const_iter_t, balance_iterator wartIter, wrt::optional<balance_iterator> tokenIter = {});
+    EraseResult erase_internal(Txset::const_iter_t, balance_iterator wartIter, wrt::optional<balance_iterator> tokenIter = {});
     [[nodiscard]] balance_iterator create_or_get_balance_iter(AccountToken at, chainserver::DBCache& cache);
     void prune();
 
 private:
+    TransactionMapBool allowedTransactions;
     Updates updates;
     MempoolTransactions transactions;
     BalanceEntries lockedBalances;

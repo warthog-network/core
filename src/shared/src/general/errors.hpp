@@ -132,6 +132,7 @@
     XX(132, ENOPOOL, "no pool liquidity")                                          \
     XX(133, ERTCDISABLED, "WebRTC disabled, cannot receive message")               \
     XX(134, EIDPOLICY, "block transaction id policy violated")                     \
+    XX(181, ETXTYPESTATE, "Transaction type invalud at current chain state")       \
     XX(182, EASSETNAME, "invalid asset name")                                      \
     XX(183, EZEROBASEQUOTE, "Base and quote can't be both zero")                   \
     XX(184, ETOKBALANCE, "insufficient token balance")                             \

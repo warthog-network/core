@@ -12,6 +12,7 @@ public:
     static const BlockVersion v3;
     static const BlockVersion v4;
 
+    using IsUint32::operator<=>;
     auto operator<=>(uint32_t v)
     {
         return value() <=> (v);

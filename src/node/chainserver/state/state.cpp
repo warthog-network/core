@@ -656,21 +656,10 @@ Result<ChainMiningTask> State::mining_task(const Address& miner,
             return entries.tokens()[it->second];
         } };
 
-        auto dispatch_message { [&]<typename... Handlers>(TransactionMessage&& m,
-                                    Handlers&&... handlers) {
-            wrt::Overload o { std::forward<Handlers>(handlers)... };
-            std::move(m).visit([&]<typename Message>(Message&& message) {
-                if (!message.allows_blockversion(v))
-                    return;
-                o(std::forward<Message>(message));
-            });
-        } };
         for (auto& tx : transactions) {
-            minerReward.add_assert(tx.fee()); // assert because
-            dispatch_message(
-                std::move(tx),
+            bool inserted = std::move(tx).visit_overload(
                 [&](WartTransferMessage&& m) {
-                    entries.wart_transfers().push_back(
+                    return entries.wart_transfers().try_push_back(
                         { m.from_id(), m.pin_nonce_throw(height), m.compact_fee(),
                             addr_id(m.to_addr()), m.wart(), m.signature() },
                         v);
@@ -684,51 +673,55 @@ Result<ChainMiningTask> State::mining_task(const Address& miner,
                     auto& s { asset(m.asset_hash()) };
                     if (m.is_liquidity()) {
                         auto& transfers = s.liquidity_transfers();
-                        transfers.push_back({ m.from_id(), m.pin_nonce_throw(height),
-                                                m.compact_fee(), addr_id(m.to_addr()),
-                                                m.amount(), m.signature() },
+                        return transfers.try_push_back({ m.from_id(), m.pin_nonce_throw(height),
+                                                           m.compact_fee(), addr_id(m.to_addr()),
+                                                           m.amount(), m.signature() },
                             v);
                     } else {
                         auto& transfers = s.asset_transfers();
-                        transfers.push_back({ m.from_id(), m.pin_nonce_throw(height),
-                                                m.compact_fee(), addr_id(m.to_addr()),
-                                                m.amount(), m.signature() },
+                        return transfers.try_push_back({ m.from_id(), m.pin_nonce_throw(height),
+                                                           m.compact_fee(), addr_id(m.to_addr()),
+                                                           m.amount(), m.signature() },
                             v);
                     }
                 },
                 [&](LimitSwapMessage&& m) {
-                    asset(m.asset_hash())
+                    return asset(m.asset_hash())
                         .orders()
-                        .push_back({ m.from_id(), m.pin_nonce_throw(height),
-                                       m.compact_fee(), m.buy(), m.amount(), m.limit(),
-                                       m.signature() },
+                        .try_push_back({ m.from_id(), m.pin_nonce_throw(height),
+                                           m.compact_fee(), m.buy(), m.amount(), m.limit(),
+                                           m.signature() },
                             v);
                 },
                 [&](CancelationMessage&& m) {
-                    entries.cancelations().push_back(
+                    return entries.cancelations().try_push_back(
                         { m.from_id(), m.pin_nonce_throw(height), m.compact_fee(),
                             m.cancel_height(), m.cancel_nonceid(), m.signature() },
                         v);
                 },
                 [&](LiquidityDepositMessage&& m) {
-                    asset(m.asset_hash())
+                    return asset(m.asset_hash())
                         .liquidity_deposits()
-                        .push_back({ m.from_id(), m.pin_nonce_throw(height),
-                                       m.compact_fee(), m.base(), m.quote(),
-                                       m.signature() },
+                        .try_push_back({ m.from_id(), m.pin_nonce_throw(height),
+                                           m.compact_fee(), m.base(), m.quote(),
+                                           m.signature() },
                             v);
                 },
                 [&](LiquidityWithdrawalMessage&& m) {
-                    asset(m.asset_hash())
+                    return asset(m.asset_hash())
                         .liquidity_withdrawals()
-                        .push_back({ m.from_id(), m.pin_nonce_throw(height),
-                            m.compact_fee(), m.amount(), m.signature() },v);
+                        .try_push_back({ m.from_id(), m.pin_nonce_throw(height),
+                                           m.compact_fee(), m.amount(), m.signature() },
+                            v);
                 },
                 [&](AssetCreationMessage&& m) {
-                    entries.asset_creations().push_back(
+                    return entries.asset_creations().try_push_back(
                         { m.from_id(), m.pin_nonce_throw(height), m.compact_fee(),
-                            AssetSupplyEl(m.supply()), m.asset_name(), m.signature() },v);
+                            AssetSupplyEl(m.supply()), m.asset_name(), m.signature() },
+                        v);
                 });
+            if (inserted)
+                minerReward.add_assert(tx.fee()); // assert because
         }
         return Body::serialize({ std::move(newAddresses),
             { minerAccId, minerReward },
@@ -1239,8 +1232,6 @@ auto State::append_mined_block(const Block& b, bool verifyPOW)
     auto prepared { chainstate.prepare_append(signedSnapshot, b.header, verifyPOW) };
     if (!prepared.has_value())
         throw Error(prepared.error());
-    if (chainlength() + 1 != b.height)
-        throw Error(EBADHEIGHT);
 
     const auto nextStateId { db.next_id64() };
     const auto nextHistoryId { db.next_history_id() };
