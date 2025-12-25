@@ -162,7 +162,6 @@ public:
     }
     Error insert_tx(const TransactionMessage& pm, TxHeight txh, const TxHash& hash, chainserver::DBCache& wartCache);
     void insert_tx_throw(const TransactionMessage& pm, TxHeight txh, const TxHash& hash, chainserver::DBCache& wartCache);
-    void pop_transactions_after_hegiht(Height h, std::vector<TransactionMessage>* append = nullptr);
 
     size_t on_constraint_update();
     void erase(TransactionId id);

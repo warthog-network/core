@@ -459,21 +459,6 @@ void Mempool::insert_tx_throw(const TransactionMessage& pm,
     prune();
 }
 
-void Mempool::pop_transactions_after_hegiht(Height h, std::vector<TransactionMessage>* append)
-{
-    auto iter { transactions.index().txheight().lower_bound(h) };
-    while (iter != transactions.index().txheight().end())
-        erase_internal(*(iter++));
-    erase_if([&](const Entry& e) {
-        if (e.index().txHeight > h) {
-            if (append) {
-                append->push_back(e);
-            }
-            return true;
-        }
-        return false;
-    });
-}
 
 size_t Mempool::on_constraint_update()
 {
