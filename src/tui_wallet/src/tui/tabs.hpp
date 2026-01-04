@@ -3,6 +3,7 @@
 #include "ftxui/component/screen_interactive.hpp" // for ScreenInteractive
 #include "ftxui/dom/elements.hpp" // for text, vbox, hbox
 #include "ftxui/dom/table.hpp"
+#include "general/static_string.hpp"
 #include "gui.hpp"
 #include "popups.hpp"
 #include "spinner.hpp"
@@ -36,23 +37,14 @@ struct TabsBase : public ComponentBase {
     }
 };
 
-Component Tabs(auto&&... args)
-{
-    return Make<TabsBase>(std::vector<NamedComponent> {
-        NamedComponent(std::forward<decltype(args)>(args))... });
-}
-
-template<typename T>
-struct MakeComponent {
-    /* data */
+template <typename... Ts>
+requires(is_tab<Ts> && ...)
+struct Tabs : public TabsBase {
+    Tabs(GUI& gui)
+        : TabsBase({ NamedComponent(Make<Ts>(gui))... })
+    {
+    }
 };
-
-template<typename... Ts>
-requires (is_tab<Ts> && ...)
-struct Tabs2 {
-
-};
-
 
 struct AutocompleteInputImpl : public ComponentBase {
     std::string input_text;
@@ -272,6 +264,12 @@ private:
 public:
     AssetControlTab(GUI& gui);
 };
+struct AssetSelectTab : public MakeTab<AssetSelectTab> {
+
+private:
+public:
+    AssetSelectTab(GUI& gui);
+};
 struct AssetCreateTab : public MakeTab<AssetCreateTab> {
     Component btnCreateNew;
     Component btnCreateFork;
@@ -292,7 +290,11 @@ public:
 };
 
 struct AssetTab : public MakeTab<AssetTab> {
-
+    AssetTab(GUI& gui)
+        : MakeTab(gui, "Assets")
+    {
+        Add({ Make<Tabs<AssetSelectTab, AssetCreateTab, AssetControlTab>>(gui) });
+    }
 };
 
 struct WalletTab : public MakeTab<WalletTab> {
@@ -361,6 +363,6 @@ struct WartTab : public MakeTab<WartTab> {
         Add(Container::Vertical({ balance, amount, nonceId }, &selectedRow));
     }
 };
-
+using MainTabs = Tabs<WalletTab, WartTab, AssetTab>;
 
 } // namespace ui

@@ -15,6 +15,12 @@ struct StaticString {
             return {};
         return std::string { value, N - 1 };
     }
+    operator std::string_view() const
+    {
+        if (N == 0)
+            return {};
+        return { value, N - 1 };
+    }
 
     char value[N];
 };

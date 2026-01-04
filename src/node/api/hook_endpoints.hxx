@@ -15,6 +15,25 @@
 #include <string>
 
 namespace {
+
+template <typename T>
+struct ArgCount {
+    static_assert(false, "Can only count args of function pointers");
+};
+template <typename R, typename... Types>
+struct ArgCount<R (*)(Types...)> {
+    static constexpr size_t value = sizeof...(Types);
+};
+
+template <typename T>
+constexpr auto count_fnptr_args { ArgCount<T>::value };
+
+template <typename R, typename... Types>
+static constexpr size_t getArgumentCount(R (*)(Types...))
+{
+    return sizeof...(Types);
+}
+
 struct ParameterParser {
     std::string_view sv;
     template <typename T>
@@ -97,9 +116,14 @@ struct ParameterParser {
 }
 template <typename T>
 class RouterHook {
+    T& t;
+
 public:
-    static void hook_get(T& t, std::string pattern, auto asyncfun, auto serializer, bool priv = false)
+    RouterHook(T& t)
+        : t(t) { };
+    void GET_INTERNAL(bool priv, std::string pattern, auto asyncfun, auto serializer)
     {
+        auto& t { this->t };
         if (priv && t.isPublic)
             return;
         t.indexGenerator.get(pattern);
@@ -113,88 +137,46 @@ public:
                 t.insert_pending(res);
             });
     }
-    static void hook_get(T& t, std::string pattern, auto asyncfun, bool priv = false)
+
+    void GET_INTERNAL(bool priv, std::string pattern, auto asyncfun)
     {
+        auto& t { this->t };
         if (priv && t.isPublic)
             return;
+        constexpr size_t ARGC = count_fnptr_args<std::remove_cvref_t<decltype(asyncfun)>>;
         t.indexGenerator.get(pattern);
         t.router().get(pattern,
-            [&t, asyncfun](auto* res, auto* req) {
+            [&t, asyncfun = std::forward<decltype(asyncfun)>(asyncfun)](auto* res, auto* req) {
                 spdlog::debug("GET {}", req->getUrl());
-                asyncfun(
-                    [&t, res]<typename R>(R&& data) {
-                        t.async_reply(res, jsonmsg::serialize(std::forward<R>(data)));
-                    });
-                t.insert_pending(res);
+                try {
+                    static_assert(ARGC > 0); // last argument is for callback
+
+                    [&]<size_t... Ids>(std::index_sequence<Ids...>) {
+                        asyncfun(ParameterParser(req->getParameter(Ids))...,
+                            [&t, res](auto& data) {
+                                t.async_reply(res, jsonmsg::serialize(data));
+                            });
+                    }(std::make_index_sequence<ARGC - 1>());
+                    t.insert_pending(res);
+                } catch (Error e) {
+                    t.reply_json(res, jsonmsg::serialize(tl::make_unexpected(e)));
+                }
             });
+    }
+    template <typename... Ts>
+    void GET_PUB(Ts&&... ts)
+    {
+        GET_INTERNAL(false, std::forward<Ts>(ts)...);
+    }
+    template <typename... Ts>
+    void GET_PRIV(Ts&&... ts)
+    {
+        GET_INTERNAL(true, std::forward<Ts>(ts)...);
     }
 
-    static void hook_get_1(T& t, std::string pattern, auto asyncfun, bool priv = false)
+    void POST_INTERNAL(bool priv, std::string pattern, auto parser, auto asyncfun)
     {
-        if (priv && t.isPublic)
-            return;
-        t.indexGenerator.get(pattern);
-        t.router().get(pattern,
-            [&t, asyncfun](auto* res, auto* req) {
-                spdlog::debug("GET {}", req->getUrl());
-                try {
-                    ParameterParser p1 { req->getParameter(0) };
-                    asyncfun(p1,
-                        [&t, res](auto& data) {
-                            t.async_reply(res, jsonmsg::serialize(data));
-                        });
-                    t.insert_pending(res);
-                } catch (Error e) {
-                    t.reply_json(res, jsonmsg::serialize(tl::make_unexpected(e)));
-                }
-            });
-    }
-    static void hook_get_2(T& t, std::string pattern, auto asyncfun, bool priv = false)
-    {
-        if (priv && t.isPublic)
-            return;
-        t.indexGenerator.get(pattern);
-        t.router().get(pattern,
-            [&t, asyncfun](auto* res, auto* req) {
-                spdlog::debug("GET {}", req->getUrl());
-                try {
-                    ParameterParser p1 { req->getParameter(0) };
-                    ParameterParser p2 { req->getParameter(1) };
-                    asyncfun(p1, p2,
-                        [&t, res](auto& data) {
-                            t.async_reply(res, jsonmsg::serialize(data));
-                        });
-                    t.insert_pending(res);
-                } catch (Error e) {
-                    t.reply_json(res, jsonmsg::serialize(tl::make_unexpected(e)));
-                }
-            });
-    }
-    static void hook_get_3(T& t, std::string pattern, auto asyncfun, bool priv = false)
-    {
-        if (priv && t.isPublic)
-            return;
-        t.indexGenerator.get(pattern);
-        t.router().get(pattern,
-            [&t, asyncfun](auto* res, auto* req) {
-                spdlog::debug("GET {}", req->getUrl());
-                try {
-                    ParameterParser p1 { req->getParameter(0) };
-                    ParameterParser p2 { req->getParameter(1) };
-                    ParameterParser p3 { req->getParameter(2) };
-                    asyncfun(p1, p2, p3,
-                        [&t, res](auto& data) {
-                            t.async_reply(res, jsonmsg::serialize(data));
-                        });
-                    t.insert_pending(res);
-                } catch (Error e) {
-                    t.reply_json(res, jsonmsg::serialize(tl::make_unexpected(e)));
-                }
-            });
-    }
-
-    static void hook_post(T& t, std::string pattern, auto parser, auto asyncfun, bool priv = false)
-    {
+        auto& t { this->t };
         if (priv && t.isPublic)
             return;
         t.indexGenerator.post(pattern);
@@ -221,75 +203,90 @@ public:
                 t.insert_pending(res);
             });
     }
-    static void hook_endpoints(T& t)
+    template <typename... Ts>
+    void POST_PUB(Ts&&... ts)
     {
-        t.indexGenerator.section("Transaction Endpoints");
-        hook_post(t, "/transaction/add", parse_transaction_create, api_call<chainserver::PutMempool>);
-        hook_get(t, "/transaction/mempool", api_call<chainserver::GetMempool>);
-        hook_get_1(t, "/transaction/lookup/:txid", api_call<chainserver::LookupTxHash>);
-        hook_get(t, "/transaction/latest", get_latest_transactions);
-        hook_get(t, "/transaction/minfee", get_transaction_minfee);
+        POST_INTERNAL(false, std::forward<Ts>(ts)...);
+    }
+    template <typename... Ts>
+    void POST_PRIV(Ts&&... ts)
+    {
+        POST_INTERNAL(true, std::forward<Ts>(ts)...);
+    }
+    void SECTION(std::string name)
+    {
+        t.indexGenerator.section(std::move(name));
+    }
+    void hook_endpoints()
+    {
+        using namespace chainserver;
+        SECTION("Transaction Endpoints");
+        POST_PUB("/transaction/add", parse_transaction_create, api_call<PutMempool>);
+        GET_PUB("/transaction/mempool", api_call<GetMempool>);
+        GET_PUB("/transaction/lookup/:txid", api_call<LookupTxHash>);
+        GET_PUB("/transaction/latest", get_latest_transactions);
+        GET_PUB("/transaction/minfee", get_transaction_minfee);
 
-        t.indexGenerator.section("Settings Endpoints");
-        hook_get_1(t, "/settings/mempool/minfee/:feeE8", set_minfee, true);
+        SECTION("Settings Endpoints");
+        GET_PRIV("/settings/mempool/minfee/:feeE8", set_minfee);
 
-        t.indexGenerator.section("Chain Endpoints");
-        hook_get(t, "/chain/head", get_block_head);
-        hook_get(t, "/chain/grid", api_call<chainserver::GetGrid>, true);
-        hook_get_1(t, "/chain/block/:id/hash", api_call<chainserver::GetBlockHash>);
-        hook_get_1(t, "/chain/block/:id/header", api_call<chainserver::GetHeader>);
-        hook_get_1(t, "/chain/block/:id/binary", api_call<chainserver::GetBlockBinary>);
-        hook_get_1(t, "/chain/block/:id", api_call<chainserver::GetBlock>);
-        hook_get_1(t, "/chain/mine/:account", get_chain_mine);
-        hook_get(t, "/chain/signed_snapshot", get_signed_snapshot, true);
-        hook_get(t, "/chain/txcache", api_call<chainserver::GetTxcache>);
-        hook_get_1(t, "/chain/hashrate/:window", get_hashrate_n);
-        hook_get_3(t, "/chain/hashrate/chart/block/:from/:to/:window", get_hashrate_block_chart, true);
-        hook_get_3(t, "/chain/hashrate/chart/time/:from/:to/:interval", get_hashrate_time_chart, true);
-        hook_post(t, "/chain/append", parse_block_worker, put_chain_append, true);
+        SECTION("Chain Endpoints");
+        GET_PUB("/chain/head", get_block_head);
+        GET_PRIV("/chain/grid", api_call<GetGrid>);
+        GET_PUB("/chain/block/:id/hash", api_call<GetBlockHash>);
+        GET_PUB("/chain/block/:id/header", api_call<GetHeader>);
+        GET_PUB("/chain/block/:id/binary", api_call<GetBlockBinary>);
+        GET_PUB("/chain/block/:id", api_call<GetBlock>);
+        GET_PUB("/chain/mine/:account", get_chain_mine);
+        GET_PUB("/chain/txcache", api_call<GetTxcache>);
+        GET_PUB("/chain/hashrate/:window", get_hashrate_n);
+        GET_PRIV("/chain/signed_snapshot", get_signed_snapshot);
+        GET_PRIV("/chain/hashrate/chart/block/:from/:to/:window", get_hashrate_block_chart);
+        GET_PRIV("/chain/hashrate/chart/time/:from/:to/:interval", get_hashrate_time_chart);
+        POST_PRIV("/chain/append", parse_block_worker, put_chain_append);
 
-        t.indexGenerator.section("Account Endpoints");
-        hook_get_2(t, "/account/:account/balance/:token", api_call<chainserver::GetTokenBalance>);
-        hook_get_2(t, "/account/:account/history/:beforeTxIndex", api_call<chainserver::GetAccountHistory>);
-        hook_get_1(t, "/account/richlist/:token", get_token_richlist);
+        SECTION("Account Endpoints");
+        GET_PUB("/account/:account/balance/:token", api_call<GetTokenBalance>);
+        GET_PUB("/account/:account/history/:beforeTxIndex", api_call<GetAccountHistory>);
+        GET_PUB("/account/richlist/:token", get_token_richlist);
 
-        t.indexGenerator.section("Peers Endpoints");
-        hook_get(t, "/peers/ip_count", get_ip_count);
-        hook_get(t, "/peers/banned", get_banned_peers);
-        hook_get(t, "/peers/unban", unban_peers, true);
-        hook_get_1(t, "/peers/offenses/:page", get_offenses);
-        hook_get(t, "/peers/connected", get_connected_peers2, true);
-        hook_get_1(t, "/peers/disconnect/:id", disconnect_peer, true);
-        hook_get(t, "/peers/throttled", get_throttled_peers, true);
-        hook_get(t, "/peers/connected/connection", get_connected_connection);
-        hook_get(t, "/peers/connection_schedule", get_connection_schedule);
-        hook_get(t, "/peers/transmission_hours", get_transmission_hours, true);
-        hook_get(t, "/peers/transmission_minutes", get_transmission_minutes, true);
-        // hook_get(t,"/peers/endpoints", inspect_eventloop, jsonmsg::endpoints, true);
-        // hook_get(t,"/peers/connect_timers", inspect_eventloop, jsonmsg::connect_timers, true);
+        SECTION("Peers Endpoints");
+        GET_PUB("/peers/ip_count", get_ip_count);
+        GET_PUB("/peers/banned", get_banned_peers);
+        GET_PUB("/peers/offenses/:page", get_offenses);
+        GET_PUB("/peers/connected/connection", get_connected_connection);
+        GET_PUB("/peers/connection_schedule", get_connection_schedule);
+        GET_PRIV("/peers/unban", unban_peers);
+        GET_PRIV("/peers/connected", get_connected_peers2);
+        GET_PRIV("/peers/disconnect/:id", disconnect_peer);
+        GET_PRIV("/peers/throttled", get_throttled_peers);
+        GET_PRIV("/peers/transmission_hours", get_transmission_hours);
+        GET_PRIV("/peers/transmission_minutes", get_transmission_minutes);
+        // GET_PRIV(t,"/peers/endpoints", inspect_eventloop, jsonmsg::endpoints);
+        // GET_PRIV(t,"/peers/connect_timers", inspect_eventloop, jsonmsg::connect_timers);
 
-        t.indexGenerator.section("Tools Endpoints");
-        hook_get_1(t, "/tools/encode16bit/from_e8/:feeE8", get_round16bit_e8);
-        hook_get_1(t, "/tools/encode16bit/from_string/:string", get_round16bit_funds);
-        hook_get_2(t, "/tools/parse_price/:price/:precision", parse_price);
-        hook_get(t, "/tools/info", get_info);
-        hook_get(t, "/tools/wallet/new", get_wallet_new);
-        hook_get_1(t, "/tools/wallet/from_privkey/:privkey", get_wallet_from_privkey);
-        hook_get_1(t, "/tools/janushash_number/:headerhex", get_janushash_number);
-        hook_get_1(t, "/tools/sample_verified_peers/:number", sample_verified_peers);
+        SECTION("Tools Endpoints");
+        GET_PUB("/tools/encode16bit/from_e8/:feeE8", get_round16bit_e8);
+        GET_PUB("/tools/encode16bit/from_string/:string", get_round16bit_funds);
+        GET_PUB("/tools/parse_price/:price/:precision", parse_price);
+        GET_PUB("/tools/info", get_info);
+        GET_PRIV("/tools/wallet/new", get_wallet_new);
+        GET_PUB("/tools/wallet/from_privkey/:privkey", get_wallet_from_privkey);
+        GET_PUB("/tools/janushash_number/:headerhex", get_janushash_number);
+        GET_PUB("/tools/sample_verified_peers/:number", sample_verified_peers);
 
-        t.indexGenerator.section("Debug Endpoints");
-        hook_get(t, "/debug/header_download", inspect_eventloop, jsonmsg::header_download, true);
-        hook_get_1(t, "/loadtest/block_request/:conn_id", loadtest_block);
-        hook_get_1(t, "/loadtest/header_request/:conn_id", loadtest_header);
-        hook_get_1(t, "/loadtest/disable/:conn_id", loadtest_disable);
-        hook_get(t, "/debug/fakemine", api_call<chainserver::FakeMineToZero>, true);
-        hook_get_1(t, "/debug/fakemine/:address", api_call<chainserver::FakeMine>, true);
+        SECTION("Debug Endpoints");
+        GET_PRIV("/debug/header_download", inspect_eventloop, jsonmsg::header_download);
+        GET_PRIV("/loadtest/block_request/:conn_id", loadtest_block);
+        GET_PRIV("/loadtest/header_request/:conn_id", loadtest_header);
+        GET_PRIV("/loadtest/disable/:conn_id", loadtest_disable);
+        GET_PRIV("/debug/fakemine", api_call<FakeMineToZero>);
+        GET_PRIV("/debug/fakemine/:address", api_call<FakeMine>);
     }
 };
 
 template <typename T>
 void hook_endpoints(T&& t)
 {
-    RouterHook<std::remove_reference_t<T>>::hook_endpoints(std::forward<T>(t));
+    RouterHook<std::remove_reference_t<T>>(std::forward<T>(t)).hook_endpoints();
 }

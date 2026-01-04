@@ -116,6 +116,12 @@ void AssetControlTab::on_liquidity_farm()
 {
     gui_root().add_popup(Make<FarmPopup>(gui, AssetNameHash::demo()));
 }
+
+AssetSelectTab::AssetSelectTab(GUI& gui)
+    : MakeTab(gui, "Select")
+{
+}
+
 AssetCreateTab::AssetCreateTab(GUI& gui)
     : MakeTab(gui, "Create")
     , btnCreateNew(Button("New", [&]() { on_create_new(); }))

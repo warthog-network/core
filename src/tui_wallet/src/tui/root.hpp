@@ -60,11 +60,11 @@ public:
         else
             return ComponentBase::OnEvent(std::move(event));
     }
-
+// Tabs(
+//               Make<WalletTab>(gui), Make<WartTab>(gui), Make<AssetControlTab>(gui), Make<AssetCreateTab>(gui))
     RootComponent(GUI& gui)
         : GUIComponent(gui)
-        , mainContainer(Container::Horizontal({ Tabs(
-              Make<WalletTab>(gui), Make<WartTab>(gui), Make<AssetControlTab>(gui), Make<AssetCreateTab>(gui)) }))
+        , mainContainer(Container::Horizontal({ Make<MainTabs>(gui) }))
     {
         Add(mainContainer);
     }
