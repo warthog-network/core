@@ -43,7 +43,7 @@ using ErrorCb = std::function<void(const wrt::optional<Error>&)>;
 using ConnectedConnectionCb = std::function<void(const api::PeerinfoConnections&)>;
 
 using WartBalanceCb = ResultCb<api::WartBalance>;
-using TokenBalanceCb = ResultCb<api::TokenBalance>;
+using TokenBalanceCb = ResultCb<api::TokenBalanceLookup>;
 using JSONCb = ResultCb<nlohmann::json>;
 using MempoolCb = ResultCb<api::MempoolEntries>;
 using MempoolInsertCb = ResultCb<TxHash>;

@@ -12,42 +12,46 @@ using namespace nlohmann;
 
 json to_json(Wart);
 json to_json(const FundsDecimal&);
-json to_json(const PeerDB::BanEntry&);
-json to_json(const api::ThrottleState&);
-json to_json(const api::ThrottledPeer&);
-json to_json(const api::Peerinfo&);
-json to_json(const api::ParsedPrice&);
-json to_json(const TCPPeeraddr&);
-json to_json(const api::WartBalance&);
-json to_json(const api::JanushashNumber&);
 json to_json(const Grid&);
 json to_json(const Hash&);
-json to_json(const TxHash&);
-json to_json(const api::Head&);
-json to_json(const api::ChainHead&);
+json to_json(const PeerDB::BanEntry&);
 json to_json(const Peeraddr&);
-json to_json(const api::HeaderInfo&);
-json to_json(const api::TransmissionTimeseries&);
-json to_json(const api::MiningState&);
-json to_json(const api::MempoolUpdate&);
-json to_json(const api::MempoolEntries&);
-json to_json(const api::Transaction&);
-json to_json(const api::TokenBalance&);
-json to_json(const api::PeerinfoConnections&);
-json to_json(const api::TransactionsByBlocks&);
-json to_json(const api::TransactionMinfee&);
+json to_json(const TCPPeeraddr&);
+json to_json(const TxHash&);
+json to_json(const api::Account&);
+json to_json(const api::AccountHistory&);
+json to_json(const api::AddressCount&);
+json to_json(const api::AssetPrefixList&);
 json to_json(const api::Block&);
 json to_json(const api::BlockBinary&);
 json to_json(const api::BlockSummary&);
-json to_json(const api::AccountHistory&);
-json to_json(const api::AddressCount&);
+json to_json(const api::ChainHead&);
+json to_json(const api::FundsBalance&);
+json to_json(const api::HashrateBlockChart&);
+json to_json(const api::HashrateInfo&);
+json to_json(const api::HashrateTimeChart&);
+json to_json(const api::Head&);
+json to_json(const api::HeaderInfo&);
+json to_json(const api::JanushashNumber&);
+json to_json(const api::MempoolEntries&);
+json to_json(const api::MempoolUpdate&);
+json to_json(const api::MiningState&);
+json to_json(const api::ParsedPrice&);
+json to_json(const api::Peerinfo&);
+json to_json(const api::PeerinfoConnections&);
 json to_json(const api::Richlist&, TokenPrecision p);
 json to_json(const api::RichlistInfo&);
-json to_json(const api::NormalizedToken&);
+json to_json(const api::ThrottleState&);
+json to_json(const api::ThrottledPeer&);
+json to_json(const api::Token&);
+json to_json(const api::TokenBalanceLookup&);
+json to_json(const api::Transaction&);
+json to_json(const api::TransactionMinfee&);
+json to_json(const api::TransactionsByBlocks&);
+json to_json(const api::TransmissionTimeseries&);
 json to_json(const api::Wallet&);
-json to_json(const api::HashrateInfo&);
-json to_json(const api::HashrateBlockChart&);
-json to_json(const api::HashrateTimeChart&);
+json to_json(const api::WartBalance&);
+json to_json(const api::WartBalanceLookup&);
 
 json to_json(const OffenseEntry& e);
 json to_json(const wrt::optional<SignedSnapshot>&);
@@ -58,6 +62,7 @@ json to_json(const api::Round16Bit&);
 json to_json(const api::Rollback&);
 json to_json(const api::IPCounter& ipc);
 json to_json(const api::NodeInfo& info);
+json to_json(const api::AssetLookupTrace&);
 
 json tx_to_json(const api::block::Reward&);
 json tx_to_json(const api::block::WartTransfer&);
@@ -79,6 +84,16 @@ inline json to_json(const std::vector<T>& e, const auto& map)
         j.push_back(to_json(map(item)));
     }
     return j;
+}
+
+template <typename T>
+inline json to_json(const wrt::optional<T>& v)
+{
+    if (v) {
+        return to_json(*v);
+    } else {
+        return nullptr;
+    }
 }
 
 template <typename T>

@@ -6,7 +6,7 @@ namespace defi {
 struct BaseQuote : public CombineElements<BaseEl, QuoteEl> {
     using CombineElements::CombineElements;
     BaseQuote(const defi::BaseQuote_uint64& b)
-        : CombineElements(b.base, Wart::from_funds_throw(b.quote))
+        : CombineElements(b.base, Wart::from_funds(b.quote))
     {
     }
 };

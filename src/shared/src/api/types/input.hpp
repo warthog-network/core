@@ -5,7 +5,6 @@
 #include "crypto/hash.hpp"
 #include "defi/token/id.hpp"
 #include "tools/alternative.hpp"
-class Reader;
 
 namespace api {
 struct AssetIdOrHash : public wrt::alternative<AssetId, AssetHash> {
@@ -59,6 +58,10 @@ constexpr TokenSpec TokenSpec::WART = { AssetHash::WART, false };
 
 struct TokenIdOrSpec : public wrt::alternative<TokenId, TokenSpec> {
     using alternative::alternative;
+    auto to_string() const
+    {
+        return visit([](const auto& a) { return a.to_string(); });
+    }
 };
 struct AccountIdOrAddress : public wrt::alternative<AccountId, Address> {
     using alternative::alternative;

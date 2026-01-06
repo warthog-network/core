@@ -214,6 +214,7 @@ public:
     std::pair<BlockId, bool> insert_protect(const Block&);
     void set_block_undo(BlockId id, const std::vector<uint8_t>& undo);
 
+
     /////////////////////
     // Order functions
     void prune_candles(Timestamp timestamp);
@@ -319,6 +320,9 @@ private:
     [[nodiscard]] wrt::optional<std::pair<BalanceId, Balance_uint64>> get_balance(AccountId aid, TokenId tid) const;
 
 public:
+    ////////////////////
+    // Asset functions
+    [[nodiscard]] std::vector<AssetDetail> lookup_assets_by_prefix(std::string_view prefix) const ;
     [[nodiscard]] wrt::optional<AssetDetail> lookup_asset(AssetId) const;
     [[nodiscard]] wrt::optional<AssetDetail> lookup_asset(const AssetHash&) const;
     void set_balance(BalanceId, Balance_uint64 bl);
@@ -456,6 +460,7 @@ private:
     Statement stmtAssetInsert;
     mutable Statement stmtAssetSelectForkHeight;
     mutable Statement stmtAssetLookup;
+    mutable Statement stmtAssetLookupByPrefix;
     mutable Statement stmtAssetLookupByHash;
     mutable Statement stmtSelectBalanceId;
 

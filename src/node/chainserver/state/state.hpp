@@ -105,9 +105,8 @@ public:
     auto get_mempool_tx(TransactionId) const -> wrt::optional<TransactionMessage>;
 
     // api getters
-    api::WartBalance api_get_wart_balance(api::AccountIdOrAddress a) const;
-    api::TokenBalance api_get_token_balance_recursive(api::AccountIdOrAddress a, api::TokenIdOrSpec t) const;
-    api::TokenBalance api_get_token_balance_recursive(AccountId, TokenId) const;
+    api::WartBalanceLookup api_get_wart_balance(api::AccountIdOrAddress a) const;
+    Result<api::TokenBalanceLookup> api_get_token_balance_recursive(api::AccountIdOrAddress a, api::TokenIdOrSpec t) const;
     auto api_get_head() const -> api::ChainHead;
     auto api_get_history(const api::AccountIdOrAddress& a, int64_t beforeId = 0x7fffffffffffffff) const -> wrt::optional<api::AccountHistory>;
     auto api_get_richlist(api::TokenIdOrSpec token, size_t limit) const -> Result<api::RichlistInfo>;
@@ -116,25 +115,32 @@ public:
     auto api_get_transaction_minfee() -> api::TransactionMinfee;
     auto api_get_latest_txs(size_t N = 100) const -> api::TransactionsByBlocks;
     auto api_get_latest_blocks(size_t N = 100) const -> api::TransactionsByBlocks;
-    auto api_get_miner(NonzeroHeight h) const -> wrt::optional<api::AddressWithId>;
-    auto api_get_latest_miners(uint32_t N = 1000) const -> std::vector<api::AddressWithId>;
-    auto api_get_miners(HeightRange) const -> std::vector<api::AddressWithId>;
+    auto api_get_miner(NonzeroHeight h) const -> wrt::optional<api::Account>;
+    auto api_get_latest_miners(uint32_t N = 1000) const -> std::vector<api::Account>;
+    auto api_get_miners(HeightRange) const -> std::vector<api::Account>;
     auto api_get_transaction_range(HistoryId lower, HistoryId upper) const -> api::TransactionsByBlocks;
     auto api_get_header(const api::HeightOrHash& h) const -> Result<api::HeaderInfo>;
+    auto api_complete_token(std::string_view prefix) const -> Result<api::AssetPrefixList>;
+
     auto api_get_block(const api::HeightOrHash& h) const -> Result<api::Block>;
     auto api_get_block_binary(const api::HeightOrHash& h) const -> wrt::optional<api::BlockBinary>;
     auto api_tx_cache() const -> const TransactionIds;
     size_t api_db_size() const;
 
 private:
-    using NormalizedToken = api::NormalizedToken;
-
+    using NormalizedToken = api::Token;
     [[nodiscard]] wrt::optional<NormalizedToken> normalize(api::TokenIdOrSpec) const;
-    [[nodiscard]] wrt::optional<AccountId> normalize(api::AccountIdOrAddress) const;
+    [[nodiscard]] wrt::optional<api::Account> normalize(api::AccountIdOrAddress) const;
     // wrt::optional<AssetDetail> db_lookup_token(const api::AssetIdOrHash&) const;
     // delegated getters
     auto api_get_block(Height h) const -> wrt::optional<api::Block>;
     auto api_get_block_binary(Height h) const -> wrt::optional<api::BlockBinary>;
+    struct BalanceLookup {
+        wrt::optional<api::AssetLookupTrace> lookupTrace;
+        api::FundsBalance balance;
+    };
+
+    BalanceLookup api_get_token_balance_recursive(AccountId, TokenId) const;
     wrt::optional<NonzeroHeight> consensus_height(const Hash&) const;
     NonzeroHeight next_height() const { return chainlength().add1(); }
 

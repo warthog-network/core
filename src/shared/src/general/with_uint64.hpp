@@ -5,18 +5,32 @@
 #include <cstdint>
 
 class Writer;
-struct IsUint32 {
+
+template <typename T>
+requires std::is_integral_v<T>
+struct IsValue {
+    constexpr T value() const { return val; }
+
+    explicit constexpr IsValue(T t)
+        : val(std::move(t))
+    {
+    }
+
+    std::string to_string() const
+    {
+        return std::to_string(val);
+    }
+
+    bool operator==(const IsValue&) const = default;
+    auto operator<=>(const IsValue&) const = default;
+    T val;
+};
+struct IsUint32 : public IsValue<uint32_t> {
 public:
-    IsUint32(Reader& r);
     static constexpr size_t byte_size() { return sizeof(val); }
-    // explicit IsUint32(int64_t w);
-    // explicit IsUint32(int w)
-    //     : IsUint32((int64_t)(w)) {};
-    // explicit IsUint32(long long w)
-    //     : IsUint32((int64_t)(w)) {};
-    // explicit IsUint32(size_t w);
     constexpr explicit IsUint32(uint32_t val)
-        : val(val) { };
+        : IsValue(val) { };
+    IsUint32(Reader& r);
 
     bool operator==(const IsUint32&) const = default;
     auto operator<=>(const IsUint32&) const = default;
@@ -30,8 +44,6 @@ public:
     {
         s << value();
     }
-
-    uint32_t val;
 };
 
 template <typename T>
@@ -71,16 +83,14 @@ public:
     }
 };
 
-struct IsUint64 {
+struct IsUint64 : public IsValue<uint64_t> {
 public:
     IsUint64(Reader& r);
     static constexpr size_t byte_size() { return sizeof(val); }
     explicit constexpr IsUint64(uint64_t val)
-        : val(val) { };
+        : IsValue(val) { };
 
-    bool operator==(const IsUint64&) const = default;
-    auto operator<=>(const IsUint64&) const = default;
-
+    std::string to_string() const;
     operator nlohmann::json() const;
     constexpr uint64_t value() const
     {
@@ -90,9 +100,6 @@ public:
     {
         s << value();
     }
-
-protected:
-    uint64_t val;
 };
 
 template <typename T>

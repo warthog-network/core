@@ -220,7 +220,7 @@ public:
     using FundsBase<Wart>::FundsBase;
     static constexpr TokenPrecision precision { TokenPrecision::digits8() };
     Wart(Reader& r);
-    [[nodiscard]] static constexpr Wart from_funds_throw(Funds_uint64 f)
+    [[nodiscard]] static constexpr Wart from_funds(Funds_uint64 f)
     {
         return Wart(f.value());
     }

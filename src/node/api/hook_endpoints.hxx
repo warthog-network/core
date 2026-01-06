@@ -88,6 +88,10 @@ struct ParameterParser {
     {
         return static_cast<uint32_t>(*this);
     }
+    operator std::string()
+    {
+        return std::string(sv);
+    }
     operator Hash()
     {
         return hex_to_arr<32>(sv);
@@ -245,8 +249,13 @@ public:
         GET_PRIV("/chain/hashrate/chart/time/:from/:to/:interval", get_hashrate_time_chart);
         POST_PRIV("/chain/append", parse_block_worker, put_chain_append);
 
+        SECTION("Token Endpoints");
+        GET_PUB("/token/list/", api_call<ListTokens>);
+        GET_PUB("/token/complete/:string", api_call<CompleteToken>);
+
         SECTION("Account Endpoints");
         GET_PUB("/account/:account/balance/:token", api_call<GetTokenBalance>);
+        GET_PUB("/account/:account/balance_wart", api_call<GetWartBalance>);
         GET_PUB("/account/:account/history/:beforeTxIndex", api_call<GetAccountHistory>);
         GET_PUB("/account/richlist/:token", get_token_richlist);
 

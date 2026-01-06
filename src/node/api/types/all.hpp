@@ -26,6 +26,7 @@
 #include "peerserver/db/offense_entry.hpp"
 #include "transport/helpers/peer_addr.hpp"
 #include "transport/helpers/tcp_sockaddr.hpp"
+#include <cstdlib>
 #include <vector>
 namespace chainserver {
 class DBCache;
@@ -58,52 +59,22 @@ struct Head {
     bool synced;
 };
 
-struct AddressWithId {
+struct Account {
     Address address;
-    AccountId accountId;
+    AccountId id;
 };
 
 struct WartBalance {
-    wrt::optional<AddressWithId> address;
-    Wart balance;
-    WartBalance()
-        : balance(Wart::zero())
-    {
-    }
+    Wart total { Wart::zero() };
+    Wart locked { Wart::zero() };
+};
+struct WartBalanceLookup {
+    wrt::optional<Account> account;
+    WartBalance balance;
 };
 
 struct JanushashNumber {
     double d;
-};
-
-struct TokenBalance {
-    struct Lookup {
-        AddressWithId address;
-        AssetLookupTrace lookupFails;
-    };
-
-private:
-    TokenBalance(wrt::optional<Lookup> lookup, FundsDecimal total, FundsDecimal locked)
-        : lookup(std::move(lookup))
-        , total(std::move(total))
-        , locked(std::move(locked))
-    {
-    }
-
-public:
-    // data
-    wrt::optional<Lookup> lookup;
-    FundsDecimal total;
-    FundsDecimal locked;
-
-    static TokenBalance notfound()
-    {
-        return { {}, FundsDecimal::zero(), FundsDecimal::zero() };
-    }
-    static TokenBalance found(const Address& addr, const AccountId& aid, AssetLookupTrace lookupTrace, FundsDecimal total, FundsDecimal locked)
-    {
-        return { Lookup { AddressWithId { addr, aid }, std::move(lookupTrace) }, std::move(total), std::move(locked) };
-    }
 };
 
 struct Rollback {
@@ -280,6 +251,20 @@ struct BlockBinary {
     ParseAnnotations annotations;
 };
 
+struct AssetPrefixList {
+    AssetPrefixList(std::string_view prefix)
+        : prefix(prefix)
+    {
+    }
+    struct Entry {
+        std::string name;
+        AssetHash hash;
+        NonzeroHeight height;
+    };
+    std::vector<Entry> entries;
+    std::string prefix;
+};
+
 struct CompleteBlock : public Block {
     explicit CompleteBlock(Block b)
         : Block(std::move(b))
@@ -320,7 +305,7 @@ struct TransactionMinfee {
     CompactUInt minfee;
 };
 
-struct NormalizedToken {
+struct Token {
     TokenId id;
     api::TokenSpec spec;
     std::string name;
@@ -329,7 +314,7 @@ struct NormalizedToken {
     {
         return spec.isLiquidity ? TokenPrecision::digits8() : assetPrecision;
     }
-    static constexpr NormalizedToken WART()
+    static constexpr Token WART()
     {
         return {
             .id { TokenId::WART },
@@ -339,13 +324,30 @@ struct NormalizedToken {
         };
     }
 };
+
+struct FundsBalance {
+    FundsDecimal total;
+    FundsDecimal locked;
+    static FundsBalance zero()
+    {
+        return { FundsDecimal::zero(), FundsDecimal::zero() };
+    }
+};
+
+struct TokenBalanceLookup {
+    api::Token token;
+    FundsBalance balance;
+    wrt::optional<api::Account> account;
+    wrt::optional<AssetLookupTrace> lookupTrace;
+};
+
 struct Richlist {
     std::vector<std::pair<Address, Funds_uint64>> entries;
 };
 
 struct RichlistInfo {
     Richlist richlist;
-    NormalizedToken token;
+    Token token;
 };
 struct MempoolEntry : public TransactionMessage {
     TxHash txHash;

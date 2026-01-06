@@ -123,7 +123,7 @@ public:
             return {};
         return messages::SpendToken { asset_hash(), false, amount() };
     }
-    [[nodiscard]] Wart spend_wart_throw() const { return sum_throw(fee(), buy() ? Wart::from_funds_throw(amount()) : Wart::zero()); }
+    [[nodiscard]] Wart spend_wart_throw() const { return sum_throw(fee(), buy() ? Wart::from_funds(amount()) : Wart::zero()); }
     using parent_t::parent_t;
 };
 

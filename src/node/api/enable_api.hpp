@@ -18,6 +18,7 @@ struct APIResponseType<void> {
 template <typename DerivedRequest, typename ResultType, typename... Args>
 struct APIRequest : public std::tuple<Args...> {
     using base_tuple_t = std::tuple<Args...>;
+    using result_t = ResultType;
     using base_tuple_t::base_tuple_t;
     using is_api_request = std::true_type;
     using Response = typename APIResponseType<ResultType>::response_t;

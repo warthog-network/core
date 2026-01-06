@@ -12,29 +12,32 @@
 #include <queue>
 #include <thread>
 
-#define LIST_API_TYPES(XX)                                                \
-    XX(MiningAppend, void, Block, block, std::string, worker)             \
-    XX(PutMempool, TxHash, TransactionCreate, message)                   \
-    XX(LatestTxs, api::TransactionsByBlocks)                              \
-    XX(LookupTxHash, api::Transaction, TxHash, hash)                      \
-    XX(GetHeader, api::HeaderInfo, api::HeightOrHash, heightOrHash)       \
-    XX(GetTransactionMinfee, api::TransactionMinfee)                      \
-    XX(GetGrid, Grid)                                                     \
-    XX(FakeMine, void, Address, address)                                  \
-    XX(FakeMineToZero, void)                                              \
-    XX(GetTxcache, chainserver::TransactionIds)                           \
-    XX(GetBlock, api::Block, api::HeightOrHash, heightOrHash)             \
-    XX(GetMining, ChainMiningTask, Address, address)                      \
-    XX(GetBlockBinary, api::BlockBinary, api::HeightOrHash, heightOrHash) \
-    XX(MempoolConstraintUpdate, api::MempoolUpdate)                       \
-    XX(GetDBSize, api::DBSize)                                            \
-    XX(GetChainHead, api::ChainHead)                                      \
-    XX(GetTokenBalance, api::TokenBalance,                                \
-        api::AccountIdOrAddress, account, api::TokenIdOrSpec, token)      \
-    XX(GetAccountHistory, api::AccountHistory,                            \
-        api::AccountIdOrAddress, address, uint64_t, beforeId)             \
-    XX(GetMempool, api::MempoolEntries)                                   \
-    XX(GetBlockHash, Hash, Height, height)                                \
+#define LIST_API_TYPES(XX)                                                       \
+    XX(MiningAppend, void, Block, block, std::string, worker)                    \
+    XX(PutMempool, TxHash, TransactionCreate, message)                           \
+    XX(LatestTxs, api::TransactionsByBlocks)                                     \
+    XX(LookupTxHash, api::Transaction, TxHash, hash)                             \
+    XX(GetHeader, api::HeaderInfo, api::HeightOrHash, heightOrHash)              \
+    XX(GetTransactionMinfee, api::TransactionMinfee)                             \
+    XX(GetGrid, Grid)                                                            \
+    XX(FakeMine, void, Address, address)                                         \
+    XX(FakeMineToZero, void)                                                     \
+    XX(GetTxcache, chainserver::TransactionIds)                                  \
+    XX(GetBlock, api::Block, api::HeightOrHash, heightOrHash)                    \
+    XX(GetMining, ChainMiningTask, Address, address)                             \
+    XX(GetBlockBinary, api::BlockBinary, api::HeightOrHash, heightOrHash)        \
+    XX(ListTokens, api::AssetPrefixList)                                         \
+    XX(CompleteToken, api::AssetPrefixList, std::string, prefix)                 \
+    XX(MempoolConstraintUpdate, api::MempoolUpdate)                              \
+    XX(GetDBSize, api::DBSize)                                                   \
+    XX(GetChainHead, api::ChainHead)                                             \
+    XX(GetWartBalance, api::WartBalanceLookup, api::AccountIdOrAddress, account) \
+    XX(GetTokenBalance, api::TokenBalanceLookup,                                 \
+        api::AccountIdOrAddress, account, api::TokenIdOrSpec, token)             \
+    XX(GetAccountHistory, api::AccountHistory,                                   \
+        api::AccountIdOrAddress, address, uint64_t, beforeId)                    \
+    XX(GetMempool, api::MempoolEntries)                                          \
+    XX(GetBlockHash, Hash, Height, height)                                       \
     XX(GetRichlist, api::RichlistInfo, api::TokenIdOrSpec, token)
 
 namespace chainserver {
@@ -194,12 +197,15 @@ private:
     auto handle_api(chainserver::GetTransactionMinfee&&) { return state.api_get_transaction_minfee(); }
     auto handle_api(chainserver::GetRichlist&& e) { return state.api_get_richlist(e.token(), 100); }
     auto handle_api(chainserver::GetTokenBalance&& e) { return state.api_get_token_balance_recursive(e.account(), e.token()); }
+    auto handle_api(chainserver::GetWartBalance&& e) { return state.api_get_wart_balance(e.account()); }
     auto handle_api(chainserver::GetBlock&& e) { return state.api_get_block(e.heightOrHash()); }
     auto handle_api(chainserver::GetGrid&&) { return state.get_headers().grid(); }
     auto handle_api(chainserver::GetMempool&&) { return state.api_get_mempool(2000); }
     auto handle_api(chainserver::GetDBSize&&) { return api::DBSize { state.api_db_size() }; }
     auto handle_api(chainserver::GetHeader&& e) { return state.api_get_header(e.heightOrHash()); }
     auto handle_api(chainserver::GetBlockBinary&& e) { return state.api_get_block_binary(e.heightOrHash()); }
+    auto handle_api(chainserver::CompleteToken&& e) { return state.api_complete_token(e.prefix()); }
+    auto handle_api(chainserver::ListTokens&&) { return state.api_complete_token(""); }
     auto handle_api(chainserver::GetMining&& e) { return state.mining_task(e.address()); }
     auto handle_api(chainserver::GetTxcache&&) { return state.api_tx_cache(); }
     auto handle_api(chainserver::GetAccountHistory&& e) { return state.api_get_history(e.address(), e.beforeId()); }

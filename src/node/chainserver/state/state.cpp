@@ -82,6 +82,15 @@ auto State::api_get_header(const api::HeightOrHash& hh) const
     return get_header(*h);
 }
 
+auto State::api_complete_token(std::string_view prefix) const -> Result<api::AssetPrefixList>
+{
+    api::AssetPrefixList result(prefix);
+    for (auto& a : db.lookup_assets_by_prefix(prefix)) {
+        result.entries.push_back({ .name { a.name.to_string() }, .hash { a.hash }, .height { a.height } });
+    };
+    return result;
+}
+
 wrt::optional<NonzeroHeight> State::consensus_height(const Hash& hash) const
 {
     auto o { db.lookup_block_height(hash) };
@@ -519,7 +528,7 @@ auto State::api_get_latest_blocks(size_t N) const -> api::TransactionsByBlocks
 }
 
 auto State::api_get_miner(NonzeroHeight h) const
-    -> wrt::optional<api::AddressWithId>
+    -> wrt::optional<api::Account>
 {
     if (chainlength() < h)
         return {};
@@ -528,13 +537,13 @@ auto State::api_get_miner(NonzeroHeight h) const
 
     assert(std::holds_alternative<history::RewardData>(parsed));
     auto minerId { std::get<history::RewardData>(parsed).to_id() };
-    return api::AddressWithId { db.fetch_existing<Address>(minerId), minerId };
+    return api::Account { db.fetch_existing<Address>(minerId), minerId };
 }
 
 auto State::api_get_miners(HeightRange hr) const
-    -> std::vector<api::AddressWithId>
+    -> std::vector<api::Account>
 {
-    std::vector<api::AddressWithId> res;
+    std::vector<api::Account> res;
     for (auto h : hr) {
         auto o { api_get_miner(h) };
         assert(o);
@@ -544,7 +553,7 @@ auto State::api_get_miners(HeightRange hr) const
 }
 
 auto State::api_get_latest_miners(uint32_t N) const
-    -> std::vector<api::AddressWithId>
+    -> std::vector<api::Account>
 {
     return api_get_miners(chainlength().latest(N));
 }
@@ -1320,26 +1329,25 @@ State::append_gentx(const TransactionCreate& m)
     }
 }
 
-api::WartBalance State::api_get_wart_balance(api::AccountIdOrAddress a) const
+api::WartBalanceLookup State::api_get_wart_balance(api::AccountIdOrAddress account) const
 {
-    api::WartBalance res;
-    auto b { api_get_token_balance_recursive(a, TokenId::WART) };
-    if (b.lookup) {
-        res.balance = Wart::from_funds_throw(b.total.funds);
-        res.address = b.lookup->address;
-    }
-    return res;
+    auto acc { normalize(account) };
+    auto balance { acc ? api_get_token_balance_recursive(acc->id, TokenId::WART).balance : api::FundsBalance::zero() };
+    return {
+        .account { acc },
+        .balance { .total { Wart::from_funds(balance.total.funds) }, .locked { Wart::from_funds(balance.locked.funds) } }
+    };
 }
 
 auto State::normalize(api::TokenIdOrSpec token) const
-    -> wrt::optional<api::NormalizedToken>
+    -> wrt::optional<api::Token>
 {
     return token.visit_overload(
-        [&](TokenId id) -> wrt::optional<api::NormalizedToken> {
+        [&](TokenId id) -> wrt::optional<api::Token> {
             if (auto nwId { id.non_wart() }) {
                 auto asset { db.lookup_asset(nwId->asset_id()) };
                 if (asset)
-                    return api::NormalizedToken {
+                    return api::Token {
                         .id { id },
                         .spec { asset->hash, nwId->is_liquidity() },
                         .name { asset->name.to_string() },
@@ -1347,7 +1355,7 @@ auto State::normalize(api::TokenIdOrSpec token) const
                     };
                 return {}; // asset corresponding to token id does not exist
             } else {
-                return api::NormalizedToken::WART();
+                return api::Token::WART();
             }
         },
         [&](const api::TokenSpec& h) -> wrt::optional<NormalizedToken> {
@@ -1355,14 +1363,14 @@ auto State::normalize(api::TokenIdOrSpec token) const
             if (asset) {
                 auto tid { asset->id.token_id(h.isLiquidity) };
                 assert(tid.is_liquidity() == h.isLiquidity);
-                return api::NormalizedToken {
+                return api::Token {
                     .id { tid },
                     .spec { asset->hash, h.isLiquidity },
                     .name { asset->name.to_string() },
                     .assetPrecision { asset->precision },
                 };
             } else if (h.assetHash.is_wart()) {
-                return api::NormalizedToken::WART();
+                return api::Token::WART();
             }
             return {};
         });
@@ -1372,48 +1380,56 @@ size_t State::on_mempool_constraint_update()
 {
     return chainstate.on_mempool_constraint_update();
 }
-wrt::optional<AccountId> State::normalize(api::AccountIdOrAddress a) const
+wrt::optional<api::Account> State::normalize(api::AccountIdOrAddress a) const
 {
-    return a.map_alternative(
-        [&](const Address& a) { return db.lookup_account(a); });
+    return a.visit_overload(
+        [&](const AccountId& id) -> wrt::optional<api::Account> {
+            if (auto addr { db.lookup_address(id) })
+                return api::Account { .address { *addr }, .id { id } };
+            return {};
+        },
+        [&](const Address& addr) -> wrt::optional<api::Account> {
+            if (auto id { db.lookup_account(addr) })
+                return api::Account { .address { addr }, .id { *id } };
+            return {};
+        });
 }
 
-api::TokenBalance
-State::api_get_token_balance_recursive(api::AccountIdOrAddress account,
+Result<api::TokenBalanceLookup> State::api_get_token_balance_recursive(api::AccountIdOrAddress account,
     api::TokenIdOrSpec spec) const
 {
-    auto accountId { normalize(account) };
     auto token { normalize(spec) };
-    if (!accountId || !token)
-        return api::TokenBalance::notfound();
-    return api_get_token_balance_recursive(*accountId, token->id);
+    if (!token)
+        return Error(ETOKENNOTFOUND);
+    auto acc { normalize(account) };
+    if (!acc)
+        return api::TokenBalanceLookup { .token { *token }, .balance { api::FundsBalance::zero() }, .account {}, .lookupTrace {} };
+    auto b { api_get_token_balance_recursive(acc->id, token->id) };
+    return api::TokenBalanceLookup { .token { *token }, .balance { b.balance }, .account { acc }, .lookupTrace { std::move(b.lookupTrace) } };
 }
 
-api::TokenBalance State::api_get_token_balance_recursive(AccountId aid,
-    TokenId tid) const
+auto State::api_get_token_balance_recursive(AccountId aid, TokenId tid) const -> BalanceLookup
 {
-    if (auto addr { db.lookup_address(aid) }) {
-        api::AssetLookupTrace trace;
-        auto b { db.get_token_balance_recursive(aid, tid, &trace) };
+    api::AssetLookupTrace trace;
+    auto b { db.get_token_balance_recursive(aid, tid, &trace) };
 
-        wrt::optional<TokenPrecision> prec;
-        if (auto nw { tid.non_wart() }; nw && !nw->is_liquidity()) {
-            if (!trace.fails.empty()) {
-                prec = trace.fails.front().precision;
-            } else {
-                prec = db.lookup_asset(nw->asset_id())->precision;
-            }
-        } else { // means that token id is that of WART or pool liquidity (has WART
-                 // precision by definition)
-            prec = Wart::precision;
+    wrt::optional<TokenPrecision> prec;
+    if (auto nw { tid.non_wart() }; nw && !nw->is_liquidity()) {
+        if (!trace.fails.empty()) {
+            prec = trace.fails.front().precision;
+        } else {
+            prec = db.lookup_asset(nw->asset_id())->precision;
         }
-        if (!prec)
-            return api::TokenBalance::notfound();
-        return api::TokenBalance::found(*addr, aid, std::move(trace),
-            FundsDecimal(b.balance.total, *prec),
-            FundsDecimal(b.balance.locked, *prec));
+    } else { // means that token id is that of WART or pool liquidity (has WART
+             // precision by definition)
+        prec = Wart::precision;
     }
-    return api::TokenBalance::notfound();
+    if (!prec)
+        return { .lookupTrace = {}, .balance { api::FundsBalance::zero() } };
+    return { .lookupTrace { std::move(trace) },
+        .balance {
+            .total { FundsDecimal(b.balance.total, *prec) },
+            .locked { FundsDecimal(b.balance.locked, *prec) } } };
 }
 
 // wrt::optional<AssetDetail> State::db_lookup_token(const api::AssetIdOrHash&
@@ -1502,8 +1518,8 @@ auto State::api_get_history(const api::AccountIdOrAddress& a,
     }
 
     return api::AccountHistory {
-        .balance = Wart::from_funds_throw(wartBalance.total),
-        .locked = Wart::from_funds_throw(wartBalance.locked),
+        .balance = Wart::from_funds(wartBalance.total),
+        .locked = Wart::from_funds(wartBalance.locked),
         .fromId = firstHistoryId,
         .blocks_reversed = blocks_reversed
     };

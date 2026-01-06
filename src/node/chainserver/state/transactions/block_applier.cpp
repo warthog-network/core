@@ -271,7 +271,7 @@ struct MatchProcessor {
                     on_order_update(block_apply::OrderUpdate {
                         .newFillState { .id { o.id }, .filled { orderFilled }, .buy = false }, .originalFilled { o.filled } });
                 }
-                on_sell_swap(SwapInternal { .oId { o.id }, .txid { o.txid }, .base { b }, .quote { Wart::from_funds_throw(*q) } });
+                on_sell_swap(SwapInternal { .oId { o.id }, .txid { o.txid }, .base { b }, .quote { Wart::from_funds(*q) } });
             }
             assert(remaining == 0);
             returned.quote.subtract_assert(quoteDistributed);
@@ -310,7 +310,7 @@ struct MatchProcessor {
                     on_order_update(block_apply::OrderUpdate {
                         .newFillState { .id { o.id }, .filled { orderFilled }, .buy = true }, .originalFilled { o.filled } });
                 }
-                on_buy_swap(SwapInternal { .oId { o.id }, .txid { o.txid }, .base { *b }, .quote { Wart::from_funds_throw(q) } });
+                on_buy_swap(SwapInternal { .oId { o.id }, .txid { o.txid }, .base { *b }, .quote { Wart::from_funds(q) } });
             }
             assert(remaining == 0);
             returned.base.subtract_assert(baseDistributed);
@@ -1349,7 +1349,7 @@ private:
                 throw Error(EPOOLREDEEM);
             // credit withdrawn balance
             auto baseReceived { w->base };
-            Wart quoteReceived { Wart::from_funds_throw(w->quote) };
+            Wart quoteReceived { Wart::from_funds(w->quote) };
             balanceChecker.add_balance(a.origin.id, ah.id().token_id(), baseReceived);
             balanceChecker.add_balance(a.origin.id, TokenId::WART, quoteReceived);
 

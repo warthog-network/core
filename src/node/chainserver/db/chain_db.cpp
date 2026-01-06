@@ -301,6 +301,7 @@ ChainDB::ChainDB(const std::string& path)
     , stmtAssetInsert(db, "INSERT INTO `" ASSETS_TABLE "` (id, hash, name, precision, height, owner_account_id, total_supply, group_id, parent_id, data) VALUES (?,?,?,?,?,?,?,?,?,?)")
     , stmtAssetSelectForkHeight(db, "SELECT height FROM `" ASSETS_TABLE "` WHERE parent_id=? AND height>=? ORDER BY height DESC LIMIT 1")
     , stmtAssetLookup(db, "SELECT id, hash, name, precision, height, owner_account_id, total_supply, group_id, parent_id FROM `" ASSETS_TABLE "` WHERE `id`=?")
+    , stmtAssetLookupByPrefix(db, "SELECT id, hash, name, precision, height, owner_account_id, total_supply, group_id, parent_id FROM `" ASSETS_TABLE "` WHERE `name` LIKE ? LIMIT 100")
     , stmtAssetLookupByHash(db, "SELECT id, hash, name, precision, height, owner_account_id, total_supply, group_id, parent_id FROM `" ASSETS_TABLE "` WHERE `hash`=?")
     , stmtSelectBalanceId(db, "SELECT `account_id`, `token_id`, `total`, `locked` FROM `" BALANCES_TABLE "` WHERE `id`=?")
     , stmtTokenInsertBalance(db, "INSERT INTO `" BALANCES_TABLE "` ( id, `token_id`, `account_id`, `total`, `locked`) VALUES (?,?,?,?,?)")
@@ -981,6 +982,32 @@ auto ChainDB::get_token_balance(BalanceId id) const -> wrt::optional<BalanceData
             id
         };
     });
+}
+
+std::vector<AssetDetail> ChainDB::lookup_assets_by_prefix(std::string_view prefix) const
+{
+    std::string prefixLike;
+    prefixLike.resize(prefix.size() + 1);
+    std::ranges::copy(prefix, prefixLike.begin());
+    prefixLike[prefix.size()] = '%';
+    return stmtAssetLookupByPrefix.all([](const auto& o) -> AssetDetail {
+        return {
+            AssetBasic {
+                .id = o[0],
+                .hash = o[1],
+                .name = o[2],
+                .precision = o[3],
+            },
+            {
+                .height = o[4],
+                .ownerAccountId = o[5],
+                .totalSupply = o[6],
+                .group_id = o[7],
+                .parent_id = o[8],
+            }
+        };
+    },
+        prefixLike);
 }
 
 wrt::optional<AssetDetail> ChainDB::lookup_asset(AssetId id) const

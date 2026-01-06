@@ -10,98 +10,98 @@
 namespace subscription {
 void handleSubscriptioinMessage(const nlohmann::json&, subscription_ptr);
 namespace events {
-    //////////////////////////////
-    /// Account events
-    struct AccountState {
-        static constexpr auto eventName { "account.state" };
-        Address address;
-        wrt::optional<api::AccountHistory> history;
-    };
+//////////////////////////////
+/// Account events
+struct AccountState {
+    static constexpr auto eventName { "account.state" };
+    Address address;
+    wrt::optional<api::AccountHistory> history;
+};
 
-    struct AccountDelta {
-        static constexpr auto eventName { "account.delta" };
-        Address address;
-        Wart newBalance;
-        std::vector<api::Block> newTransactions;
-    };
+struct AccountDelta {
+    static constexpr auto eventName { "account.delta" };
+    Address address;
+    api::WartBalance newBalance;
+    std::vector<api::Block> newTransactions;
+};
 
-    //////////////////////////////
-    /// Connection events
-    struct Connection {
-        uint64_t id;
-        StartTimePoints since;
-        std::string peerAddr;
-        bool inbound;
-    };
-    struct ConnectionsState {
-        static constexpr auto eventName { "connection.state" };
-        std::vector<Connection> connections;
-        size_t total;
-    };
-    struct ConnectionsRemove {
-        static constexpr auto eventName { "connection.remove" };
-        uint64_t id;
-        size_t total;
-    };
-    struct ConnectionsAdd {
-        static constexpr auto eventName { "connection.add" };
-        Connection connection;
-        size_t total;
-    };
+//////////////////////////////
+/// Connection events
+struct Connection {
+    uint64_t id;
+    StartTimePoints since;
+    std::string peerAddr;
+    bool inbound;
+};
+struct ConnectionsState {
+    static constexpr auto eventName { "connection.state" };
+    std::vector<Connection> connections;
+    size_t total;
+};
+struct ConnectionsRemove {
+    static constexpr auto eventName { "connection.remove" };
+    uint64_t id;
+    size_t total;
+};
+struct ConnectionsAdd {
+    static constexpr auto eventName { "connection.add" };
+    Connection connection;
+    size_t total;
+};
 
-    //////////////////////////////
-    /// Chain events
-    struct ChainState {
-        static constexpr auto eventName { "chain.state" };
-        api::ChainHead head;
-        std::vector<api::Block> latestBlocks;
-    };
-    struct ChainAppend {
-        static constexpr auto eventName { "chain.append" };
-        api::ChainHead head;
-        std::vector<api::CompleteBlock> newBlocks;
-    };
-    struct ChainFork {
-        static constexpr auto eventName { "chain.fork" };
-        api::ChainHead head;
-        std::vector<api::Block> latestBlocks;
-        Height rollbackLength;
-    };
-    struct MinerdistState {
-        static constexpr auto eventName { "minerdist.state" };
-        std::vector<api::AddressCount> counts;
-    };
-    struct MinerdistDelta {
-        static constexpr auto eventName { "minerdist.delta" };
-        std::vector<api::AddressCount> deltas;
-    };
-    struct LogState {
-        static constexpr auto eventName { "log.state" };
-        std::vector<LogEntry> lines;
-    };
-    struct LogLine {
-        static constexpr auto eventName { "log.line" };
-        LogEntry line;
-    };
-    struct Event {
-        using variant_t = std::variant<
-            AccountState,
-            AccountDelta,
-            ConnectionsState,
-            ConnectionsRemove,
-            ConnectionsAdd,
-            ChainState,
-            ChainAppend,
-            ChainFork,
-            MinerdistState,
-            MinerdistDelta,
-            LogState,
-            LogLine>;
-        std::string json_str() const;
-        void send(std::vector<subscription_ptr>) &&;
-        void send(subscription_ptr) &&;
-        variant_t variant;
-    };
+//////////////////////////////
+/// Chain events
+struct ChainState {
+    static constexpr auto eventName { "chain.state" };
+    api::ChainHead head;
+    std::vector<api::Block> latestBlocks;
+};
+struct ChainAppend {
+    static constexpr auto eventName { "chain.append" };
+    api::ChainHead head;
+    std::vector<api::CompleteBlock> newBlocks;
+};
+struct ChainFork {
+    static constexpr auto eventName { "chain.fork" };
+    api::ChainHead head;
+    std::vector<api::Block> latestBlocks;
+    Height rollbackLength;
+};
+struct MinerdistState {
+    static constexpr auto eventName { "minerdist.state" };
+    std::vector<api::AddressCount> counts;
+};
+struct MinerdistDelta {
+    static constexpr auto eventName { "minerdist.delta" };
+    std::vector<api::AddressCount> deltas;
+};
+struct LogState {
+    static constexpr auto eventName { "log.state" };
+    std::vector<LogEntry> lines;
+};
+struct LogLine {
+    static constexpr auto eventName { "log.line" };
+    LogEntry line;
+};
+struct Event {
+    using variant_t = std::variant<
+        AccountState,
+        AccountDelta,
+        ConnectionsState,
+        ConnectionsRemove,
+        ConnectionsAdd,
+        ChainState,
+        ChainAppend,
+        ChainFork,
+        MinerdistState,
+        MinerdistDelta,
+        LogState,
+        LogLine>;
+    std::string json_str() const;
+    void send(std::vector<subscription_ptr>) &&;
+    void send(subscription_ptr) &&;
+    variant_t variant;
+};
 }
 
 // struct RequestParams;

@@ -66,8 +66,7 @@ json to_json(const AccountDelta& a)
 {
     return json {
         { "address", a.address.to_string() },
-        { "balance", a.newBalance.to_string() },
-        { "balanceE8", a.newBalance.E8() },
+        { "balance", jsonmsg::to_json(a.newBalance) },
         { "history", jsonmsg::to_json(a.newTransactions) },
     };
 };

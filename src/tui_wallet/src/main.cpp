@@ -1,3 +1,4 @@
+#include "api/api_call.hpp"
 #include "global.hpp"
 #include "tui/gui.hpp"
 #include <filesystem>
@@ -38,6 +39,11 @@ void init_globals()
 
 int main()
 {
+
+    using namespace std;
+    Endpoint e("localhost", 3100);
+    cout << e.get_balance("1", TokenId::WART).to_string() << endl;
+    return 0;
     ECC_Start();
     init_globals();
     auto gui { ui::GUI::create_instance() };

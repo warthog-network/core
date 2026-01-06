@@ -246,6 +246,20 @@ json to_json(const api::BlockBinary& b)
         { "structure", to_json(b.annotations) }
     };
 }
+json to_json(const api::AssetPrefixList& a)
+{
+    json matches = json::array();
+    for (auto& e : a.entries) {
+        matches.push_back({ { "height", e.height },
+            { "hash", serialize_hex(e.hash) },
+            { "name", e.name } });
+    }
+
+    return {
+        { "matches", matches },
+        { "prefix", a.prefix }
+    };
+}
 
 json to_json(Wart w)
 {
@@ -575,30 +589,13 @@ json to_json(const api::Transaction& tx)
         tx);
 }
 
-json to_json(const api::TokenBalance& tb)
+json to_json(const api::TokenBalanceLookup& tb)
 {
 
-    json j {
-        { "balance", to_json(tb.total) },
-    };
-    json lookup;
-
-    if (tb.lookup) {
-        lookup["address"] = tb.lookup->address.address.to_string();
-        lookup["accountId"] = tb.lookup->address.accountId.value();
-
-        json fails;
-        auto& lf { tb.lookup->lookupFails };
-        fails["snapshotHeight"] = (lf.snapshotHeight ? json(lf.snapshotHeight.value()) : json(nullptr));
-        lookup["fails"] = fails;
-    } else {
-        j["address"] = nullptr;
-        j["accountId"] = nullptr;
-        j["fails"] = json::array();
-        lookup = nullptr;
-    }
-    j["lookup"] = lookup;
-    return j;
+    return { { "balance", to_json(tb.balance) },
+        { "token", to_json(tb.token) },
+        { "lookupTrace", to_json(tb.lookupTrace) },
+        { "account", to_json(tb.account) } };
 }
 
 json to_json(const Peeraddr& ea)
@@ -671,6 +668,15 @@ json to_json(const api::BlockSummary& block)
     return j;
 }
 
+json to_json(const api::Account& a)
+{
+    return {
+
+        { "address", a.address.to_string() },
+        { "accountId", a.id.value() }
+    };
+}
+
 json to_json(const api::AccountHistory& h)
 {
     json a = json::array();
@@ -705,7 +711,7 @@ json to_json(const api::Richlist& l, TokenPrecision p)
     for (auto& [address, balance] : l.entries) {
         json elem;
         elem["address"] = address.to_string();
-        elem["balance"] = to_json(FundsDecimal(balance,p));
+        elem["balance"] = to_json(FundsDecimal(balance, p));
         a.push_back(elem);
     }
     return a;
@@ -718,12 +724,13 @@ json to_json(const api::RichlistInfo& r)
     };
 }
 
-json to_json(const api::NormalizedToken& t)
+json to_json(const api::Token& t)
 {
     return {
         { "id", t.id },
         { "spec", t.spec.to_string() },
-        { "name", t.name }
+        { "name", t.name },
+        { "precision", t.token_precision().value() }
     };
 }
 
@@ -842,16 +849,23 @@ json to_json(const TCPPeeraddr& a)
 
 json to_json(const api::WartBalance& b)
 {
-    json j;
-    j["balance"] = to_json(b.balance);
-    if (b.address) {
-        j["address"] = b.address->address.to_string();
-        j["accountId"] = b.address->accountId.value();
-    } else {
-        j["address"] = nullptr;
-        j["accountId"] = nullptr;
-    }
-    return j;
+    return {
+        { "total", to_json(b.total) }, { "locked", to_json(b.locked) }
+    };
+}
+json to_json(const api::FundsBalance& b)
+{
+    return {
+        { "total", to_json(b.total) }, { "locked", to_json(b.locked) }
+    };
+}
+
+json to_json(const api::WartBalanceLookup& b)
+{
+    return {
+        { "balance", to_json(b.balance) },
+        { "account", to_json(b.account) }
+    };
 }
 json to_json(const api::JanushashNumber& jn)
 {
@@ -969,6 +983,12 @@ nlohmann::json to_json(const api::NodeInfo& info)
 
                     } }
     };
+}
+
+json to_json(const api::AssetLookupTrace& alt)
+{
+    return { { "fails", to_json(alt.fails) },
+        { "snapshotHeight", to_json(alt.snapshotHeight) } };
 }
 
 std::string serialize(const api::Raw& r)
