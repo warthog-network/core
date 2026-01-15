@@ -1,4 +1,5 @@
 #include "tabs.hpp"
+#include "global.hpp"
 #include "popups.hpp"
 #include "root.hpp"
 
@@ -112,5 +113,26 @@ void AssetCreateTab::on_create_new()
 }
 void AssetCreateTab::on_create_fork()
 {
+}
+Element WartTab::OnRender()
+{
+    auto wart{global::globals().dataInterface.get_wart_balance(redraw_lambda())};
+    return vbox(render_balance(wart, gui), btnTransfer->Render());
+    //
+    //     std::vector<std::vector<Element>>
+    //         initArg {
+    //             table_line("Token", "Name", "Balance", "Ticker"),
+    //             highlight_table_line(selectedRow == 0, "0x0000000000000000000000000000000000000000000000000000000000000000", "Warthog", "0.00000000", "WART"),
+    //             { text("0x0000000000000000000000000000000000000000000000000000000000000000"), text("Warthog"), text("0.00000000"), text("WART") },
+    //             { balance->Render(), text("World") },
+    //             { amount->Render(), text("World") },
+    //             { nonceId->Render(), text("World") }
+    //         };
+    // ftxui::Table table(std::move(initArg));
+    // table.SelectRow(0).BorderBottom(EMPTY);
+    // table.SelectColumn(0).BorderRight(EMPTY);
+    // table.SelectColumn(1).BorderRight(EMPTY);
+    // table.SelectColumn(2).BorderRight(EMPTY);
+    // return table.Render();
 }
 } // namespace ui

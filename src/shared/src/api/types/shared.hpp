@@ -324,6 +324,7 @@ struct Token {
 struct FundsBalance {
     FundsDecimal total;
     FundsDecimal locked;
+    FundsDecimal free() const { return FundsDecimal(diff_assert(total.funds, locked.funds), total.precision); }
     static FundsBalance zero()
     {
         return { FundsDecimal::zero(), FundsDecimal::zero() };

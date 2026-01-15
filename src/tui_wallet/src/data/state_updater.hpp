@@ -2,16 +2,17 @@
 
 #include "data/retrieval_context.hpp"
 #include <chrono>
+#include <iostream>
 #include <memory>
 #include <thread>
 
 template <typename... Ts>
-class DataTuple {
+class DataStateUpdater {
     template <typename T>
     struct Entry {
-        std::unique_ptr<std::mutex> m;
+        mutable std::mutex m;
         std::chrono::steady_clock::time_point expires;
-        std::thread t;
+        std::jthread t;
         std::optional<T> value;
     };
 
@@ -19,11 +20,10 @@ class DataTuple {
     using TupleEntry = std::unique_ptr<Entry<T>>;
     template <typename T>
     requires(std::is_same_v<T, Ts> || ...)
-    void try_update(const DataRetrievalContext& ctx, auto&& on_complete)
+    void try_update(auto&& on_complete)
     {
         using sc = std::chrono::steady_clock;
-        constexpr auto expirationInterval { std::chrono::seconds(5) };
-        TupleEntry<T>& r { std::get<TupleEntry<T>>(tuple) };
+        Entry<T>& r { *std::get<TupleEntry<T>>(tuple) };
         std::lock_guard l(r.m);
         if (r.expires <= sc::now()) {
             // start update process
@@ -31,10 +31,14 @@ class DataTuple {
             r.expires = std::chrono::steady_clock::time_point::max();
             // reset value because it expired
             r.value.reset();
-            r.t = T::get_data(ctx, [&r, on_complete = std::forward<decltype(on_complete)>(on_complete)](std::optional<T> v) {
+            if (r.t.joinable())
+                r.t.join();
+            r.t = T::get_data(retrievalContext, [&r, on_complete = std::forward<decltype(on_complete)>(on_complete)](std::optional<T> v) {
+                constexpr auto expirationInterval { std::chrono::seconds(5) };
                 std::lock_guard l(r.m);
                 r.expires = sc::now() + expirationInterval;
                 r.value = std::move(v);
+                std::cerr << "r.value.has_value()" << r.value.has_value() << std::endl;
                 on_complete();
             });
         }
@@ -43,17 +47,21 @@ class DataTuple {
 public:
     template <typename T>
     requires(std::is_same_v<T, Ts> || ...)
-    auto get(const DataRetrievalContext& ctx, auto on_complete) const
+    auto get(auto on_complete)
     {
-        const TupleEntry<T>& r { std::get<TupleEntry<T>>(tuple) };
-        try_update<T>(ctx, std::move(on_complete));
+        try_update<T>(std::move(on_complete));
+        const Entry<T>& r { *std::get<TupleEntry<T>>(tuple) };
         std::lock_guard l(r.m);
+        std::cerr << "2: r.value.has_value()" << r.value.has_value() << std::endl;
         return r.value;
     }
-    DataTuple()
-        : tuple(std::make_unique<Entry<Ts>>()...)
+    DataStateUpdater(DataRetrievalContext retrievalContext)
+        : retrievalContext(std::move(retrievalContext))
+        , tuple(std::make_unique<Entry<Ts>>()...)
     {
     }
+
+    DataRetrievalContext retrievalContext;
 
 private:
     std::tuple<TupleEntry<Ts>...> tuple;

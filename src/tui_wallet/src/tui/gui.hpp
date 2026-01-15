@@ -16,6 +16,7 @@ protected:
     {
     }
     GUI& gui;
+    auto redraw_lambda() const;
     Element render_spinner(int type = 11) const;
 
 public:
@@ -85,6 +86,11 @@ public:
 
     void terminate() { screen.Exit(); }
     void run();
+};
+
+inline auto GUIComponent::redraw_lambda() const
+{
+    return [this]() { gui.trigger_render(); };
 };
 
 } // namespace ui

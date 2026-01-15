@@ -1,14 +1,20 @@
+#pragma once
 #include "api/types/shared.hpp"
-#include "data/tuple.hpp"
+#include "data/state_updater.hpp"
 
 struct WartBalance : public api::FundsBalance {
-    static std::thread get_data(const DataRetrievalContext& ctx, auto callback)
+    static std::jthread get_data(const DataRetrievalContext& ctx, auto callback)
     {
-        return std::thread([&ctx, callback = std::move(callback)]() {
+        return std::jthread([&ctx, callback = std::move(callback)]() {
             WartBalance bal { ctx.get_wart_balance() };
             callback(std::optional<WartBalance> { bal });
         });
     }
 };
 
-using DataInterface = DataTuple<WartBalance>;
+struct DataInterface : public DataStateUpdater<WartBalance> {
+    auto get_wart_balance(auto onComplete)
+    {
+        return get<WartBalance>(std::move(onComplete));
+    }
+};

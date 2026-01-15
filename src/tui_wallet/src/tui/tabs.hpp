@@ -1,5 +1,6 @@
 #pragma once
 #include "api/types/shared.hpp"
+#include "data/interface.hpp"
 #include "ftxui/component/component.hpp" // for Dropdown, Renderer, Container
 #include "ftxui/component/screen_interactive.hpp" // for ScreenInteractive
 #include "ftxui/dom/elements.hpp" // for text, vbox, hbox
@@ -326,9 +327,9 @@ std::vector<Element> highlight_table_line(bool highlight, Ts&&... ts)
         return { (text(std::string(std::forward<Ts>(ts))))... };
 }
 
-inline Element render_balance(const std::optional<api::WartBalance>& b, GUI& gui)
+inline Element render_balance(const std::optional<WartBalance>& b, GUI& gui)
 {
-    auto wart_text { [](std::string_view label, Wart w) { return text(std::string(label) + ": " + w.to_string() + " WART"); } };
+    auto wart_text { [](std::string_view label, FundsDecimal w) { return text(std::string(label) + ": " + w.to_string() + " WART"); } };
     if (b)
         return vbox(wart_text("Total", b->total), wart_text("Locked", b->locked), wart_text("Free", b->free()));
     else
@@ -337,29 +338,9 @@ inline Element render_balance(const std::optional<api::WartBalance>& b, GUI& gui
 
 struct WartTab : public MakeTab<WartTab>, public std::enable_shared_from_this<WartTab> {
     int selectedRow { 0 };
-    std::optional<api::WartBalance> wart;
     Component btnTransfer;
 
-    Element OnRender()
-    {
-        return vbox(render_balance(wart, gui), btnTransfer->Render());
-        //
-        //     std::vector<std::vector<Element>>
-        //         initArg {
-        //             table_line("Token", "Name", "Balance", "Ticker"),
-        //             highlight_table_line(selectedRow == 0, "0x0000000000000000000000000000000000000000000000000000000000000000", "Warthog", "0.00000000", "WART"),
-        //             { text("0x0000000000000000000000000000000000000000000000000000000000000000"), text("Warthog"), text("0.00000000"), text("WART") },
-        //             { balance->Render(), text("World") },
-        //             { amount->Render(), text("World") },
-        //             { nonceId->Render(), text("World") }
-        //         };
-        // ftxui::Table table(std::move(initArg));
-        // table.SelectRow(0).BorderBottom(EMPTY);
-        // table.SelectColumn(0).BorderRight(EMPTY);
-        // table.SelectColumn(1).BorderRight(EMPTY);
-        // table.SelectColumn(2).BorderRight(EMPTY);
-        // return table.Render();
-    }
+    Element OnRender();
     void onTransfer() { }
     WartTab(GUI& gui)
         : MakeTab(gui, "Wart")
