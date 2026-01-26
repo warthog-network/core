@@ -3,7 +3,7 @@
 #include "ftxui/component/event.hpp"
 namespace ui {
 using namespace ftxui;
-using StringValidator = std::function<bool(std::string)>;
+using StringValidator = std::function<bool(std::string&)>;
 
 struct ValidatedBase : public ComponentBase {
     StringValidator _validator;

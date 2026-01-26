@@ -79,6 +79,7 @@ public:
     Element render_spinner(int type = 12);
     void set_connected(bool set);
     void set_unlocked(bool set);
+    void defer(std::function<void()> f);
     void trigger_render();
     static std::shared_ptr<GUI> create_instance()
     {

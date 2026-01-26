@@ -19,11 +19,11 @@ std::vector<std::string> get_files(std::string path = ".")
     return out;
 }
 
-void init_globals()
+void init_globals(ui::GUI& gui)
 {
-    global::init({ .endpoint { "localhost", 3100 },
-        // TODO don't hardcode wallet
-        .wallet { PrivKey("02e8005492d1edb977c0387af96687d569dcbe7171b4740dc4f45291a830e594") } });
+    global::init(gui, { .endpoint { "localhost", 3100 },
+                          // TODO don't hardcode wallet
+                          .wallet { PrivKey("02e8005492d1edb977c0387af96687d569dcbe7171b4740dc4f45291a830e594") } });
 }
 
 const auto jsonStr = R"({
@@ -65,13 +65,13 @@ struct AccountBalance {
 
 int main()
 {
-    init_globals();
     // using namespace global;
     // cout << wallet().address() << endl;
     // cout << wallet().get_wart_balance().total.to_string() << endl;
     // return 0;
 
     auto gui { ui::GUI::create_instance() };
+    init_globals(*gui);
     bool shutdown = false;
     std::condition_variable cv;
     std::mutex m;

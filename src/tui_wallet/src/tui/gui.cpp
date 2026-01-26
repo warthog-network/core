@@ -68,6 +68,10 @@ void GUI::trigger_render()
 {
     screen.PostEvent(ftxui::Event::Custom);
 }
+void GUI::defer(std::function<void()> f)
+{
+    screen.Post(std::move(f));
+}
 
 RootComponent::RootComponent(GUI& gui)
     : GUIComponent(gui)

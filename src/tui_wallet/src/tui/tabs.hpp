@@ -262,15 +262,59 @@ private:
 public:
     AssetControlTab(GUI& gui);
 };
-struct AssetSelectTab : public MakeTab<AssetSelectTab> {
+
+struct SelectableList : public ComponentBase {
+    size_t i { 0 };
+    size_t n { 0 };
+    virtual bool Focusable() const override
+    {
+        return i < n;
+    }
+    void update_element_count(size_t n)
+    {
+        this->n = n;
+        if (n == 0) {
+            i = 0;
+        } else if (i >= n) {
+            i = n - 1;
+        }
+    }
+    virtual bool OnEvent(Event e) override
+    {
+        if (e == Event::k || e == Event::ArrowUp) {
+            if (i > 0) {
+                i -= 1;
+                return true;
+            }
+        } else if (e == Event::j || e == Event::ArrowDown) {
+            if (i + 1 < n) {
+                i += 1;
+                return true;
+            }
+        }
+        return false;
+    };
+};
+
+struct AssetSelectTab : public MakeTab<AssetSelectTab>, public std::enable_shared_from_this<AssetSelectTab> {
 
 private:
     Component nameInput;
     Component hashInput;
-    bool clearCache{false};
+    Component verticalButtons;
+    Component buttonsRenderer;
+    std::shared_ptr<SelectableList> selectTableDummy;
+    std::vector<Component> buttons;
+    bool clearCache { false };
     std::string namePrefix;
     std::string hashPrefix;
     void on_change();
+    void on_select(const api_types::TokenListEntry&);
+    void remove_buttons();
+
+    void process_completions();
+    auto& get_data();
+
 public:
     AssetSelectTab(GUI& gui);
     Element OnRender() override;

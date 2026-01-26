@@ -53,7 +53,8 @@ public:
   int Index() const;
   void Add(Component children);
     template<typename ...Ts>
-    void Add(Ts&& ... ts){
+    void Add(Component c, Ts&& ... ts){
+        Add(c);
         (Add(std::forward<Ts>(ts)),...);
     }
   void Detach();

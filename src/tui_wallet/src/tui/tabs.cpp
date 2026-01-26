@@ -3,6 +3,9 @@
 #include "popups.hpp"
 #include "time_format.hpp"
 #include <cmath>
+#include <iostream>
+#include <ranges>
+#include <set>
 
 namespace ui {
 ScreenInteractive& GUIComponent::extract_screen(GUI& gui)
@@ -107,30 +110,60 @@ AssetSelectTab::AssetSelectTab(GUI& gui)
         o.on_change = [&] { on_change(); };
         return o;
     }()))
+    , verticalButtons(Container::Vertical({}))
+    , selectTableDummy { Make<SelectableList>() }
+
 {
-    Add(Container::Horizontal({ nameInput, hashInput }));
+    Add(Container::Vertical({ nameInput, hashInput, verticalButtons }));
+}
+
+auto& AssetSelectTab::get_data()
+{
+    bool forceReload = clearCache;
+    clearCache = false;
+    return global::data_interface().token_complete(forceReload, [w = weak_from_this()]() { 
+        if (auto p{w.lock()}) 
+            p->process_completions(); }, namePrefix, hashPrefix);
+}
+
+void AssetSelectTab::remove_buttons()
+{
+    verticalButtons->DetachAllChildren();
+}
+
+void AssetSelectTab::on_select(const api_types::TokenListEntry& e)
+{
+    std::cerr << e.hash << std::endl;
+}
+
+void AssetSelectTab::process_completions()
+{
+    using namespace std;
+    remove_buttons();
+    auto& data { get_data() };
+    if (data) {
+        for (auto& e : data->entries) {
+            verticalButtons->Add(Button(std::format("{} {}", e.name, e.hash), [this, e] { on_select(e); }));
+        }
+    }
+
+    auto n { data ? data->entries.size() : 0 };
+    selectTableDummy->update_element_count(n);
+    redraw_lambda()();
 }
 
 Element AssetSelectTab::OnRender()
 {
-    auto t { global::data_interface().token_complete(clearCache, redraw_lambda(), namePrefix, hashPrefix) };
-    clearCache = false;
-    std::vector<std::vector<Element>>
-        initArg {
-            table_line("Name", "Hash"),
-            // highlight_table_line(selectedRow == 0, "0x0000000000000000000000000000000000000000000000000000000000000000", "Warthog", "0.00000000", "WART"),
-        };
-    // t.value().entries[0].hash
-    initArg.push_back({ nameInput->Render(), hashInput->Render() });
-    if (t) {
-        for (auto& e : t->entries) {
-            initArg.push_back({ text(e.name), text(e.hash) });
-        };
-    }
-    ftxui::Table table(std::move(initArg));
-    table.SelectRow(1).BorderBottom(HEAVY);
-    table.SelectColumn(0).BorderRight(HEAVY);
-    return window(text("Tokens"), table.Render());
+    auto renderedButtons { [&] {
+        if (auto d { get_data() }) {
+            if (d->entries.size() == 0) {
+                return text("No assets found"), text("No assets found");
+            }
+            return verticalButtons->Render();
+        } else
+            return render_spinner();
+    }() };
+    return window(text("Select Asset"), vbox(hbox(text("Name: "), nameInput->Render()), hbox(text("Hash: "), hashInput->Render()), renderedButtons));
 }
 
 AssetCreateTab::AssetCreateTab(GUI& gui)
@@ -196,7 +229,8 @@ Element RequestsLogTab::OnRender()
             table_line("Time", "State", "Request"),
             // highlight_table_line(selectedRow == 0, "0x0000000000000000000000000000000000000000000000000000000000000000", "Warthog", "0.00000000", "WART"),
         };
-    for (auto& m : global::request_log().messages()) {
+    auto& messages { global::request_log().messages() };
+    for (auto& m : std::ranges::reverse_view(messages)) {
         auto state { m->state() };
         auto success { [&]() {
             auto s { state.success };

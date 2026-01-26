@@ -28,7 +28,7 @@ wrt::optional<LexicographicByteRange> LexicographicByteRange::from_hex(std::stri
     }
     if (!end && lastNonFF != 0) {
         end = std::vector<uint8_t>(begin.begin(), begin.begin() + lastNonFF);
-        end->back() += 1 << 4;
+        end->back() += 1;
     }
-    return std::move(res);
+    return res;
 }
