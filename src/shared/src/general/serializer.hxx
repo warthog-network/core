@@ -23,10 +23,6 @@ struct MerkleByteCounter {
     Dummy hook() { return {}; }
 };
 
-template <typename S, typename T>
-concept RawSerializing = RawSerializer<S> && requires(S& s, const T& t) {
-    { t.serialize(s) };
-};
 
 template <typename S, typename T>
 concept MerkleSerializing = MerkleSerializer<S> && requires(S& s, const T& t) {

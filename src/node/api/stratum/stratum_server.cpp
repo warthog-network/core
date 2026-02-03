@@ -34,9 +34,9 @@ struct MiningSubmit {
     MiningSubmit(int64_t id, nlohmann::json::array_t params)
         : id(id)
         , jobId(params[0].get<std::string>())
-        , extranonce2(hex_to_arr<6>(params[1].get<std::string>()))
-        , ntime(hex_to_arr<4>(params[2].get<std::string>()))
-        , nonce(hex_to_arr<4>(params[3].get<std::string>()))
+        , extranonce2(HexRef(params[1].get<std::string>()))
+        , ntime(HexRef(params[2].get<std::string>()))
+        , nonce(HexRef(params[3].get<std::string>()))
     {
     }
     void apply_to(const std::array<uint8_t, 4>& extra2prefix, Block& b) const

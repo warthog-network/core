@@ -160,6 +160,7 @@ public:
     [[nodiscard]] static wrt::optional<Funds_uint64> parse(std::string_view, TokenPrecision);
     [[nodiscard]] static wrt::optional<Funds_uint64> parse(ParsedFunds, TokenPrecision);
     static Funds_uint64 parse_throw(std::string_view, TokenPrecision);
+    constexpr uint64_t u64() const { return val; };
     FundsDecimal to_decimal(TokenPrecision d) const;
 };
 class NonzeroFunds_uint64 : public Funds_uint64 {

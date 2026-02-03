@@ -11,7 +11,7 @@ std::string Hash::hex_string() const
 wrt::optional<Hash> Hash::try_parse(std::string_view hex)
 {
     auto h { uninitialized() };
-    if (parse_hex(hex, h))
+    if (HexRef(hex).parse_to(h))
         return h;
     return {};
 }

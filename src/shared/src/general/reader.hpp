@@ -214,6 +214,12 @@ struct ReadExhaustive {
     }
 };
 
+template<typename T>
+T from_bytes(std::span<const uint8_t> s){
+    Reader r(s);
+    return {r};
+}
+
 template <size_t N>
 class ReaderCheck {
 public:

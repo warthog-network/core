@@ -91,7 +91,7 @@ public:
     using ComposeTransactionMessage::ComposeTransactionMessage;
     void check_throw()
     {
-        // nothing to check since the amount() is already zero by type restriction
+        // nothing to check since the wart() is already zero by type restriction
     }
 
     [[nodiscard]] Wart spend_wart_throw() const { return sum_throw(fee(), wart()); }

@@ -51,7 +51,7 @@ CompactUInt JSONConverter::fee() const
 {
     try {
         wrt::optional<Wart> fee;
-        auto iter = json.find("fee");
+        auto iter = json.find("feeStr");
         if (iter != json.end()) {
             fee = { Wart::parse_throw(iter->get<std::string>()) };
             if (!fee.has_value())
@@ -60,7 +60,7 @@ CompactUInt JSONConverter::fee() const
         iter = json.find("feeE8");
         if (iter != json.end()) {
             if (fee.has_value())
-                goto error; // exclusive, either "fee" or feeE8"
+                goto error; // exclusive, either "feeStr" or feeE8"
             fee = Wart::from_value(iter->get<uint64_t>());
             if (!fee.has_value())
                 goto error;
@@ -142,7 +142,7 @@ JSONConverter::operator BuyEl() const { return buy(); }
 Price_uint64 JSONConverter::limit() const
 {
     try {
-        auto pricestr { json.at("price").get<std::string>() };
+        auto pricestr { json.at("limit").get<std::string>() };
         auto p { Price_uint64::from_string(pricestr) };
         if (p)
             return *p;

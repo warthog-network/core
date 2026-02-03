@@ -73,7 +73,7 @@ namespace event {
             { "pinHeight", e.pin_height().value() },
             { "txHash", e.txhash },
             { "nonceId", e.nonce_id() },
-            // { "fee", jsonmsg::to_json(e.fee().uncompact()) }, // TODO
+            // { "feeStr", jsonmsg::to_json(e.fee().uncompact()) }, // TODO
             // { "toAddress", e.to_address().to_string() },
             // { "amount", jsonmsg::to_json(e.) },
         });

@@ -20,7 +20,7 @@ struct Wallet {
     Address address;
     std::string to_string() const
     {
-        json j;
+        nlohmann::json j;
         j["privateKey"] = privKey.to_string();
         j["publicKey"] = pubKey.to_string();
         j["address"] = address.to_string();

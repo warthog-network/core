@@ -14,7 +14,7 @@ public:
     using array::data;
     using array::size;
     Header() { };
-    Header(const char*);
+    Header(std::string_view);
     Header(std::array<uint8_t, 80> arr)
         : array(std::move(arr)) { };
     Header(std::span<const uint8_t, 80>& s);

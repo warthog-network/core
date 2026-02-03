@@ -158,7 +158,7 @@ auto Endpoint::send_transaction(const std::string& txjson) -> TxHash
     auto hex_str(api_post(url, txjson)
             .at("txHash")
             .get<std::string>());
-    return TxHash { Hash { hex_to_arr<32>(hex_str) } };
+    return TxHash { Hash { HexRef(hex_str) } };
 }
 
 std::runtime_error Endpoint::failed_msg() const

@@ -116,7 +116,7 @@ void get_janushash_number(std::string_view sv, ResultCb<api::JanushashNumber> cb
 {
     // LATER: do header check in different thread
     Header h;
-    if (!parse_hex(sv, h))
+    if (!HexRef(sv).parse_to(h))
         cb(Error(EBADHEADER));
     cb(api::JanushashNumber { h.janus_number() });
 }

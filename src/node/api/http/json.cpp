@@ -159,7 +159,7 @@ json header_json(const Header& header, NonzeroHeight height)
     auto target { header.target(height, testnet) };
     uint32_t targetBE = hton32(target.binary());
     json h;
-    h["raw"] = serialize_hex(header.data(), header.size());
+    h["raw"] = serialize_hex(header);
     h["timestamp"] = header.timestamp();
     h["utc"] = format_utc(header.timestamp());
     h["target"] = serialize_hex(targetBE);

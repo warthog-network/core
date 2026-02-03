@@ -1,4 +1,5 @@
 #include "address.hpp"
+#include "general/hex.hpp"
 #include "crypto/hasher_sha256.hpp"
 #include "general/hex.hpp"
 
@@ -20,7 +21,7 @@ Address::Address(const std::string_view address)
 {
     using namespace std::literals;
     std::array<uint8_t, 24> bytes;
-    if (!parse_hex(address, bytes))
+    if (!HexRef(address).parse_to(bytes))
         throw Error(EBADADDRESS);
 
     auto hash = hashSHA256(bytes.data(), 20);

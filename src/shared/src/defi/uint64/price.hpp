@@ -28,12 +28,8 @@ public:
     {
         return compose(data & 0x0000FFFFu, data >> 16);
     }
-    static auto from_uint32_throw(uint32_t data)
-    {
-        if (auto p { from_uint32(data) })
-            return *p;
-        throw Error(EBADPRICE);
-    }
+    static Price_uint64 from_bytes(std::span<const uint8_t,3> s);
+    static Price_uint64 from_hex(std::string_view s);
     Price_uint64(Reader& r);
     void serialize(RawSerializer auto& s) const
     {

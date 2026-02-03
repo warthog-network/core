@@ -10,7 +10,6 @@
 #include "chainserver/transaction_ids.hpp"
 #include "communication/mining_task.hpp"
 #include "communication/rxtx_server/rxtx_server.hpp"
-#include "general/hex.hpp"
 #include "http/json.hpp"
 #include "spdlog/spdlog.h"
 #include "uwebsockets/HttpParser.h"
@@ -96,7 +95,7 @@ struct ParameterParser {
     }
     operator Hash()
     {
-        return hex_to_arr<32>(sv);
+        return Hash(HexRef(sv));
     }
     operator TxHash()
     {

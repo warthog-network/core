@@ -9,6 +9,11 @@ concept RawSerializer = requires(T t, const std::span<const uint8_t>& s) {
     { t.add_size(N) };
 };
 
+template <typename S, typename T>
+concept RawSerializing = RawSerializer<S> && requires(S& s, const T& t) {
+    { t.serialize(s) };
+};
+
 template <typename T>
 concept MerkleSerializer = requires(T t) {
     { t.writer };

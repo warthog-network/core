@@ -3,8 +3,8 @@
 namespace {
 }
 
-Header::Header(const char* v)
-    : Header(hex_to_arr<80>(v))
+Header::Header(std::string_view v)
+    : Header(HexRef(v))
 {
 }
 Header::Header(std::span<const uint8_t, 80>& s)

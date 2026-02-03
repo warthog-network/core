@@ -23,8 +23,8 @@ BlockWorker parse_block_worker(const std::vector<uint8_t>& s)
         json parsed = json::parse(s);
 
         auto height { Height(parsed.at("height").get<uint32_t>()).nonzero_throw(EBADHEIGHT) };
-        Header header { hex_to_arr<80>(parsed.at("header").get<std::string>()) };
-        VersionedBodyData bd { BodyData(hex_to_vec(parsed.at("body").get<std::string>())), header.version() };
+        Header header { HexRef(parsed.at("header").get<std::string>()) };
+        VersionedBodyData bd { BodyData(HexRef(parsed.at("body").get<std::string>())), header.version() };
         BlockWorker mt {
             .block { height, header, Body::parse_throw(std::move(bd), height) },
             .worker { get_optional<std::string>(parsed, "worker").value_or(std::string()) }

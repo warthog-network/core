@@ -1,9 +1,7 @@
 #pragma once
 
 #include "general/serializer.hxx"
-#include "wrt/optional.hpp"
 #include <cassert>
-#include <cstdint>
 #include <cstring>
 #include <span>
 
@@ -52,7 +50,40 @@ private:
     uint8_t* const end;
 };
 
+template <typename Iter>
+requires(std::output_iterator<Iter, uint8_t>)
+class PlacementWriter {
+    template <size_t... Is, typename... Ts>
+    PlacementWriter& write_tuple(const std::tuple<Ts...>& t)
+    {
+        return (*this) << std::get<Is...>(t);
+    }
+
+public:
+    PlacementWriter(Iter iter)
+        : iter(std::move(iter))
+    {
+    }
+
+    void write(const std::span<const uint8_t>& s)
+    {
+        std::copy(s.begin(), s.end(), iter);
+    }
+
+    template <typename... Ts>
+    PlacementWriter& operator<<(const std::tuple<Ts...>& t)
+    {
+        return write_tuple<std::index_sequence_for<Ts...>, Ts...>(t);
+    }
+
+    void skip(size_t bytes) { std::advance(iter, bytes); }
+
+private:
+    Iter iter;
+};
+
 template <typename T>
+requires RawSerializing<Writer, T>
 std::vector<uint8_t> to_bytes(T&& t)
 {
     std::vector<uint8_t> out;
@@ -61,3 +92,12 @@ std::vector<uint8_t> to_bytes(T&& t)
     w << t;
     return out;
 }
+
+template <typename T, std::output_iterator<uint8_t> Iter>
+requires RawSerializing<PlacementWriter<Iter>, T>
+void place_bytes(T&& t, Iter&& iter)
+{
+    PlacementWriter<std::remove_cvref_t<Iter>> w(std::forward<Iter>(iter));
+    w << t;
+}
+

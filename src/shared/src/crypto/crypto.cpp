@@ -31,7 +31,7 @@ void ECC_Stop()
 PubKey::PubKey(const std::string& hex)
 {
     std::array<uint8_t, 33> serialized;
-    if (parse_hex(hex, serialized) && secp256k1_ec_pubkey_parse(secp256k1_ctx, &pubkey, serialized.data(), serialized.size()))
+    if (HexRef(hex).parse_to(serialized) && secp256k1_ec_pubkey_parse(secp256k1_ctx, &pubkey, serialized.data(), serialized.size()))
         return;
     throw Error(EBADPUBKEY);
 }
@@ -71,7 +71,6 @@ PubKey::PubKey(const RecoverableSignature& recsig, HashView hv)
 //////////////////////////////
 
 #include <algorithm>
-#include <chrono>
 #include <climits>
 #include <functional>
 #include <random>
@@ -86,7 +85,7 @@ PrivKey::PrivKey()
 
 PrivKey::PrivKey(std::string_view key)
 {
-    if (!parse_hex(key, keydata) || check(keydata.data()) == false)
+    if (!HexRef(key).parse_to(keydata) || check(keydata.data()) == false)
         throw Error(EBADPRIVKEY);
 }
 
@@ -151,7 +150,7 @@ namespace {
 std::array<uint8_t, 65> parse_sig(std::string_view sv)
 {
     std::array<uint8_t, 65> out;
-    if (!parse_hex(sv, out))
+    if (!HexRef(sv).parse_to(out))
         throw Error(EPARSESIG);
     return out;
 }
