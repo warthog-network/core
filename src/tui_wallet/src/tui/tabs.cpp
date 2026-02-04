@@ -13,43 +13,40 @@ ScreenInteractive& GUIComponent::extract_screen(GUI& gui)
     return GUIComponent(gui).gui_screen();
 };
 
-RootComponent& GUIComponent::extract_root(GUI& gui) { return *gui.root; };
-
-auto ConfirmationPopup::result_cb()
-{
-    auto& screen { gui_screen() };
-    return [weakgui = gui.weak_from_this(), this, &screen](std::string title,
-               std::string message) {
-        auto pgui { weakgui.lock() };
-        if (pgui) {
-            screen.Post([this, &screen, pgui = std::move(pgui), title,
-                            message = std::move(message)]() {
-                closed = true;
-                make_popup<NotificationPopup>(std::move(title), std::move(message));
-                screen.RequestAnimationFrame();
-            });
-        }
-    };
-}
+RootComponent& GUIComponent::extract_root(GUI& gui) { return *gui._root; };
 
 ScreenInteractive& GUIComponent::gui_screen() const { return gui.screen; }
-RootComponent& GUIComponent::gui_root() const { return *gui.root; }
+RootComponent& GUIComponent::gui_root() const { return *gui._root; }
 
 ConfirmationPopup::ConfirmationPopup(
     GUI& gui, KVProperties txprops,
-    onconfirm_generator_t onConfirmGenerator)
+    std::function<NotificationData()> asyncJob, std::function<void()> syncDone)
     : GUIComponent(gui)
     , txdetails(TransactionDetails(std::move(txprops)))
     , btnCancel(Button(
           "Cancel", [&]() { closed = true; }, ButtonRoundOption()))
-    , btnConfirm(Button(
-          "Confirm",
-          [&, onConfirm = onConfirmGenerator(result_cb())]() {
-              submitting = true;
-              onConfirm();
-          },
-          ButtonRoundOption()))
 {
+    btnConfirm = Button(
+        "Confirm",
+        [this, job = std::move(asyncJob), done = std::move(syncDone)] mutable {
+            submitting = true;
+            std::thread { [job = std::move(job), done = std::move(done), popup = shared_from_this()] mutable {
+                auto data {
+                    [&] -> NotificationData {
+                    try {
+                        return job();
+                    }catch(std::runtime_error& e) {
+                            return {"Error", e.what()};
+                    } }()
+                };
+                popup->gui_screen().Post([popup = std::move(popup), data = std::move(data), done = std::move(done)] mutable {
+                    popup->make_popup<NotificationPopup>(std::move(data));
+                    popup->closed = true;
+                    done();
+                });
+            } }.detach();
+        },
+        ButtonRoundOption());
     Add(Container::Vertical(
         { txdetails, Container::Horizontal({ btnCancel, btnConfirm }) }));
     btnCancel->TakeFocus();
@@ -187,10 +184,10 @@ AssetSelectedWindow::AssetSelectedWindow(GUI& gui)
     , btnFork { Maybe(Button("Fork", [] {}), [&] { return anything_selected(); }) }
     , btnTransfer { Maybe(Button("Transfer", [&] { on_asset_transfer(); }), [&] { return anything_selected(); }) }
     , btnBuy { Maybe(Button("  Buy  ", [&] { on_asset_swap(true); }, ButtonOption::Animated(ftxui::Color::GreenLight)), [&] { return nonwart_selected(); }) }
-    , btnSell { Maybe(Button("  Sell  ", [&] { on_asset_swap(false); },ButtonOption::Animated(ftxui::Color::RedLight)), [&] { return nonwart_selected(); }) }
+    , btnSell { Maybe(Button("  Sell  ", [&] { on_asset_swap(false); }, ButtonOption::Animated(ftxui::Color::RedLight)), [&] { return nonwart_selected(); }) }
     , btnLiquidityTransfer { Maybe(Button("Transfer", [&] { on_liquidity_transfer(); }), [&] { return nonwart_selected(); }) }
-    , btnDeposit { Maybe(Button("Deposit", [&] { on_liquidity_farm(true); },ButtonOption::Animated(ftxui::Color::GreenLight)), [&] { return nonwart_selected(); }) }
-    , btnWithdraw { Maybe(Button("Withdraw", [&] { on_liquidity_farm(false); },ButtonOption::Animated(ftxui::Color::RedLight)), [&] { return nonwart_selected(); }) }
+    , btnDeposit { Maybe(Button("Deposit", [&] { on_liquidity_farm(true); }, ButtonOption::Animated(ftxui::Color::GreenLight)), [&] { return nonwart_selected(); }) }
+    , btnWithdraw { Maybe(Button("Withdraw", [&] { on_liquidity_farm(false); }, ButtonOption::Animated(ftxui::Color::RedLight)), [&] { return nonwart_selected(); }) }
     , containerBalance(Container::Horizontal({ btnTransfer, btnBuy, btnSell }))
 {
     Add(Container::Vertical({ Container::Horizontal({ btnFork }), containerBalance,
@@ -198,28 +195,28 @@ AssetSelectedWindow::AssetSelectedWindow(GUI& gui)
 }
 void AssetSelectedWindow::on_asset_transfer()
 {
-    if (auto a{gui.selectedAsset})
+    if (auto a { gui.selectedAsset })
         make_popup<TransferPopup>(a->token(false));
 }
 
 void AssetSelectedWindow::on_asset_swap(bool buy)
 {
-    if (auto a{gui.selectedAsset};
+    if (auto a { gui.selectedAsset };
         a.has_value() && !a->hash.is_wart())
-    make_popup<SwapPopup>(*a, buy);
+        make_popup<SwapPopup>(*a, buy);
 }
 
 void AssetSelectedWindow::on_liquidity_transfer()
 {
-    if (auto a{gui.selectedAsset}){
+    if (auto a { gui.selectedAsset }) {
         make_popup<TransferPopup>(a->token(true));
     }
 }
 
 void AssetSelectedWindow::on_liquidity_farm(bool deposit)
 {
-    if (auto a{gui.selectedAsset})
-    make_popup<FarmPopup>(*a, deposit);
+    if (auto a { gui.selectedAsset })
+        make_popup<FarmPopup>(*a, deposit);
 }
 Element AssetSelectedWindow::OnRender()
 {

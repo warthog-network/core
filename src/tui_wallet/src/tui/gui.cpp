@@ -9,23 +9,23 @@ Element GUIComponent::render_spinner(int type) const
 void GUI::set_connected(bool set)
 {
     screen.Post([this, set]() {
-        root->connected = set;
+        _root->connected = set;
         screen.RequestAnimationFrame();
     });
 }
 void GUI::set_unlocked(bool set)
 {
     screen.Post([this, set]() {
-        root->unlocked = set;
+        _root->unlocked = set;
         screen.RequestAnimationFrame();
     });
 }
-void GUI::run() { screen.Loop(root); }
+void GUI::run() { screen.Loop(_root); }
 
 GUI::GUI(CreateToken)
     : screen(ScreenInteractive::TerminalOutput())
     // , spinnerClock(weak_from_this())
-    , root(Make<RootComponent>(*this))
+    , _root(Make<RootComponent>(*this))
 {
     start_spinner_thread();
 }

@@ -28,6 +28,7 @@ inline void init(ui::GUI& gui, DataRetrievalContext g)
 }
 inline auto& globals() { return *ptr; }
 inline auto& data_interface() { return ptr->dataInterface; }
+inline auto& wallet() { return data_interface().ctx().retrievalContext.wallet; }
 inline auto& endpoint() { return data_interface().retrieval_context().endpoint; }
 inline auto& log() { return globals().logChannel; }
 inline auto& request_log() { return globals().requestLogChannel; }

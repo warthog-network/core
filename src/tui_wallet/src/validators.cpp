@@ -13,7 +13,16 @@ bool wart_validator(std::string_view s)
         return false;
     }
 }
-bool fee_validator(std::string_view s){
+bool nonwart_validator(std::string_view s)
+{
+    try {
+        return !Wart::parse_throw(s).is_zero();
+    } catch (...) {
+        return false;
+    }
+}
+bool fee_validator(std::string_view s)
+{
     return wart_validator(s);
 }
 
@@ -29,7 +38,9 @@ bool address_validator(std::string_view s)
 
 bool FundsValidator::operator()(std::string_view s) const
 {
-    return Funds_uint64::parse(s, prec).has_value();
+    return Funds_uint64::parse(s, prec)
+        .transform([&](Funds_uint64 f) { return allowZero || !f.is_zero(); })
+        .value_or(false);
 }
 
 bool nonce_id_validator(std::string_view s)

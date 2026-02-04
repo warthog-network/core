@@ -11,17 +11,27 @@
 #include "general/base_elements.hpp"
 #include "general/compact_uint.hpp"
 
+struct TransactionCreateContext {
+    PinHash pinHash;
+    PinHeight pinHeight;
+    NonceId nonceId;
+    CompactUInt compactFee;
+    PrivKey pk;
+};
+
 template <typename Derived, typename... Ts>
-class TransactionCreateBase : public CombineElements<PinHeightEl, NonceIdEl, NonceReservedEl, CompactFeeEl, Ts..., SignatureEl> {
+class TransactionCreateBase : public CombineElements<PinHeightEl, NonceIdEl, NonceReservedEl, CompactFeeEl, Ts...>, public SignatureEl {
 
 public:
     // using CombineElements<PinHeightEl, NonceIdEl, NonceReservedEl, CompactFeeEl, Ts..., SignatureEl>::CombineElements;
     TransactionCreateBase(PinHeightEl ph, NonceIdEl nonceId, CompactFeeEl fee, Ts&&... ts, SignatureEl s)
-        : CombineElements<PinHeightEl, NonceIdEl, NonceReservedEl, CompactFeeEl, Ts..., SignatureEl>(ph, nonceId, NonceReserved::zero(), fee, std::forward<Ts>(ts)..., std::move(s))
+        : CombineElements<PinHeightEl, NonceIdEl, NonceReservedEl, CompactFeeEl, Ts...>(ph, nonceId, NonceReserved::zero(), fee, std::forward<Ts>(ts)...)
+        , SignatureEl(std::move(s))
     {
     }
-    TransactionCreateBase(PinHeight pinHeight, NonceId nonceId, CompactUInt compactFee, Ts... ts, const Hash& pinHash, const PrivKey& pk, NonceReserved reserved = NonceReserved::zero())
-        : TransactionCreateBase(std::move(pinHeight), std::move(nonceId), std::move(reserved), std::move(compactFee), std::move(ts)..., pk.sign(tx_hash(pinHash)))
+    TransactionCreateBase(const TransactionCreateContext& ctx, Ts... ts)
+        : CombineElements<PinHeightEl, NonceIdEl, NonceReservedEl, CompactFeeEl, Ts...>(ctx.pinHeight, ctx.nonceId, NonceReserved::zero(), ctx.compactFee, std::move(ts)...)
+        , SignatureEl(ctx.pk.sign(tx_hash(ctx.pinHash)))
     {
     }
     TransactionCreateBase(const JSONConverter& c)

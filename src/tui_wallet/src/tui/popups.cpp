@@ -15,6 +15,12 @@ auto format_token_caption(api::TokenSpec spec, std::string name)
 
 void TransferPopup::on_cancel() { closed = true; }
 
+auto work {
+    [] -> NotificationData {
+        return { "Hello", "world" };
+    }
+};
+
 void TransferPopup::on_create()
 {
     auto allValid { amount->valid && toAddr->valid && fee->valid && nonceId->valid };
@@ -36,19 +42,18 @@ void TransferPopup::on_create()
                 "This transfer is for pool liquidity, not the actual asset!" });
     }
 
-    onconfirm_generator_t generator {
-        [tr = shared_from_this()](result_cb_t cb) -> std::function<void()> {
-            return [tr = std::move(tr), cb = std::move(cb)]() mutable {
-                std::thread t([tr = std::move(tr), cb = std::move(cb)] {
-                    tr->closed = true;
-                    std::this_thread::sleep_for(std::chrono::seconds(2));
-                    cb("Success", "Transaction was sent");
-                });
-                t.detach();
-            };
-        }
-    };
-    make_popup<ConfirmationPopup>(std::move(properties), std::move(generator));
+    //     [tr = shared_from_this()](result_cb_t cb) -> std::function<void()> {
+    //         return [tr = std::move(tr), cb = std::move(cb)]() mutable {
+    //             std::thread t([tr = std::move(tr), cb = std::move(cb)] {
+    //                 tr->closed = true;
+    //                 std::this_thread::sleep_for(std::chrono::seconds(2));
+    //                 cb("Success", "Transaction was sent");
+    //             });
+    //             t.detach();
+    //         };
+    //     }
+    // };
+    make_popup<ConfirmationPopup>(std::move(properties), work, close_callback());
 };
 
 TransferPopup::TransferPopup(GUI& gui, TokenInfo token)
@@ -84,19 +89,19 @@ void SwapPopup::on_create()
             { "Limit Price ", limit.get()->content },
         } } };
 
-    onconfirm_generator_t generator {
-        [tr = shared_from_this()](result_cb_t cb) -> std::function<void()> {
-            return [tr = std::move(tr), cb = std::move(cb)]() mutable {
-                std::thread t([tr = std::move(tr), cb = std::move(cb)] {
-                    tr->closed = true;
-                    std::this_thread::sleep_for(std::chrono::seconds(2));
-                    cb("Success", "Transaction was sent");
-                });
-                t.detach();
-            };
-        }
-    };
-    make_popup<ConfirmationPopup>(std::move(properties), std::move(generator));
+    // onconfirm_generator_t generator {
+    //     [tr = shared_from_this()](result_cb_t cb) -> std::function<void()> {
+    //         return [tr = std::move(tr), cb = std::move(cb)]() mutable {
+    //             std::thread t([tr = std::move(tr), cb = std::move(cb)] {
+    //                 tr->closed = true;
+    //                 std::this_thread::sleep_for(std::chrono::seconds(2));
+    //                 cb("Success", "Transaction was sent");
+    //             });
+    //             t.detach();
+    //         };
+    //     }
+    // };
+    make_popup<ConfirmationPopup>(std::move(properties), work, close_callback());
 };
 
 void SwapPopup::on_cancel() { closed = true; }
@@ -133,8 +138,8 @@ SwapPopup::SwapPopup(GUI& gui, AssetInfo a, bool buy)
 void FarmPopup::on_create()
 {
     auto allValid { wart->valid && base->valid && limit->valid && fee->valid };
-    if (!allValid)
-        return;
+    // if (!allValid)
+    //     return;
     auto properties { KVProperties {
         .title { "Farm" },
         .entries {
@@ -146,19 +151,19 @@ void FarmPopup::on_create()
             { "Limit Price ", limit.get()->content },
         } } };
 
-    onconfirm_generator_t generator {
-        [tr = shared_from_this()](result_cb_t cb) -> std::function<void()> {
-            return [tr = std::move(tr), cb = std::move(cb)]() mutable {
-                std::thread t([tr = std::move(tr), cb = std::move(cb)] {
-                    tr->closed = true;
-                    std::this_thread::sleep_for(std::chrono::seconds(2));
-                    cb("Success", "Transaction was sent");
-                });
-                t.detach();
-            };
-        }
-    };
-    make_popup<ConfirmationPopup>(std::move(properties), std::move(generator));
+    // onconfirm_generator_t generator {
+    //     [tr = shared_from_this()](result_cb_t cb) -> std::function<void()> {
+    //         return [tr = std::move(tr), cb = std::move(cb)]() mutable {
+    //             std::thread t([tr = std::move(tr), cb = std::move(cb)] {
+    //                 tr->closed = true;
+    //                 std::this_thread::sleep_for(std::chrono::seconds(2));
+    //                 cb("Success", "Transaction was sent");
+    //             });
+    //             t.detach();
+    //         };
+    //     }
+    // };
+    make_popup<ConfirmationPopup>(std::move(properties), work, close_callback());
 };
 void FarmPopup::on_cancel() { closed = true; }
 

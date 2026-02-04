@@ -186,37 +186,54 @@ inline Component TransactionDetails(KVProperties properties)
     // });
 }
 
-struct NotificationPopup : public ui::Popup {
-private:
+struct NotificationData {
     std::string title, message;
+};
+
+struct NotificationPopup : public ui::Popup<NotificationPopup> {
+private:
+    NotificationData data;
     Element linesElement;
     Component btnOk;
 
 public:
-    NotificationPopup(GUI&, std::string title, std::string message)
-        : title(std::move(title))
-        , message(std::move(message))
+    NotificationPopup(GUI&, NotificationData data)
+        : data(std::move(data))
         , btnOk(Button("OK", [this]() { closed = true; }))
     {
         Add(btnOk);
     }
     Element OnRender() override
     {
-        return window(text(title),
-            vbox(paragraph(message), btnOk->Render() | center));
+        return window(text(data.title),
+            vbox(paragraph(data.message), btnOk->Render() | center));
     }
 };
-struct ConfirmationPopup : public GUIComponent, public ui::Popup {
+
+struct ConfirmationJob {
+    NotificationData data;
+    std::function<NotificationData()> work;
+    void operator()()
+    {
+        try {
+            data = work();
+        } catch (std::runtime_error& e) {
+            data.title = "Error";
+            data.message = e.what();
+        }
+    }
+    ~ConfirmationJob() = default;
+};
+
+struct ConfirmationPopup : public GUIComponent, public ui::Popup<ConfirmationPopup>{
     Component txdetails;
     Component btnCancel;
     Component btnConfirm;
     std::shared_ptr<NotificationPopup> resultPopup;
     bool submitting { false };
-    std::function<void()> onConfirm;
 
     ConfirmationPopup(GUI& gui, KVProperties txprops,
-        onconfirm_generator_t);
-    [[nodiscard]] auto result_cb();
+    std::function<NotificationData()> asyncJob, std::function<void()> syncDone);
     bool OnEvent(Event e) override
     {
         if (resultPopup)

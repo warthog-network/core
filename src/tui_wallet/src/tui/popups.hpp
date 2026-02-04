@@ -7,8 +7,7 @@
 namespace ui {
 
 struct TransferPopup : public GUIComponent,
-                       public Popup,
-                       std::enable_shared_from_this<TransferPopup> {
+                       public Popup<TransferPopup> {
 private:
     TokenInfo token;
     std::shared_ptr<ui::LabeledValidatedBase> amount;
@@ -44,10 +43,10 @@ public:
     void on_cancel();
     TransferPopup(GUI& gui, TokenInfo tokenInfo);
 };
+// template<
 
 struct SwapPopup : public GUIComponent,
-                   public Popup,
-                   std::enable_shared_from_this<SwapPopup> {
+                   public Popup<SwapPopup> {
 private:
     AssetInfo asset;
     std::vector<std::string> swap_directions;
@@ -67,7 +66,7 @@ public:
     void on_cancel();
     SwapPopup(GUI& gui, AssetInfo, bool buy);
 };
-struct FarmPopup : public GUIComponent, public Popup, std::enable_shared_from_this<FarmPopup> {
+struct FarmPopup : public GUIComponent, public Popup<FarmPopup>{
 private:
     AssetInfo asset;
     std::vector<std::string> liquidity_actions;

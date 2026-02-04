@@ -14,11 +14,11 @@ public:
     Endpoint(std::string host, uint16_t port)
         : host(host)
         , port(port) { };
-    api::FundsBalance get_balance(const std::string& account, api::TokenIdOrSpec token) const;
-    api_types::TokenList token_complete(std::string_view namePrefix, std::string_view hashPrefix) const;
-    api::FundsBalance wart_balance(const std::string& account) const;
-    TxHash send_transaction(const std::string& txjson);
-    std::pair<PinHeight, PinHash> get_pin();
+    [[nodiscard]] api::FundsBalance get_balance(const std::string& account, api::TokenIdOrSpec token) const;
+    [[nodiscard]] api_types::TokenList token_complete(std::string_view namePrefix, std::string_view hashPrefix) const;
+    [[nodiscard]] api::FundsBalance wart_balance(const std::string& account) const;
+    [[nodiscard]] TxHash send_transaction(const std::string& txjson) const;
+    [[nodiscard]] std::pair<PinHeight, PinHash> get_pin() const;
 
 private:
     [[nodiscard]] nlohmann::json extract_data(const std::string& json) const;

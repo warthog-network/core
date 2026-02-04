@@ -158,11 +158,12 @@ private:
     void start_spinner_thread();
     void stop_spinner_thread();
 
-    std::shared_ptr<RootComponent> root;
+    std::shared_ptr<RootComponent> _root;
 
     struct CreateToken { };
 
 public:
+    auto& root() const { return *_root; }
     Element render_spinner(int type = 12);
     void set_connected(bool set);
     void set_unlocked(bool set);
@@ -188,7 +189,7 @@ struct RootComponent : public GUIComponent, public ComponentBase {
     Component mainContainer;
     bool connected { false };
     bool unlocked { false };
-    std::vector<std::shared_ptr<Popup>> popups;
+    std::vector<std::shared_ptr<PopupBase>> popups;
 
 private:
     Element render_connected()
@@ -215,10 +216,16 @@ private:
     }
 
 public:
-    void add_popup(std::shared_ptr<Popup> e)
+    void add_popup(std::shared_ptr<PopupBase> e)
     {
         popups.push_back(std::move(e));
     };
+
+    template <typename T, typename... Ts>
+    void make_popup(Ts&& ... ts)
+    {
+        add_popup(Make<T>(gui, std::forward<Ts>(ts)...));
+    }
 
     Element OnRender() override
     {
@@ -245,7 +252,7 @@ public:
 template <typename T, typename... Ts>
 inline void GUIComponent::make_popup(Ts&&... ts)
 {
-    gui_root().add_popup(Make<T>(gui, std::forward<Ts>(ts)...));
+    gui_root().make_popup<T>(std::forward<Ts>(ts)...);
 }
 
 } // namespace ui

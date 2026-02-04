@@ -36,25 +36,27 @@ std::string Endpoint::http_get(const std::string& path) const
 
 nlohmann::json Endpoint::extract_data(const std::string& json) const
 {
+    auto parsed (
+        [&]() {
     try {
-        std::string error;
-        auto parsed = json::parse(json);
-        auto iter = parsed.find("error");
-        if (iter != parsed.end() && !iter->is_null()) {
-            error = iter->get<string>();
-        }
-        auto code { parsed["code"].get<int32_t>() };
-        if (code != 0 || !error.empty()) {
-            if (error.empty()) {
-                throw std::runtime_error(std::format("Error without details returned by API, code {}", code));
-            }
-            throw std::runtime_error(std::format("API error \"{}\", code {}", error, code));
-        } else {
-            auto j = parsed["data"];
-            return j;
-        }
+        return json::parse(json);
     } catch (...) {
         throw std::runtime_error("API response is malformed.");
+    } }()
+    );
+    std::string error;
+    auto iter = parsed.find("error");
+    if (iter != parsed.end() && !iter->is_null()) {
+        error = iter->get<string>();
+    }
+    auto code { parsed["code"].get<int32_t>() };
+    if (code != 0 || !error.empty()) {
+        if (error.empty()) {
+            throw std::runtime_error(std::format("Error without details returned by API, code {}", code));
+        }
+        throw std::runtime_error(std::format("API error \"{}\", code {}", error, code));
+    } else {
+        return parsed["data"];
     }
 }
 
@@ -92,7 +94,7 @@ std::string Endpoint::http_post(const std::string& path, std::span<const uint8_t
     throw std::runtime_error("POST request failed");
 }
 
-std::pair<PinHeight, PinHash> Endpoint::get_pin()
+std::pair<PinHeight, PinHash> Endpoint::get_pin() const
 {
     auto data(api_get("/chain/head"));
     std::string h = data["pinHash"].get<std::string>();
@@ -148,7 +150,7 @@ api_types::TokenList Endpoint::token_complete(std::string_view namePrefix, std::
     res.entries = std::move(l.matches);
     return res;
 }
-auto Endpoint::send_transaction(const std::string& txjson) -> TxHash
+auto Endpoint::send_transaction(const std::string& txjson) const -> TxHash
 {
     cout << "=====DEBUG INFO TRANSACTION JSON=====\n"
          << txjson << "\n"
