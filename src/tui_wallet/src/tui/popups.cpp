@@ -28,21 +28,6 @@ void TransferPopup::on_create()
     if (!allValid)
         return;
 
-    auto properties { KVProperties {
-        .title { "Transfer" },
-        .entries {
-            { "Token ", token.to_string() },
-            { "Amount (" + token.pretty_name() + ") ", editAmount.get()->content },
-            { "Destination ", editToAddr.get()->content },
-            { "Fee (WART) ", editFee.get()->content },
-            { "NonceId ", editNonceId.get()->content },
-        } } };
-    if (token.spec.isLiquidity) {
-        properties.entries.push_back(
-            { "NOTE: ",
-                "This transfer is for pool liquidity, not the actual asset!" });
-    }
-
     // Parse text fields
     auto nId { try_parse<uint32_t>(editNonceId.get()->content) };
     auto compactFee { Wart::parse(editFee.get()->content).transform([](Wart w) { return CompactUInt::compact(w); }) };
@@ -55,6 +40,21 @@ void TransferPopup::on_create()
 
     if (!nId || !compactFee || !amt || !toAddress)
         return;
+
+    auto properties { KVProperties {
+        .title { "Transfer" },
+        .entries {
+            { "Token ", token.to_string() },
+            { "Amount (" + token.pretty_name() + ") ", amt->to_decimal(token.prec()).to_string() },
+            { "Destination ", toAddress->to_string() },
+            { "Fee (WART) ", compactFee->to_string() },
+            { "NonceId ", std::to_string(*nId) },
+        } } };
+    if (token.spec.isLiquidity) {
+        properties.entries.push_back(
+            { "NOTE: ",
+                "This transfer is for pool liquidity, not the actual asset!" });
+    }
 
     auto work {
         [token = token, nonceId = NonceId(*nId), compactFee = *compactFee, amount = *amt, toAddr = *toAddress] -> NotificationData {
@@ -143,7 +143,7 @@ Element SwapPopup::OnRender()
         { window(text("New Swap"),
               vbox({ text("Base Asset: " + asset.to_string()),
                   hbox(text("Swap direction: "), toggle->Render()),
-                  editAmount->Render(), editLimit->Render(), editFee->Render() })),
+                  editAmount->Render(), editLimit->Render(), editFee->Render(), editNonceId->Render() })),
             hbox(btnCancel, btnCreate->Render()) | center });
 }
 
@@ -161,7 +161,7 @@ SwapPopup::SwapPopup(GUI& gui, AssetInfo a, bool buy)
     , btnCancel(Button("Cancel", [&]() { this->on_cancel(); }))
     , btnCreate(Button("Create", [&]() { this->on_create(); }))
 {
-    Add(Container::Vertical({ toggle, editAmount, editLimit, editFee,
+    Add(Container::Vertical({ toggle, editAmount, editLimit, editFee, editNonceId,
         Container::Horizontal({ btnCancel, btnCreate }) }));
 }
 void FarmPopup::on_create()
