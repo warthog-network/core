@@ -5,18 +5,22 @@
 #include "uvw.hpp"
 #include <memory>
 namespace {
+
+[[nodiscard]] TCPPeeraddr get_ipv4_endpoint(const sockaddr_in& addr_in4)
+{
+    return TCPPeeraddr(IPv4(ntoh32(uint32_t(addr_in4.sin_addr.s_addr))), addr_in4.sin_port);
+}
 [[nodiscard]] wrt::optional<TCPPeeraddr> get_ipv4_endpoint(const uvw::tcp_handle& handle)
 {
     sockaddr_storage storage;
     int alen = sizeof(storage);
-    if (auto e{uv_tcp_getpeername(handle.raw(), (struct sockaddr*)&storage, &alen)}; e != 0){
+    if (auto e { uv_tcp_getpeername(handle.raw(), (struct sockaddr*)&storage, &alen) }; e != 0) {
         spdlog::error("Bad uv_tcp_getpeername result: {}", e);
         return {};
     }
     if (storage.ss_family != AF_INET)
         return {};
-    sockaddr_in* addr_i4 = (struct sockaddr_in*)&storage;
-    return TCPPeeraddr(IPv4(ntoh32(uint32_t(addr_i4->sin_addr.s_addr))), addr_i4->sin_port);
+    return get_ipv4_endpoint(*(struct sockaddr_in*)&storage);
 }
 }
 
@@ -51,7 +55,7 @@ TCPConnectionManager::TCPConnectionManager(Token, std::shared_ptr<uvw::loop> loo
     listener = loop->resource<uvw::tcp_handle>();
     assert(listener);
     listener->on<uvw::error_event>([](const uvw::error_event& e, uvw::tcp_handle&) {
-        spdlog::error("TCP listener errror {}", e.name());
+        spdlog::error("TCP listener error {}", e.name());
     });
     listener->on<uvw::listen_event>([this, &ps](const uvw::listen_event&, uvw::tcp_handle& server) {
         if (config().node.isolated)
@@ -90,6 +94,43 @@ void TCPConnectionManager::on_wakeup()
         std::visit([&](auto& e) { handle_event(std::move(e)); }, tmp.front());
         tmp.pop();
     }
+}
+
+void TCPConnectionManager::handle_event(DnsResolveRequest&& e)
+{
+
+    auto req = loop().resource<uvw::get_addr_info_req>();
+
+    struct addrinfo hints {};
+    hints.ai_family = AF_INET; // IPv4 only
+    hints.ai_socktype = SOCK_STREAM;
+
+    auto hostname { e.hostname };
+    req->data(std::make_shared<DnsResolveRequest>(std::move(e)));
+
+    req->on<uvw::error_event>([](const uvw::error_event& e, const uvw::get_addr_info_req& h) {
+        auto& r { (*h.data<DnsResolveRequest>()) };
+        r.callback({ r.hostname, Error(e.code()) });
+        spdlog::error("DNS lookup error for {}:  {}", r.hostname, e.name());
+    });
+    req->on<uvw::addr_info_event>(
+        [](uvw::addr_info_event& addrInfo, uvw::get_addr_info_req& h) {
+            auto d { h.data<DnsResolveRequest>() };
+            std::vector<IPv4> matches;
+            for (auto p { addrInfo.data.get() }; p != nullptr; p = p->ai_next) {
+                if (p->ai_family == AF_INET) {
+                    auto ep { get_ipv4_endpoint(*reinterpret_cast<const sockaddr_in*>(p->ai_addr)) };
+                    matches.push_back(ep.ip);
+                }
+            }
+            if (matches.size() == 0) {
+                d->callback({ d->hostname, Error(ENOIPV4RESOLVABLE) });
+            } else {
+                d->callback(DnsResolveResult { d->hostname, std::move(matches) });
+            }
+        });
+
+    req->node_addr_info(hostname, &hints);
 }
 
 void TCPConnectionManager::handle_event(GetPeers&& e)
@@ -133,7 +174,7 @@ void TCPConnectionManager::handle_event(Inspect&& e)
 void TCPConnectionManager::handle_event(DeferFunc&& f)
 {
     f.callback();
-};
+}
 
 void TCPConnectionManager::shutdown(Error reason)
 {

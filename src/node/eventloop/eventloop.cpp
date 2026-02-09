@@ -18,6 +18,7 @@
 #include "peerserver/peerserver.hpp"
 #include "spdlog/spdlog.h"
 #include "sync/sync_state.hpp"
+#include "transport/tcp/conman.hpp"
 #include "transport/webrtc/rtc_connection.hxx"
 #include "transport/webrtc/sdp_util.hpp"
 #include "types/conref_impl.hpp"
@@ -123,6 +124,11 @@ void Eventloop::erase(std::shared_ptr<ConnectionBase> c, Error reason)
 void Eventloop::on_outbound_closed(std::shared_ptr<ConnectionBase> c, Error reason)
 {
     defer(OutboundClosed { std::move(c), reason });
+}
+
+void Eventloop::on_dns_resolve(DnsResolveResult r)
+{
+    defer(std::move(r));
 }
 
 void Eventloop::async_state_update(StateUpdate&& s)
@@ -250,7 +256,14 @@ void Eventloop::loop()
             true);
     }
 
-    connections.start();
+    auto r { connections.start() };
+
+#ifndef DISABLE_LIBUV
+    // start DNS requests
+    for (auto& r : r.dnsRequests) {
+        glo global
+    }
+#endif
     while (true) {
         {
             std::unique_lock<std::mutex> ul(mutex);
@@ -327,6 +340,11 @@ void Eventloop::handle_event(Erase&& m)
 void Eventloop::handle_event(OutboundClosed&& e)
 {
     connections.outbound_closed(std::move(e));
+}
+
+void Eventloop::handle_event(DnsResolveResult&& e)
+{
+    connections.on_dns_resolve(e);
 }
 
 void Eventloop::handle_event(OnHandshakeCompleted&& m)
@@ -1901,3 +1919,17 @@ void Eventloop::set_scheduled_connect_timer()
     }
     timerSystem.insert(tp, TimerEvent::ScheduledConnect {});
 }
+
+// Functions that don't exist in browser nodes
+#ifndef DISABLE_LIBUV
+void Eventloop::start_dns_request(const Hostname& hostname)
+{
+    auto callback {
+        [w = weak_from_this()](DnsResolveResult r) {
+            if (auto e { w.lock() })
+                e->on_dns_resolve(std::move(r));
+        }
+    };
+    global().conman->async_dns_resolve({ hostname, std::move(callback) });
+}
+#endif

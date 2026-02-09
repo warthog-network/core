@@ -2,9 +2,9 @@
 
 #include "general/byte_order.hpp"
 #include "ip_type.hpp"
+#include "wrt/optional.hpp"
 #include <compare>
 #include <cstdint>
-#include "wrt/optional.hpp"
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -34,21 +34,21 @@ struct IPv4 {
     bool is_rfc5737() const; // IPv4 documentation addresses (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24)
     bool is_rfc3927() const; // IPv4 autoconfig (169.254.0.0/16)
     bool is_routable() const;
-    static constexpr size_t bytes_size() { return 4; }
+    [[nodiscard]] static constexpr size_t bytes_size() { return 4; }
     auto operator<=>(const IPv4& rhs) const = default;
-    static constexpr wrt::optional<IPv4> parse(const std::string_view&);
+    [[nodiscard]] static constexpr wrt::optional<IPv4> parse(const std::string_view&);
     uint8_t at0() const { return data >> 24; }
     uint8_t at1() const { return 0xFF & (data >> 16); }
     uint8_t at2() const { return 0xFF & (data >> 8); }
     uint8_t at3() const { return 0xFF & data; }
     constexpr IPv4(const std::string_view& s)
         : IPv4(
-            [&] {
-                auto ea { parse(s) };
-                if (ea)
-                    return *ea;
-                throw std::runtime_error("Cannot parse ip address \"" + std::string(s) + "\".");
-            }()) {};
+              [&] {
+                  auto ea { parse(s) };
+                  if (ea)
+                      return *ea;
+                  throw std::runtime_error("Cannot parse ip address \"" + std::string(s) + "\".");
+              }()) {};
     uint32_t data;
     std::string to_string() const;
 };

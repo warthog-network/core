@@ -25,12 +25,14 @@ AddressManager::AddressManager(InitArg ia)
 {
 }
 
-void AddressManager::start()
+auto AddressManager::start() -> StartResult
 {
+    StartResult out;
 #ifndef DISABLE_LIBUV
-    tcpConnectionSchedule.initialize();
+    out.dnsRequests = tcpConnectionSchedule.initialize();
 #endif
     start_scheduled_connections();
+    return out;
 };
 
 void AddressManager::outbound_closed(OutboundClosedEvent e)
@@ -46,6 +48,10 @@ void AddressManager::outbound_closed(OutboundClosedEvent e)
             e.c->addedToSchedule);
 #endif
     }
+}
+
+void AddressManager::on_dns_resolve(const DnsResolveResult& r){
+    tcpConnectionSchedule.on_dns_resolve(r);
 }
 
 auto AddressManager::to_json() const -> json

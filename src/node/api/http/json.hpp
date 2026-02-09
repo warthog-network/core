@@ -27,6 +27,7 @@ json to_json(const api::BlockBinary&);
 json to_json(const api::BlockSummary&);
 json to_json(const api::ChainHead&);
 json to_json(const api::FundsBalance&);
+json to_json(const api::HealthState&);
 json to_json(const api::HashrateBlockChart&);
 json to_json(const api::HashrateInfo&);
 json to_json(const api::HashrateTimeChart&);

@@ -1,5 +1,6 @@
 #pragma once
 #include "config/config.hpp"
+#include "health/health.hpp"
 #include "general/logger/timing_logger.hpp"
 #include <memory>
 
@@ -31,6 +32,7 @@ struct Global {
     PeerServer* peerServer;
     Eventloop* core;
     BatchRegistry* batchRegistry;
+    std::unique_ptr<Health> health;
     std::shared_ptr<spdlog::logger> connLogger;
     std::shared_ptr<spdlog::logger> communicationLogger;
     wrt::optional<logging::TimingLogger> timingLogger;
@@ -45,6 +47,7 @@ inline auto& timing_log() { return global().timingLogger.value(); }
 inline spdlog::logger& syncdebug_log() { return *global().syncdebugLogger; }
 inline spdlog::logger& communication_log() { return *global().communicationLogger; }
 const Config& config();
+Health& health();
 Config& set_config();
 int init_config(int argc, char** argv);
 void start_global_services();

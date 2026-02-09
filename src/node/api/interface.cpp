@@ -328,6 +328,10 @@ void inspect_eventloop(std::function<void(const Eventloop& e)>&& cb)
     global().core->api_inspect(std::move(cb));
 }
 
+void health_state(HealthCb cb){
+    health().get(cb);
+}
+
 void subscribe_chain_event(SubscriptionRequest r)
 {
     global().chainServer->subscribe_chain_event(std::move(r));

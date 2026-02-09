@@ -66,6 +66,11 @@ const Config& config()
 {
     return *globalinstance.conf;
 }
+
+Health& health(){
+    return *globalinstance.health;
+}
+
 Config& set_config()
 {
     return *globalinstance.conf;
@@ -83,6 +88,7 @@ void global_init(BatchRegistry* pbr, rxtx::Server* ts, PeerServer* pps, ChainSer
 #endif
 {
 #ifndef DISABLE_LIBUV
+    globalinstance.health = std::make_unique<Health>();
     globalinstance.conman = pcm;
     globalinstance.wsconman = wcm;
     globalinstance.httpEndpoint = httpEndpoint;

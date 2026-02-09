@@ -17,7 +17,6 @@ struct Sockaddr4 {
         , port(port)
     {
     }
-    constexpr Sockaddr4(std::string_view);
     static Sockaddr4 from_sql_id(int64_t id)
     {
         return Sockaddr4(
@@ -30,7 +29,6 @@ struct Sockaddr4 {
     };
     IP host() const { return ip; }
     auto operator<=>(const Sockaddr4&) const = default;
-    static constexpr wrt::optional<Sockaddr4> parse(const std::string_view&);
 #ifndef DISABLE_LIBUV
     operator sockaddr() const;
     sockaddr sock_addr() const;

@@ -1,10 +1,10 @@
 #pragma once
 #ifndef DISABLE_LIBUV
 #include "connect_request.hpp"
+#include "transport/dns/request.hpp"
 #include "general/move_only_function.hpp"
 #include "peerserver/peerserver.hpp"
 #include "uvw.hpp"
-#include <list>
 #include <set>
 
 struct ConfigParams;
@@ -37,20 +37,34 @@ private:
     void uncount(IPv4);
 
     // reference counting
-
-    struct Token {
-    };
-
-public:
     struct APIPeerdata {
         TCPPeeraddr address;
         uint32_t since;
     };
     using PeersCB = MoveOnlyFunction<void(std::vector<APIPeerdata>)>;
 
+    struct Token {
+    };
+    struct GetPeers {
+        PeersCB cb;
+    };
+    using Connect = TCPConnectRequest;
+    struct Inspect {
+        MoveOnlyFunction<void(const TCPConnectionManager&)> callback;
+    };
+    struct DeferFunc {
+        MoveOnlyFunction<void()> callback;
+    };
+    using Event = std::variant<GetPeers, DnsResolveRequest, Connect, Inspect, DeferFunc>;
+
+public:
     void async_get_peers(PeersCB cb)
     {
         async_add_event(GetPeers { std::move(cb) });
+    }
+    void async_dns_resolve(DnsResolveRequest r)
+    {
+        async_add_event(std::move(r));
     }
     void connect(const TCPConnectRequest& cr)
     {
@@ -74,6 +88,7 @@ private:
     {
         async_add_event(DeferFunc { std::move(cb) });
     }
+    auto& loop() const { return listener->parent(); }
 
     const TCPPeeraddr bindAddress;
     //--------------------------------------
@@ -83,17 +98,6 @@ private:
     std::shared_ptr<uvw::tcp_handle> listener;
     std::shared_ptr<uvw::async_handle> wakeup;
 
-    struct GetPeers {
-        PeersCB cb;
-    };
-    using Connect = TCPConnectRequest;
-    struct Inspect {
-        MoveOnlyFunction<void(const TCPConnectionManager&)> callback;
-    };
-    struct DeferFunc {
-        MoveOnlyFunction<void()> callback;
-    };
-    using Event = std::variant<GetPeers, Connect, Inspect, DeferFunc>;
     void async_add_event(Event e)
     {
         std::unique_lock<std::mutex> lock(mutex);
@@ -107,6 +111,7 @@ private:
 
     // handle_event functions
     void handle_event(GetPeers&&);
+    void handle_event(DnsResolveRequest&&);
     void handle_event(Connect&&);
     void handle_event(Inspect&&);
     void handle_event(DeferFunc&&);

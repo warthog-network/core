@@ -186,6 +186,8 @@
     XX(316, EBADHEADER, "cannot parse header")                                     \
     XX(317, EHTTPREQUEST, "HTTP request failed")                                   \
     XX(318, EINVJSON, "Invalid JSON received")                                     \
+    XX(319, EINVHOSTNAME, "Invalid host name")                                     \
+    XX(320, ENOIPV4RESOLVABLE, "No IPv4 resolvable for hostname")                  \
     XX(1000, ESIGTERM, "received SIGTERM")                                         \
     XX(1001, ESIGHUP, "received SIGHUP")                                           \
     XX(1002, ESIGINT, "received SIGINT")                                           \

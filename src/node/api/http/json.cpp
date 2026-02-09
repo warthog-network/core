@@ -855,6 +855,19 @@ json to_json(const api::WartBalance& b)
         { "total", to_json(b.total) }, { "locked", to_json(b.locked) }
     };
 }
+
+json to_json(const api::HealthState& h)
+{
+
+    json messages(json::array());
+    for (auto& m : h.messages) {
+        messages.push_back(m);
+    }
+    return {
+        { "messages", messages }
+    };
+}
+
 json to_json(const api::FundsBalance& b)
 {
     return {
@@ -887,11 +900,11 @@ json to_json(const Grid& g)
 
 json to_json(const SignedSnapshot& s)
 {
-        return json {
-            { "priority", json { { "height", s.priority.height }, { "importance", s.priority.importance } } },
-            { "hash", serialize_hex(s.hash) },
-            { "signature", s.signature.to_string() },
-        };
+    return json {
+        { "priority", json { { "height", s.priority.height }, { "importance", s.priority.importance } } },
+        { "hash", serialize_hex(s.hash) },
+        { "signature", s.signature.to_string() },
+    };
 }
 
 json to_json(const TransactionId& txid)

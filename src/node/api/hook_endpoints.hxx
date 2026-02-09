@@ -428,6 +428,7 @@ public:
         GET_PUB<"/tools/sample_verified_peers/:number">(sample_verified_peers);
 
         SECTION("Debug Endpoints");
+        GET_PRIV<"/debug/health">(health_state);
         GET_PRIV<"/debug/header_download">(inspect_eventloop, jsonmsg::header_download);
         GET_PRIV<"/loadtest/block_request/:conn_id">(loadtest_block);
         GET_PRIV<"/loadtest/header_request/:conn_id">(loadtest_header);

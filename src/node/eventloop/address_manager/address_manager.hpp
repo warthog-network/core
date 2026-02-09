@@ -1,5 +1,6 @@
 #pragma once
 #include "eventloop/connection_inserter.hpp"
+#include "net/forward.hpp"
 #ifndef DISABLE_LIBUV
 #include "tcp_connections.hpp"
 #else
@@ -8,6 +9,7 @@
 
 #include "../types/conndata.hpp"
 #include "init_arg.hpp"
+#include "net/forward.hpp"
 #include "transport/helpers/per_ip_counter.hpp"
 #include <chrono>
 #include <vector>
@@ -109,7 +111,13 @@ public:
 
     // constructor
     AddressManager(InitArg);
-    void start();
+
+    struct StartResult {
+#ifndef DISABLE_LIBUV
+        std::vector<Hostname> dnsRequests;
+#endif
+    };
+    [[nodiscard]] StartResult start();
 
     // for range-based access
     InitializedRange initialized() const { return { *this }; }
@@ -117,6 +125,7 @@ public:
 
     void outbound_failed(const ConnectRequest& r, Error e);
     void outbound_closed(OutboundClosedEvent);
+    void on_dns_resolve(const DnsResolveResult&);
     json to_json() const;
 
     void verify(std::vector<TCPPeeraddr>, IPv4 source);
@@ -142,6 +151,10 @@ public:
 
     void start_scheduled_connections();
     [[nodiscard]] wrt::optional<time_point> pop_scheduled_connect_time();
+    [[nodiscard]] auto pop_scheduled_dns_lookups()
+    {
+        return tcpConnectionSchedule.pop_scheduled_dns_lookups();
+    }
 
 private:
     bool is_own_endpoint(Peeraddr a);

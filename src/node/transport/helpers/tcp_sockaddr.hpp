@@ -1,8 +1,11 @@
 #pragma once
 
 #include "transport/helpers/sockaddr.hpp"
-#include <stdexcept>
+#include "wrt/format.hpp"
+#include "wrt/str_utils.hpp"
+#include "wrt/variant.hpp"
 #include <limits>
+#include <stdexcept>
 #ifndef DISABLE_LIBUV
 struct sockaddr;
 #endif
@@ -32,33 +35,6 @@ constexpr wrt::optional<uint16_t> parse_port(const std::string_view& s)
     return out;
 }
 
-wrt::optional<Sockaddr4> constexpr Sockaddr4::parse(const std::string_view& s)
-{
-    size_t d1 = s.find(":");
-    auto ipv4str { s.substr(0, d1) };
-    auto ip = IPv4::parse(ipv4str);
-    if (!ip)
-        return {};
-    if (d1 == std::string::npos)
-        return {};
-    size_t d2 = s.find("//", d1 + 1);
-    auto portstr { s.substr(d1 + 1, d2 - d1 - 1) };
-    auto port = parse_port(portstr);
-    if (!port)
-        return {};
-
-    return Sockaddr4 { ip.value(), port.value() };
-}
-
-constexpr Sockaddr4::Sockaddr4(std::string_view s)
-    : Sockaddr4(
-        [&] {
-            auto ea { Sockaddr4::parse(s) };
-            if (ea)
-                return *ea;
-            throw std::runtime_error("Cannot parse endpoint address \"" + std::string(s) + "\".");
-        }()) {};
-
 struct TCPPeeraddr : public Sockaddr4 {
     using Sockaddr4::Sockaddr4;
     TCPPeeraddr(Sockaddr4 b)
@@ -66,7 +42,8 @@ struct TCPPeeraddr : public Sockaddr4 {
     {
     }
     std::string to_string() const;
-    std::string to_string_with_protocol() const{
+    std::string to_string_with_protocol() const
+    {
         return "tcp://" + to_string();
     }
     std::string_view type_str() const
@@ -77,24 +54,93 @@ struct TCPPeeraddr : public Sockaddr4 {
     {
         return { Sockaddr4::from_sql_id(id) };
     }
-    [[nodiscard]] static constexpr wrt::optional<TCPPeeraddr> parse(const std::string_view& sv)
+    [[nodiscard]] static constexpr wrt::optional<TCPPeeraddr> parse(const std::string_view& s)
     {
-        auto p { Sockaddr4::parse(sv) };
-        if (p) {
-            return TCPPeeraddr(*p);
-        }
+        auto [ipstr, portstr] { split(s, ':') };
+        auto ip { IPv4::parse(ipstr) };
+        auto port { parse_port(portstr) };
+        if (ip && port)
+            return TCPPeeraddr(*ip, *port);
         return {};
+    }
+    constexpr TCPPeeraddr(std::string_view s)
+        : TCPPeeraddr([&] {
+            if (auto p { parse(s) })
+                return *p;
+            throw std::runtime_error(fmt_lib::format("Cannot parse endpoint {}", s));
+        }())
+    {
     }
 };
 
-struct WSPeeraddr: public Sockaddr  {
+struct Hostname : public std::string {
+    Hostname(std::string s)
+        : std::string(std::move(s))
+    {
+    }
+};
+template <typename CharT>
+struct std::formatter<Hostname, CharT> : std::formatter<std::string, CharT> { };
+
+struct HostnamePort {
+    Hostname host;
+    uint16_t port;
+    [[nodiscard]] std::string to_string() const noexcept
+    {
+        return fmt_lib::format("{}:{}", host, port);
+    }
+    bool operator==(const HostnamePort&) const = default;
+    HostnamePort(Hostname host, uint16_t port)
+        : host(host)
+        , port(port)
+    {
+    }
+};
+
+class TcpPin : public wrt::variant<TCPPeeraddr, HostnamePort> {
+private:
+    using wrt::variant<TCPPeeraddr, HostnamePort>::variant;
+
+public:
+    static constexpr wrt::optional<TcpPin> parse(std::string_view hostport) noexcept
+    {
+        auto [host, port] { split(hostport, ':') };
+
+        auto p { parse_port(port) };
+        if (!p)
+            return {};
+
+        if (auto ip { IPv4::parse(host) })
+            return TcpPin { TCPPeeraddr { Sockaddr4 { *ip, *p } } };
+        return TcpPin { HostnamePort(std::string(host), *p) };
+    }
+    [[nodiscard]] std::string to_string() const
+    {
+        return visit([](auto& t) { return t.to_string(); });
+    }
+    TcpPin(std::string_view s)
+        : TcpPin([&] {
+            if (auto p { parse(s) }) {
+                return *p;
+            }
+            throw std::runtime_error(fmt_lib::format("Cannot parse endpoint {}", s));
+        }())
+    {
+    }
+};
+
+struct WSPeeraddr : public Sockaddr {
     using Sockaddr::Sockaddr;
     auto operator<=>(const WSPeeraddr&) const = default;
     std::string to_string() const;
-    std::string to_string_with_protocol() const{
+    std::string to_string_with_protocol() const
+    {
         return "ws://" + to_string();
     }
-    WSPeeraddr(Sockaddr addr):Sockaddr(std::move(addr)){}
+    WSPeeraddr(Sockaddr addr)
+        : Sockaddr(std::move(addr))
+    {
+    }
     std::string_view type_str() const
     {
         return "WS";

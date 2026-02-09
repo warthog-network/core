@@ -2,6 +2,7 @@
 #include "api/types/all_fwd.hpp"
 #include "communication/rxtx_server/api_types.hpp"
 #include "general/result.hpp"
+#include "health/health_fwd.hpp"
 #include "wrt/expected.hpp"
 #include "wrt/optional.hpp"
 #include <cstdint>
@@ -40,6 +41,7 @@ using SyncedCb = std::function<void(bool)>;
 using MempoolTxsCb = std::function<void(std::vector<wrt::optional<TransactionMessage>>&)>;
 using SampledPeersCb = std::function<void(const std::vector<TCPPeeraddr>&)>;
 using TransmissionCb = std::function<void(const api::TransmissionTimeseries&)>;
+using HealthCb = std::function<void(api::HealthState)>;
 using ErrorCb = std::function<void(const wrt::optional<Error>&)>;
 using ConnectedConnectionCb = std::function<void(const api::PeerinfoConnections&)>;
 

@@ -10,16 +10,16 @@
 #include "types.hpp"
 #include <atomic>
 struct gengetopt_args_info;
-struct Endpoints : public std::vector<TCPPeeraddr> {
+struct Endpoints : public std::vector<TcpPin> {
     Endpoints() { }
-    Endpoints(std::vector<TCPPeeraddr> v)
+    Endpoints(std::vector<TcpPin> v)
         : vector(std::move(v))
     {
     }
     Endpoints(std::initializer_list<std::string> l)
     {
         for (auto& s : l) {
-            push_back(TCPPeeraddr { s });
+            push_back(TcpPin { s });
         }
     }
 };

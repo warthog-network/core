@@ -1,5 +1,6 @@
 #include "tcp_connections.hpp"
 #include "general/errors.hpp"
+#include "global/globals.hpp"
 #include "peerserver/peerserver.hpp"
 #include "spdlog/spdlog.h"
 #include "transport/connect_request.hpp"
@@ -50,9 +51,141 @@ _SampleIterator sample2ranges(
     }
     return __output_iter;
 }
+std::string dns_health_key(const std::string& hostname)
+{
+    return "DNSLookup_" + hostname;
+}
 }
 
 namespace connection_schedule {
+
+auto PinnedUrls::get_or_insert(const Hostname& hostname) -> std::pair<Map::iterator, bool>
+{
+    return map.try_emplace(hostname);
+}
+
+bool PinnedUrls::erase_if_necessary(Map::iterator it)
+{
+    if (it->second.activeDnsLookup || it->second.pinned.size() > 0)
+        return false;
+    map.erase(it);
+    return true;
+}
+
+auto PinnedUrls::on_dns_lookup(const DnsResolveResult& r) -> std::optional<OnDnsResult>
+{
+    auto it { map.find(r.host) };
+    if (it == map.end())
+        return {};
+    OnDnsResult ret;
+    ret.byHost = &*it;
+    auto& val { it->second };
+    val.activeDnsLookup.reset();
+    val.lastDnsLookup = clock::now();
+
+    const auto healthKey { dns_health_key(r.host) };
+    if (r.result.has_value()) {
+        health().remove(healthKey);
+        auto& ips { r.result.value() };
+        assert(!ips.empty());
+        bool firstSuccessfulLookup { val.ips.empty() };
+        if (firstSuccessfulLookup) {
+            // now all corresponding hostname-pinned must be ip pinned.
+            val.ips = std::move(ips);
+            auto ip { val.ips.front() };
+            for (auto& p : val.pinned) {
+                ret.pinPeers.push_back({ ip, p.port });
+                p.pinnedIp = ip;
+            }
+        }
+    } else {
+        auto err { r.result.error() };
+        auto msg { "Cannot resolve pinned peer hostname: {}" + err.format() };
+        health().set(healthKey, msg);
+    }
+    return ret;
+}
+
+auto PinnedUrls::insert(const HostnamePort& hp) -> OnInsertResult
+{
+    OnInsertResult out;
+    auto p { get_or_insert(hp.host) };
+
+    auto& val { p.first->second };
+    auto& pinned { val.pinned };
+    if (p.second) { // was actually inserted
+        out.resolveDns = true;
+        consider_wakeup(p.first->second.nextDnsLookup);
+    }
+    auto it { pinned.find(hp.port) };
+    if (it == pinned.end()) {
+        pinned.push_back(hp.port);
+        size_ += 1;
+        if (!val.ips.empty()) {
+            auto ip { val.ips.front() };
+            it->pinnedIp = ip;
+            out.pinPeeraddr = PinPeeraddr { &*p.first, TCPPeeraddr(ip, hp.port) };
+        }
+    }
+    return out;
+}
+
+bool PinnedUrls::erase(const HostnamePort& hp)
+{
+    bool found { false };
+    auto it { map.find(hp.host) };
+    if (it != map.end()) {
+        auto& pinned { it->second.pinned };
+        std::optional<TCPPeeraddr> unpinAddress;
+        std::erase_if(pinned, [&](const PinEntry& e) {
+            if (e.port == hp.port) {
+                assert(!found);
+                found = true;
+                if (e.pinnedIp)
+                    unpinAddress = TCPPeeraddr { *e.pinnedIp, e.port };
+                size_ -= 1;
+                return true;
+            }
+            return false;
+        });
+        erase_if_necessary(it);
+    }
+    return found;
+}
+
+auto PinnedUrls::pinned_ip(const HostnamePort& hp) const -> const value_type*
+{
+    auto it { map.find(hp.host) };
+    if (it == map.end())
+        return nullptr;
+    auto it2 { it->second.pinned.find(hp.port) };
+    if (it2 == it->second.pinned.end())
+        return nullptr;
+    return &*it;
+}
+
+void PinnedUrls::consider_wakeup(time_point tp)
+{
+    if (wakeupTime > tp)
+        wakeupTime = tp;
+}
+
+std::vector<Hostname> PinnedUrls::pop_scheduled_dns_lookups()
+{
+    const auto now { std::chrono::steady_clock::now() };
+    wakeupTime = wakeupTime.max();
+    std::vector<Hostname> out;
+    for (auto& [hostname, v] : map) {
+        if (v.nextDnsLookup < now) {
+            out.push_back(hostname);
+            v.nextDnsLookup = v.nextDnsLookup.max();
+            v.activeDnsLookup = now;
+        } else {
+            consider_wakeup(v.nextDnsLookup);
+        }
+    }
+    return out;
+}
 
 size_t ConnectionLog::consecutive_failures() const
 {
@@ -151,7 +284,7 @@ std::pair<VectorEntry&, bool> VerifiedVector::insert(const TCPWithSource& i, tp 
     if (p)
         return { *p, false };
     auto& e { this->push_back(VerifiedEntry { i, lastVerified }) };
-    update_wakeup_time(e.wakeup_time());
+    timeout.set_min_of(e.wakeup_time());
     return { e, true };
 }
 
@@ -174,16 +307,16 @@ json VerifiedEntry::to_json() const
     return json;
 }
 
-void TimeoutInfo::update_wakeup_time(const wrt::optional<time_point>& tp)
+void Timeout::set_min_of(const wrt::optional<time_point>& tp)
 {
-    if (tp && (!wakeup_tp || wakeup_tp > tp))
-        wakeup_tp = tp;
+    if (tp && (!has_value() || **this > *tp))
+        *static_cast<wrt::optional<time_point>*>(this) = tp;
 }
 
 void FoundDisconnected::wakeup_after(duration d)
 {
     match.wakeup_after(d);
-    timeout.update_wakeup_time(match.wakeup_time());
+    timeout.set_min_of(match.wakeup_time());
 }
 
 template <typename T>
@@ -218,11 +351,11 @@ auto SockaddrVectorBase<T>::push_back(elem_t e) -> elem_t&
 template <typename T>
 void SockaddrVectorBase<T>::take_expired(time_point now, std::vector<ConnectRequest>& outpending)
 {
-    if (!wakeup_tp || wakeup_tp > now)
+    if (!timeout || *timeout > now)
         return;
-    wakeup_tp.reset();
+    timeout.reset();
     for (auto& e : data)
-        update_wakeup_time(e.make_expired_pending(now, outpending));
+        timeout.set_min_of(e.make_expired_pending(now, outpending));
 }
 
 template <typename T>
@@ -240,8 +373,7 @@ auto FeelerVector::insert(const EntryWithTimer& e1) -> std::pair<elem_t&, bool>
     if (p)
         return { *p, false };
     elem_t& e { push_back(e1) };
-    if (auto t { e.wakeup_time() }; t)
-        update_wakeup_time(*t);
+    timeout.set_min_of(e.wakeup_time());
     return { e, true };
 }
 auto FeelerVector::insert(const WithSource<TCPPeeraddr>& i) -> std::pair<elem_t&, bool>
@@ -250,8 +382,7 @@ auto FeelerVector::insert(const WithSource<TCPPeeraddr>& i) -> std::pair<elem_t&
     if (p)
         return { *p, false };
     elem_t& e { push_back(elem_t { i }) };
-    if (auto t { e.wakeup_time() }; t)
-        update_wakeup_time(*t);
+    timeout.set_min_of(e.wakeup_time());
     return { e, true };
 }
 
@@ -271,30 +402,36 @@ std::vector<TCPPeeraddr> TCPConnectionSchedule::sample_verified(size_t N) const
 
 TCPConnectionSchedule::TCPConnectionSchedule(InitArg ia)
     : peerServer(ia.peerServer)
-    , pinned(ia.pin.begin(), ia.pin.end())
 {
-    spdlog::info("Pinned {} peer{}.", ia.pin.size(), (ia.pin.size() == 1 ? "" : "s"));
+    for (auto& p : ia.pin)
+        pin_internal(p);
+    spdlog::info("Pinned {} peer{}.", size(), (size() == 1 ? "" : "s"));
+}
+
+size_t TCPConnectionSchedule::size() const
+{
+    return explicitIpPinned + urlPinned.size();
 }
 
 [[nodiscard]] auto TCPConnectionSchedule::find_disconnected(const TCPPeeraddr& a) -> wrt::optional<FoundDisconnected>
 {
     EntryWithTimer* p = disconnectedVerified.find(a);
     if (p)
-        return FoundDisconnected { *p, disconnectedVerified, true };
+        return FoundDisconnected { *p, disconnectedVerified.timeout, true };
     if (p = feelers.find(a); p)
-        return FoundDisconnected { *p, feelers, false };
+        return FoundDisconnected { *p, feelers.timeout, false };
     return {};
 }
 auto TCPConnectionSchedule::find(const TCPPeeraddr& a) -> wrt::optional<Found>
 {
     VectorEntry* p { connectedVerified.find(a) };
     if (p)
-        return Found { *p, connectedVerified, true };
+        return Found { *p, connectedVerified.timeout, true };
     p = disconnectedVerified.find(a);
     if (p)
-        return Found { *p, disconnectedVerified, true };
+        return Found { *p, disconnectedVerified.timeout, true };
     if (p = feelers.find(a); p)
-        return Found { *p, feelers, false };
+        return Found { *p, feelers.timeout, false };
     return {};
 }
 
@@ -307,7 +444,7 @@ wrt::optional<ConnectRequest> TCPConnectionSchedule::add_feeler(TCPPeeraddr addr
         return {};
     } else {
         feelers.insert({ addr, src });
-        wakeup_tp.consider(feelers.timeout());
+        wakeup_tp.consider(feelers.timeout);
         return ConnectRequest::make_outbound(addr, 0s);
     }
 }
@@ -329,26 +466,95 @@ void TCPConnectionSchedule::on_outbound_connected(const TCPConnection& c)
     if (!p)
         p = connectedVerified.find(a);
     if (!p)
-        return;
+        ;
     p->on_connected();
     prune_verified();
 }
 
-void TCPConnectionSchedule::pin(const TCPPeeraddr& a)
+void TCPConnectionSchedule::pin_internal(const HostnamePort& hostport)
 {
-    auto p { pinned.insert(a) };
-    if (p.second) { // newly inserted
+    auto res { urlPinned.insert(hostport) };
+    if (res.resolveDns) {
+        std::ranges::copy(urlPinned.pop_scheduled_dns_lookups(), std::back_inserter(scheduledDnsLookups));
+    }
+    if (auto& p { res.pinPeeraddr }) { // was not pinned before
+        pin_ipport(p->pinPeer, p->byHost);
+    }
+}
+bool TCPConnectionSchedule::unpin_ipport(const TCPPeeraddr& a, bool explicitly)
+{
+    return unpin_ipport(tcpPinned.find(a), explicitly);
+}
+
+bool TCPConnectionSchedule::unpin_ipport(TcpPinned::iterator it, bool explicitly)
+{
+    if (it == tcpPinned.end())
+        return false;
+    auto& origin { it->second };
+    if (explicitly) {
+        if (origin.explicitly) {
+            assert(explicitIpPinned > 0);
+            explicitIpPinned -= 1;
+            origin.explicitly = false;
+        }
+    } else
+        origin.byHost = nullptr;
+    if (origin.none()) {
+        tcpPinned.erase(it);
+        prune_verified();
+    }
+    return true;
+}
+
+void TCPConnectionSchedule::pin_ipport(const TCPPeeraddr& a, PinnedUrls::value_type* byHost)
+{
+    auto p { tcpPinned.try_emplace(a) };
+    if (p.second) { // was not pinned before
         insert_freshly_pinned(a);
+    }
+    auto& pinOrigin { p.first->second };
+    if (byHost)
+        pinOrigin.byHost = byHost;
+    else {
+        if (pinOrigin.explicitly == false) {
+            explicitIpPinned += 1;
+            pinOrigin.explicitly = true;
+        }
+    }
+}
+void TCPConnectionSchedule::pin_internal(const TCPPeeraddr& a)
+{
+    // nullptr means pin explicitly (i.e. pin is on ip, not by hostname lookup)
+    pin_ipport(a, nullptr);
+}
+
+void TCPConnectionSchedule::pin(const TcpPin& a)
+{
+    pin_internal(a);
+}
+void TCPConnectionSchedule::pin_internal(const TcpPin& a)
+{
+    return a.visit([&](auto& p) { return pin_internal(p); });
+    if (scheduledDnsLookups.size() > 0) {
     }
 }
 
-void TCPConnectionSchedule::unpin(const TCPPeeraddr& a)
+void TCPConnectionSchedule::unpin_internal(const HostnamePort& hp)
 {
-    if (pinned.erase(a) != 0)
-        prune_verified();
+    urlPinned.erase(hp);
+// bool PinnedUrls::erase(const HostnamePort& hp)
+}
+void TCPConnectionSchedule::unpin_internal(const TCPPeeraddr& addr)
+{
+    unpin_ipport(addr, true);
 }
 
-void TCPConnectionSchedule::initialize()
+void TCPConnectionSchedule::unpin(const TcpPin& a)
+{
+    return a.visit([&](auto& p) { return unpin_internal(p); });
+}
+
+std::vector<Hostname> TCPConnectionSchedule::initialize()
 {
     constexpr size_t maxRecent = 100;
 
@@ -371,10 +577,11 @@ void TCPConnectionSchedule::initialize()
     }
 
     // load pinned addresses
-    for (auto& p : pinned)
-        insert_freshly_pinned(p);
+    for (auto& p : tcpPinned)
+        insert_freshly_pinned(p.first);
 
     refresh_wakeup_time();
+    return std::move(scheduledDnsLookups);
 };
 
 void TCPConnectionSchedule::on_outbound_disconnected(const TCPConnectRequest& r, Error err, bool established)
@@ -399,7 +606,7 @@ void TCPConnectionSchedule::on_outbound_disconnected(const TCPConnectRequest& r,
                 if (err.code == EDUPLICATECONNECTION || err.code == EEVICTED) {
                     // we wanted to close the connection
                     return 10min;
-                } else if (pinned.contains(a) || !err.triggers_ban()) {
+                } else if (tcpPinned.contains(a) || !err.triggers_ban()) {
                     return 0s; // set timer to reconnect immediately
                 } else {
                     return seconds(err.bantime());
@@ -407,59 +614,111 @@ void TCPConnectionSchedule::on_outbound_disconnected(const TCPConnectRequest& r,
             }() };
 
             el.wakeup_after(dur);
-            disconnectedVerified.update_wakeup_time(el.wakeup_time());
+            disconnectedVerified.timeout.set_min_of(el.wakeup_time());
+            wakeup_tp.consider(disconnectedVerified.timeout);
         }
     } else { // non-established outgoing connection was closed
         on_outbound_failed(r, err);
     }
+}
+[[nodiscard]] std::optional<TCPPeeraddr> next_address(PinnedUrls::value_type& t, TCPPeeraddr a)
+{
+    auto& ips { t.second.ips };
+    if (ips.empty())
+        return {};
+    auto it { std::ranges::find(ips, a.ip) };
+    auto nextIp {
+        [&] {
+            if (it == ips.end() || ++it == ips.end())
+                return ips.front();
+            return *it;
+        }()
+    };
+    auto& pinned { t.second.pinned };
+    auto it2 { pinned.find(a.port) };
+    assert(it2 != pinned.end());
+    assert(it2->pinnedIp == a.ip);
+    if (it2->pinnedIp == nextIp)
+        return {};
+    it2->pinnedIp = nextIp;
+    return TCPPeeraddr { nextIp, a.port };
 }
 
 void TCPConnectionSchedule::on_outbound_failed(const TCPConnectRequest& cr, Error err)
 {
     auto a { cr.address() };
 
-    auto increas_sleeptime { [this](EntryWithTimer& item, TimeoutInfo& container) {
+    auto increase_sleeptime { [this](EntryWithTimer& item, Timeout& timeout) {
         auto d { item.sleep_duration() };
         if (d < 200ms) {
             d = 200ms;
         } else if (d < 1min)
             d *= 2; // exponential backoff
         item.wakeup_after(d);
-        container.update_wakeup_time(item.wakeup_time());
-        wakeup_tp.consider(container.wakeup_tp);
+        timeout.set_min_of(item.wakeup_time());
+        wakeup_tp.consider(timeout);
     } };
+    bool isPinned { false };
+    if (auto it { tcpPinned.find(a) }; it != tcpPinned.end()) {
+        isPinned = true;
+        // We might try a different IP if it is pinned by hostname.
+        if (auto p { it->second.byHost }) {
+            // Is pinned by hostname. We might try a different IP of that host
+            if (auto na { next_address(*p, a) }) {
+                // We do have a different IP of that host in `na`
+                auto deleted = !unpin_ipport(it, false); // Unpin address with old IP
+                isPinned = !deleted;
+                pin_ipport(*na, p); // Pin address with new ip
+            }
+        }
+    }
+
     if (auto f { feelers.find(a) }) {
-        if (pinned.contains(a)) { // cannot delete pinned feelers
+        // Failed connection is feeler connection.
+        if (isPinned) {
+            // Pinned feelers should not be deleted.
             f->lastError = err;
-            increas_sleeptime(*f, feelers);
+            increase_sleeptime(*f, feelers.timeout);
         } else { // delete from feelers
             assert(feelers.erase(a) == 1);
             return;
         }
-    } else { // move entry from disconnectedVerified to feelers
+    } else {
+        // Failed connection must be verified but disconnected.
         if (disconnectedVerified.size() > softboundVerified) {
+            // downgrade connection from verified to feeler
+            // i.e. move entry from disconnectedVerified to feelers
             auto n { disconnectedVerified.erase(a, [&](VerifiedEntry&& e) {
                 auto [elem, inserted] { feelers.insert(std::move(e)) };
                 elem.lastError = err;
                 assert(inserted);
-                increas_sleeptime(elem, feelers);
+                increase_sleeptime(elem, feelers.timeout);
             }) };
-            assert(n <= 1);
+            assert(n <= 1); // at most one element should exist for each address
         } else { // just exponential backoff reconnect
             if (auto f { disconnectedVerified.find(a) })
-                increas_sleeptime(*f, disconnectedVerified);
+                increase_sleeptime(*f, disconnectedVerified.timeout);
         }
     }
 }
 
 void TCPConnectionSchedule::on_inbound_disconnected(const IPv4& ip)
 {
-    auto [begin, end] { pinned.equal_range(ip) };
+    auto [begin, end] { tcpPinned.equal_range(ip) };
     for (auto iter = begin; iter != end; ++iter) {
-        auto& addr { *iter };
+        auto& addr { iter->first };
         auto found { find(addr) };
         assert(found.has_value()); // pinned should always be kept in the list
         // found->timeout.wakeup_tp
+    }
+}
+
+void TCPConnectionSchedule::on_dns_resolve(const DnsResolveResult& r)
+{
+    if (auto res { urlPinned.on_dns_lookup(r) }) {
+        for (auto& a : res->pinPeers) {
+            pin_ipport(a, res->byHost);
+        }
     }
 }
 
@@ -474,7 +733,7 @@ auto TCPConnectionSchedule::to_json() const -> json
 
 auto TCPConnectionSchedule::updated_wakeup_time() -> wrt::optional<time_point>
 {
-    return wakeup_tp.pop();
+    return wakeup_tp.pop_new_min();
 }
 
 void TCPConnectionSchedule::connect_expired()
@@ -489,11 +748,11 @@ void TCPConnectionSchedule::insert_freshly_pinned(const TCPPeeraddr& a)
         return;
     if (auto f { find_disconnected(a) }) {
         f->wakeup_after(0s);
-        wakeup_tp.consider(f->timeout.timeout());
+        wakeup_tp.consider(f->timeout);
     } else {
         constexpr connection_schedule::Source startup_source { 0 };
         feelers.insert({ a, startup_source });
-        wakeup_tp.consider(feelers.timeout());
+        wakeup_tp.consider(feelers.timeout);
     }
 }
 
@@ -504,7 +763,7 @@ void TCPConnectionSchedule::prune_verified()
         return true;
     },
         softboundVerified);
-    wakeup_tp.consider(feelers.timeout());
+    wakeup_tp.consider(feelers.timeout);
 }
 
 std::vector<TCPConnectRequest> TCPConnectionSchedule::pop_expired(time_point now)
@@ -524,8 +783,8 @@ std::vector<TCPConnectRequest> TCPConnectionSchedule::pop_expired(time_point now
 void TCPConnectionSchedule::refresh_wakeup_time()
 {
     wakeup_tp.reset();
-    wakeup_tp.consider(disconnectedVerified.timeout());
-    wakeup_tp.consider(feelers.timeout());
+    wakeup_tp.consider(disconnectedVerified.timeout);
+    wakeup_tp.consider(feelers.timeout);
 }
 
 }

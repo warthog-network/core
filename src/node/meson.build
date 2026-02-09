@@ -86,6 +86,7 @@ src= [
   './general/time_utils.cpp',
   './general/logger/log_memory.cpp',
   './global/globals.cpp',
+  './health/health.cpp',
   './mempool/mempool.cpp',
   './mempool/subscription.cpp',
   './mempool/txset.cpp',

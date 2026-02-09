@@ -89,6 +89,7 @@ void get_transmission_hours(TransmissionCb cb);
 // endpoints function
 void inspect_eventloop(std::function<void(const Eventloop& e)>&&);
 
+void health_state(HealthCb);
 void subscribe_chain_event(SubscriptionRequest);
 void subscribe_connection_event(SubscriptionRequest);
 void subscribe_account_event(SubscriptionRequest, Address);
@@ -98,3 +99,4 @@ void destroy_all_subscriptions(subscription_data_ptr);
 void loadtest_block(uint64_t conId, ErrorCb);
 void loadtest_header(uint64_t conId, ErrorCb);
 void loadtest_disable(uint64_t conId, ErrorCb);
+

@@ -1,6 +1,5 @@
 #pragma once
 #include "address_manager/address_manager.hpp"
-#include "serialization/vector.hpp"
 #include "api/callbacks.hpp"
 #include "api/events/subscription_fwd.hpp"
 #include "block/chain/height_header_work.hpp"
@@ -18,15 +17,17 @@
 #include "general/time_utils.hpp"
 #include "mempool/mempool.hpp"
 #include "mempool/subscription_declaration.hpp"
+#include "net/forward.hpp"
 #include "peerserver/peerserver.hpp"
+#include "serialization/vector.hpp"
 #include "sync/sync_state.hpp"
 #include "timer_element.hpp"
 #include "transport/connection_base.hpp"
+#include "transport/dns/request.hpp"
 #include "types/chainstate.hpp"
 #include "types/conndata.hpp"
 #include <condition_variable>
 #include <mutex>
-#include <queue>
 #include <thread>
 
 class RTCPendingOutgoing;
@@ -152,6 +153,7 @@ public:
     void erase(std::shared_ptr<ConnectionBase> c, Error);
     void on_failed_connect(const ConnectRequest& r, Error reason);
     void on_outbound_closed(std::shared_ptr<ConnectionBase>, Error reason);
+    void on_dns_resolve(DnsResolveResult);
 
     void start();
 
@@ -349,7 +351,7 @@ private:
     };
 
     // event queue
-    using Event = std::variant<Erase, OutboundClosed, OnHandshakeCompleted, OnProcessConnection,
+    using Event = std::variant<Erase, OutboundClosed, DnsResolveResult, OnHandshakeCompleted, OnProcessConnection,
         StateUpdate, SignedSnapshotCb, GetPeers, GetThrottled, SyncedCb, IpCounterCb, stage_operation::Result,
         OnForwardBlockrep, InspectorCb, GetHashrate, GetHashrateBlockChart, GetHashrateTimeChart, GetConnectionSchedule, FailedConnect,
         mempool::Updates, StartTimer, CancelTimer, RTCClosed, IdentityIps, GeneratedVerificationSdpOffer, GeneratedVerificationSdpAnswer, GeneratedSdpOffer, GeneratedSdpAnswer, SubscribeConnections, DestroySubscriptions, DisconnectPeer, SampleVerifiedPeers, Loadtest, PushRogue>;
@@ -361,6 +363,7 @@ private:
     // event handlers
     void handle_event(Erase&&);
     void handle_event(OutboundClosed&&);
+    void handle_event(DnsResolveResult&&);
     void handle_event(OnHandshakeCompleted&&);
     void handle_event(OnProcessConnection&&);
     void handle_event(StateUpdate&&);
@@ -392,6 +395,8 @@ private:
     void handle_event(SampleVerifiedPeers&&);
     void handle_event(Loadtest&&);
     void handle_event(PushRogue&&);
+
+    auto signed_snapshot() const { return chains.signed_snapshot(); };
 
     // throttling
     size_t ratelimit_spare();
@@ -447,7 +452,6 @@ private: // private data
     size_t maxRequests = 10;
 
     //
-    auto signed_snapshot() const { return chains.signed_snapshot(); };
     HeaderDownload::Downloader headerDownload;
     BlockDownload::Downloader blockDownload;
     mempool::SubscriptionMap mempoolSubscriptions;
@@ -466,6 +470,13 @@ private: // private data
     bool blockdownloadHalted = false;
     std::queue<Event> events;
     std::thread worker; // worker (constructed last)
+    
+    
+    
+// Functions that don't exist in browser nodes
+#ifndef DISABLE_LIBUV
+    void start_dns_request(const Hostname&);
+#endif
 };
 
 template <typename T>

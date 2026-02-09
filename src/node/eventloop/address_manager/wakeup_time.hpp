@@ -8,7 +8,7 @@ class WakeupTime {
 public:
     using steady_clock = std::chrono::steady_clock;
     using time_point = steady_clock::time_point;
-    auto pop()
+    auto pop_new_min()
     {
         auto tmp { std::move(popped_tp) };
         popped_tp.reset();

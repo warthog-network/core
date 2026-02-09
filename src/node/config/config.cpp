@@ -137,13 +137,13 @@ wrt::expected<ConfigParams, int> ConfigParams::from_args(int argc, char** argv)
 namespace {
 Endpoints parse_endpoints(std::string csv)
 {
-    std::vector<TCPPeeraddr> out;
+    std::vector<TcpPin> out;
 #ifndef DISABLE_LIBUV
     std::string::size_type pos = 0;
     while (true) {
         auto end = csv.find(",", pos);
         auto param = csv.substr(pos, end - pos);
-        auto parsed = TCPPeeraddr::parse(param);
+        auto parsed = TcpPin::parse(param);
         if (!parsed) {
             throw std::runtime_error("Invalid parameter '"s + param + "'."s);
         }
@@ -173,6 +173,17 @@ wrt::optional<T> config_convert(const toml::node& n)
 }
 
 template <>
+wrt::optional<TcpPin> config_convert(const toml::node& n)
+{
+    if (auto sv { n.value<std::string_view>() }) {
+        if (sv->length() == 0)
+            return {};
+        if (auto a { TcpPin::parse(*sv) })
+            return *a;
+    }
+    throw failed_convert(n);
+}
+template <>
 wrt::optional<TCPPeeraddr> config_convert(const toml::node& n)
 {
     if (auto sv { n.value<std::string_view>() }) {
@@ -191,7 +202,7 @@ wrt::optional<Endpoints> config_convert(const toml::node& n)
         Endpoints endpoints;
         auto& a { *n.as_array() };
         for (auto& e : a) {
-            auto a { config_convert<TCPPeeraddr>(e) };
+            auto a { config_convert<TcpPin>(e) };
             if (!a)
                 goto failed;
             endpoints.push_back(*a);
@@ -378,7 +389,7 @@ void fill(
 
 void ConfigParams::process_args(const gengetopt_args_info& ai)
 {
-    auto arg_to_peer_lambda = [](string_view argname) {
+    auto arg_to_tcppeeraddr_lambda = [](string_view argname) {
         return [argname](std::string_view argval) {
             auto p = TCPPeeraddr::parse(argval);
             if (!p)
@@ -394,11 +405,11 @@ void ConfigParams::process_args(const gengetopt_args_info& ai)
         }
     } };
     fill_arg(peers.connect, ai.connect_given, ai.connect_arg, parse_endpoints);
-    fill_arg(node.bind, ai.bind_given, ai.bind_arg, arg_to_peer_lambda("--bind"));
+    fill_arg(node.bind, ai.bind_given, ai.bind_arg, arg_to_tcppeeraddr_lambda("--bind"));
     fill_arg(node.minMempoolFee, ai.minfee_given, ai.minfee_arg, arg_to_minfee);
-    fill_arg(jsonrpc.bind, ai.rpc_given, ai.rpc_arg, arg_to_peer_lambda("--rpc"));
-    fill_arg(publicAPI, ai.publicrpc_given, ai.publicrpc_arg, arg_to_peer_lambda("--publicrpc"));
-    fill_arg(stratumPool, ai.stratum_given, ai.stratum_arg, arg_to_peer_lambda("--stratum"));
+    fill_arg(jsonrpc.bind, ai.rpc_given, ai.rpc_arg, arg_to_tcppeeraddr_lambda("--rpc"));
+    fill_arg(publicAPI, ai.publicrpc_given, ai.publicrpc_arg, arg_to_tcppeeraddr_lambda("--publicrpc"));
+    fill_arg(stratumPool, ai.stratum_given, ai.stratum_arg, arg_to_tcppeeraddr_lambda("--stratum"));
     fill_arg(data.chaindb, ai.chain_db_given, ai.chain_db_arg);
     fill_arg(data.peersdb, ai.peers_db_given, ai.peers_db_arg);
     fill_arg(data.rxtxdb, ai.rxtx_db_given, ai.rxtx_db_arg);
