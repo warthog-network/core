@@ -159,6 +159,7 @@ class Funds_uint64 : public FundsBase<Funds_uint64> {
 public:
     using FundsBase<Funds_uint64>::FundsBase;
     Funds_uint64(Reader& r);
+    std::string to_string() const = delete;
     auto operator<=>(const Funds_uint64&) const = default;
     [[nodiscard]] static wrt::optional<Funds_uint64> parse(std::string_view, TokenPrecision);
     [[nodiscard]] static wrt::optional<Funds_uint64> parse(ParsedFunds, TokenPrecision);

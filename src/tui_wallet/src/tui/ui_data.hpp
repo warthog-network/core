@@ -32,8 +32,9 @@ struct AssetInfo {
     std::string name;
     AssetHash hash;
     TokenPrecision precision;
-    TokenInfo token(bool isLiquidity){
-        return {name, api::TokenSpec(hash,isLiquidity),precision};
+    TokenInfo token(bool isLiquidity)
+    {
+        return { name, api::TokenSpec(hash, isLiquidity), precision };
     }
     std::string market() const { return name + "/WART"; }
     std::string liquidity_name() const { return name + "-LIQUIDITY"; }
@@ -49,4 +50,3 @@ struct AssetInfo {
         return { "DEMO", AssetHash::zero(), 8 };
     }
 };
-

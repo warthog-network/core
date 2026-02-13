@@ -71,27 +71,18 @@ private:
     AssetInfo asset;
     std::vector<std::string> liquidity_actions;
     int side_selected = 0;
-
     std::shared_ptr<ui::LabeledValidatedBase> editWart;
+    Component maybeWart;
     std::shared_ptr<ui::LabeledValidatedBase> editBase;
-    std::shared_ptr<ui::LabeledValidatedBase> editLimit;
     std::shared_ptr<ui::LabeledValidatedBase> editFee;
+    std::shared_ptr<ui::LabeledValidatedBase> editNonceId;
     Component toggle;
     Component btnCancel;
     Component btnCreate;
     bool is_deposit() const { return side_selected == 0; }
 
 public:
-    Element OnRender() override
-    {
-        editBase->label = "Max. Amount (" + asset.name + "): ";
-        return vbox(
-            { window(text("Farm Liquidity"),
-                  vbox({ text("Base Asset: " + asset.to_string()),
-                      hbox(text("Liquidity action: "), toggle->Render()),
-                      editWart->Render(), editLimit->Render(), editFee->Render() })),
-                hbox(btnCancel, btnCreate->Render()) | center });
-    }
+    Element OnRender() override;
     void on_create();
     void on_cancel();
     FarmPopup(GUI& gui, AssetInfo, bool deposit);

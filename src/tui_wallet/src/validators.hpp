@@ -9,15 +9,24 @@ bool nonce_id_validator(std::string_view);
 class FundsValidator {
 private:
     TokenPrecision prec;
-    bool allowZero;
 
 public:
-    constexpr FundsValidator(TokenPrecision prec, bool allowZero = false)
+    constexpr FundsValidator(TokenPrecision prec)
         : prec(prec)
-        , allowZero(allowZero)
     {
     }
-    bool operator()(std::string_view s) const;
+    bool valid(std::string_view s, bool allowsZero) const;
+};
+class NonzeroFundsValidator : public FundsValidator {
+public:
+    constexpr NonzeroFundsValidator(TokenPrecision prec)
+        : FundsValidator(prec)
+    {
+    }
+    bool operator()(std::string_view s) const
+    {
+        return valid(s, false);
+    }
 };
 class LimitValidator {
 private:
