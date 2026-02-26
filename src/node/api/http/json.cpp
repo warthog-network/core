@@ -848,7 +848,7 @@ json to_json(const api::Orders& orders)
     } };
     for (auto& o : orders.buys)
         buys.push_back(order_json(o, TokenPrecision::WART));
-    for (auto& o : orders.buys)
+    for (auto& o : orders.sells)
         sells.push_back(order_json(o, orders.basePrec));
     return {
         {"buys", buys},

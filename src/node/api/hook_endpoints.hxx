@@ -395,7 +395,7 @@ public:
         SECTION("Token Endpoints");
         // GET_PUB_HIDDEN<"/token/complete/">(api_call<ListTokens>);
         GET_PUB<"/token/complete?namePrefix=...&hashPrefix=...">(api_call<CompleteToken>);
-        
+
         SECTION("Market Endpoints");
         GET_PUB<"/market/:market/orders">(api_call<ListOrders>);
         //

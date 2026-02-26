@@ -251,11 +251,12 @@ public:
         wrt::optional<Entry> operator()()
         {
             if (ptr) {
-                Entry out { (*ptr)[i++] };
                 if (i >= ptr->size()) {
                     ptr = nullptr;
+                } else {
+                    Entry out { (*ptr)[i++] };
+                    return out;
                 }
-                return out;
             }
             return {};
         }
