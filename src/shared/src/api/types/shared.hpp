@@ -254,7 +254,7 @@ struct AssetSearchArgs {
 struct Order {
     bool fromMempool; // true for mempool orders, false for chain orders
     // TxHash hash;
-    Price_uint64 price;
+    Price_uint64 limit;
     Funds_uint64 amount;
     Funds_uint64 filled;
 };

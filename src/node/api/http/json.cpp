@@ -843,7 +843,9 @@ json to_json(const api::Orders& orders)
             { "fromMempool", o.fromMempool},
             { "amount", o.amount.to_decimal(inPrec).to_string() },
             { "filled", o.filled.to_decimal(inPrec).to_string() },
-            { "price", o.price.to_double_adjusted(orders.basePrec) }
+            { "limitUint32", o.limit.to_uint32() },
+            { "limit", o.limit.to_double_adjusted(orders.basePrec) }
+            // { "limit", o.limit.to_double_adjusted(orders.basePrec) }
         };
     } };
     for (auto& o : orders.buys)

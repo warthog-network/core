@@ -294,7 +294,7 @@ Result<api::Orders> State::api_list_orders(const api::AssetIdOrHash& h, size_t N
         [](const OrderInfo& order) -> api::Order {
             return {
                 .fromMempool = order.is_from_mempool(),
-                .price { order.limit },
+                .limit { order.limit },
                 .amount { order.amount },
                 .filled { order.filled },
             };

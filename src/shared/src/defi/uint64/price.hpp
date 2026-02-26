@@ -10,8 +10,8 @@
 struct Price_uint64 {
 private:
     Price_uint64(uint16_t m, uint8_t e)
-        : _m(m)
-        , _e(e)
+        : _e(e)
+        , _m(m)
     {
     }
 
@@ -149,8 +149,8 @@ public:
     }
 
 private:
-    uint16_t _m; // mantissa
     uint8_t _e; // exponent
+    uint16_t _m; // mantissa
 };
 
 struct PriceRelative_uint64 { // gives details relative to price grid
