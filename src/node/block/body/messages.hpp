@@ -20,9 +20,9 @@ struct MsgBase : public CombineElements<TransactionIdEl, NonceReservedEl, Compac
     }
 };
 
-struct SpendToken {
+struct AltToken { // alternative token involved in a transaction
     bool isLiquidity;
-    NonzeroFunds_uint64 amount;
+    Funds_uint64 spend;
 };
 
 template <uint8_t indicator, typename Self, typename... Ts>
@@ -74,7 +74,6 @@ public:
             << ... << CombineElements<Ts..., SignatureEl>::template get<Ts>()));
     }
     [[nodiscard]] Wart spend_wart_throw() const { return this->fee(); } // default only spend fee, but is overridden in WartTransferMessage and LiquidityDepositMessage
-    // [[nodiscard]] wrt::optional<SpendToken> spend_token_throw() const { return {}; } // default no other token than WART
     [[nodiscard]] Address from_address(const TxHash& txHash) const
     {
         return this->signature().recover_pubkey(txHash.data()).address();
@@ -102,7 +101,7 @@ public:
     {
         // nothing to check since the amount() is already zero by type restriction
     }
-    [[nodiscard]] SpendToken spend_token_throw() const { return SpendToken { is_liquidity(), amount() }; }
+    [[nodiscard]] AltToken alt_token() const { return AltToken { is_liquidity(), amount() }; }
 };
 
 class AssetCreationMessage : public IsAssetCreate, public ComposeTransactionMessage<3, AssetCreationMessage, AssetSupplyEl, AssetNameEl> {
@@ -114,11 +113,12 @@ class LimitSwapMessage : public IsLimitSwap, public ComposeTransactionMessage<4,
     static_assert(has_asset_hash);
 
 public:
-    [[nodiscard]] wrt::optional<SpendToken> spend_token_throw() const
+    [[nodiscard]] AltToken alt_token() const
     {
-        if (buy())
-            return {};
-        return SpendToken { false, amount() };
+        AltToken out { false, Funds_uint64::zero() };
+        if (!buy())
+            out.spend = amount();
+        return out;
     }
     [[nodiscard]] Wart spend_wart_throw() const { return sum_throw(fee(), buy() ? Wart::from_funds(amount()) : Wart::zero()); }
     using parent_t::parent_t;
@@ -129,11 +129,9 @@ class LiquidityDepositMessage : public IsLiquidityDeposit, public ComposeTransac
 
 public:
     [[nodiscard]] Wart spend_wart_throw() const { return sum_throw(fee(), quote()); }
-    [[nodiscard]] tl::optional<SpendToken> spend_token_throw() const
+    [[nodiscard]] AltToken alt_token() const
     {
-        return base().nonzero().transform([&](NonzeroFunds_uint64 nz) {
-            return SpendToken { false, nz };
-        });
+        return AltToken { false, base() };
     }
     void check_throw()
     {
@@ -147,7 +145,7 @@ class LiquidityWithdrawalMessage : public IsLiquidityWithdrawal, public ComposeT
     static_assert(has_asset_hash);
 
 public:
-    [[nodiscard]] SpendToken spend_token_throw() const
+    [[nodiscard]] AltToken alt_token() const
     {
         return { true, amount() };
     }
@@ -207,13 +205,12 @@ public:
     }
     [[nodiscard]] auto nonwart_token_throw() const
     {
-        struct Result {
+        struct Result : public AltToken {
             const AssetHash& assetHash;
-            wrt::optional<SpendToken> spend;
         };
         return visit([]<typename T>(const T& m) -> wrt::optional<Result> {
             if constexpr (T::has_asset_hash) {
-                return Result { m.asset_hash(), m.spend_token_throw() };
+                return Result { m.alt_token(), m.asset_hash() };
             } else {
                 return {};
             }
@@ -238,7 +235,7 @@ public:
             assert(false);
         }
     }
-    [[nodiscard]] auto spend_token_assert() const
+    [[nodiscard]] auto nonwart_token_assert() const
     {
         try {
             return nonwart_token_throw();

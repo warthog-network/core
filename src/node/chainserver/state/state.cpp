@@ -123,7 +123,7 @@ State::api_get_block_binary(const api::HeightOrHash& hh) const
 namespace {
 using MempoolOrderLoader = mempool::Mempool::OrderLoader;
 struct OrderInfo : public defi::Order_uint64 {
-    std::variant<TransactionId, TxHash> txid;
+    std::variant<HistoryId, TxHash> txid;
     Funds_uint64 filled { 0 };
     [[nodiscard]] constexpr bool is_from_mempool() const { return std::holds_alternative<TxHash>(txid); }
     Funds_uint64 remaining() const
@@ -132,7 +132,7 @@ struct OrderInfo : public defi::Order_uint64 {
     }
     OrderInfo(const OrderData& od) // for entries that come from database
         : defi::Order_uint64(od.order)
-        , txid(od.txid)
+        , txid(od.id)
         , filled(od.filled)
     {
     }
@@ -291,9 +291,15 @@ Result<api::Orders> State::api_list_orders(const api::AssetIdOrHash& h, size_t N
     // res.toPool
     api::Orders orders(d->precision);
     auto to_api {
-        [](const OrderInfo& order) -> api::Order {
+        [&](const OrderInfo& order) -> api::Order {
+            uint32_t confirmations{0};
+            if (std::holds_alternative<HistoryId>(order.txid)){
+                auto hid{std::get<HistoryId>(order.txid)};
+                auto hh{chainstate.history_height(hid)};
+                confirmations = chainlength() - hh + 1;
+            }
             return {
-                .fromMempool = order.is_from_mempool(),
+                .confirmations = confirmations,
                 .limit { order.limit },
                 .amount { order.amount },
                 .filled { order.filled },

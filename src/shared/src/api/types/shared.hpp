@@ -252,7 +252,7 @@ struct AssetSearchArgs {
 };
 
 struct Order {
-    bool fromMempool; // true for mempool orders, false for chain orders
+    uint32_t confirmations; // age of this order, 0 means it is in mempool
     // TxHash hash;
     Price_uint64 limit;
     Funds_uint64 amount;

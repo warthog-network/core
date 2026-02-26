@@ -183,11 +183,11 @@ auto Mempool::erase_internal(Txset::const_iter_t iter, balance_iterator wartIter
         return false;
     } };
     // update locked token balance
-    if (auto tokenSpend { iter->spend_token_assert() }) {
-        if (auto& s { tokenSpend->spend }) {
+    if (auto tokenSpend { iter->nonwart_token_assert() }) {
+        if (tokenSpend->spend > 0) {
             if (!tokenIter)
                 tokenIter = lockedBalances.find({ iter->from_id(), iter->altTokenId });
-            er.erasedToken = unlock(*tokenIter, s->amount);
+            er.erasedToken = unlock(*tokenIter, tokenSpend->spend);
         }
     }
 
@@ -436,8 +436,7 @@ void Mempool::insert_tx_throw(InsertParams tx)
             wartBal.unlock(iter->spend_wart_assert());
             auto nonWart { iter->nonwart_token_throw() };
             assert(nonWart.has_value());
-            assert(nonWart->spend.has_value());
-            tokenBal.unlock(iter->nonwart_token_throw()->spend->amount);
+            tokenBal.unlock(nonWart->spend);
         }
         if (tokenBal.free() < tx.nonwart.spend)
             throw Error(ETOKBALANCE);

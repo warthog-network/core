@@ -329,10 +329,8 @@ TxHash Chainstate::insert_tx_internal_throw(TransactionMessage&& m, TxHash txHas
         if (sh > stateHeight)
             stateHeight = sh;
 
-        if (auto& s { nw->spend }) { // set the non-wart variables
-            tokenId = aid.token_id(s->isLiquidity);
-            spend = s->amount;
-        }
+        tokenId = aid.token_id(nw->isLiquidity);
+        spend = nw->spend;
     }
 
     TxHeight th(m.pin_height(), stateHeight);

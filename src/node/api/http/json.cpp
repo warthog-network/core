@@ -840,12 +840,10 @@ json to_json(const api::Orders& orders)
     auto sells(json::array());
     auto order_json { [&](api::Order o, TokenPrecision inPrec) {
         return json {
-            { "fromMempool", o.fromMempool},
-            { "amount", o.amount.to_decimal(inPrec).to_string() },
+            { "confirmations", o.confirmations},
+            { "amount", to_json(o.amount.to_decimal(inPrec)) },
             { "filled", o.filled.to_decimal(inPrec).to_string() },
-            { "limitUint32", o.limit.to_uint32() },
             { "limit", o.limit.to_double_adjusted(orders.basePrec) }
-            // { "limit", o.limit.to_double_adjusted(orders.basePrec) }
         };
     } };
     for (auto& o : orders.buys)
