@@ -291,10 +291,6 @@ Result<api::MarketDetail> State::api_market_detail(const api::AssetIdOrHash& h, 
     else
         return defi::Pool_uint64{0,0,0}; }() };
     auto match { defi::match_lazy(aggregatedSells, aggregatedBuys, pool) };
-    spdlog::info("filled.quote: {}, filled.base: {}", match.filled.quote.value(), match.filled.base.value());
-    if (match.toPool) {
-        spdlog::info("res.toPool: {} {}", match.toPool->is_quote(), match.toPool->amount().value());
-    }
     api::LiquidityPool p { pool.base, pool.quote.as_wart(), pool.shares_total() };
     api::MarketDetail orders(*d, p, match);
     auto to_api {
