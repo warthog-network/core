@@ -327,7 +327,7 @@ json tx_to_json(const api::block::AssetCreation& tx)
 
 inline void add(json& j, const api::block::NewOrderData& tx)
 {
-    j["baseAsset"] = jsonmsg::to_json(tx.assetInfo); // TODO: check that asset exists when NewOrder goes to mempool
+    j["baseAsset"] = jsonmsg::to_json(tx.assetInfo);
     j["amount"] = to_json(tx.amount_decimal());
     j["limit"] = limit_json(tx.limit, tx.assetInfo.precision);
     j["buy"] = tx.buy;
@@ -839,7 +839,7 @@ json to_json(const api::Peerinfo& pi)
 
 json to_json(const api::MarketDetail& mdet)
 {
-    auto basePrec{mdet.base.precision};
+    auto basePrec { mdet.base.precision };
     auto quote(json::array());
     auto base(json::array());
     auto order_json { [&](const api::Order& o, TokenPrecision inPrec, bool convertToWart) {
@@ -870,9 +870,9 @@ json to_json(const api::MarketDetail& mdet)
     return {
         { "baseAsset", to_json(mdet.base) },
         { "swapOrders", {
-                      { "quoteWart", quote },
-                      { "baseAsset", base },
-                  } },
+                            { "quoteWart", quote },
+                            { "baseAsset", base },
+                        } },
         { "match", { { "filled", { { "baseAsset", to_json(match.filled.base.to_decimal(basePrec), false) }, { "quoteWart", to_json(match.filled.quote.as_wart()) } } }, { "toPool", toPool } } }
     };
 }
