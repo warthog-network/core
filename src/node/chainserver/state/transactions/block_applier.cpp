@@ -180,16 +180,15 @@ private:
         if (drained == true)
             return;
 
-        while (true) {
-            wrt::optional<OrderData> o { l() };
+        wrt::optional<OrderData> o;
+        do {
+            o = l();
             if (!o) {
                 drained = true;
                 return;
             }
-            if (ignoreOrderIds.contains(o->id))
-                continue;
-            loaded.push_back(*o);
-        }
+        } while (ignoreOrderIds.contains(o->id));
+        loaded.push_back(*o);
     }
 
 private:

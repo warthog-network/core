@@ -359,7 +359,7 @@ json tx_to_json(const api::block::Match& tx)
         [&]<typename T>(const std::vector<T>& v) {
             json res = json::array();
             for (auto& s : v) {
-                auto e { bq_json(s) };
+                auto e ( bq_json(s) );
                 e["historyId"] = s.referred_history_id().value();
                 res.push_back(std::move(e));
             }
