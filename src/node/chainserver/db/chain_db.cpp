@@ -278,10 +278,12 @@ ChainDB::ChainDB(const std::string& path)
     , stmtUpdateFillBaseSellOrder(db, "UPDATE `" SELLORDERS_TABLE "` SET filledBase = ? WHERE id = ?")
     , stmtDeleteBaseSellOrder(db, "DELETE FROM `" SELLORDERS_TABLE "` WHERE id = ?")
     , stmtDeleteBaseSellOrderTxid(db, "DELETE FROM `" SELLORDERS_TABLE "` WHERE account_id = ? AND pin_height = ? AND nonce_id = ?")
+    , stmtSellOrderDeleteFrom(db, "DELETE FROM `" SELLORDERS_TABLE "` WHERE id >= ?")
     , stmtInsertQuoteBuyOrder(db, "INSERT INTO `" BUYORDERS_TABLE "` (id, account_id, pin_height, nonce_id, asset_id, totalQuote, filledQuote, limitPrice) VALUES(?,?,?,?,?,?,?,?)")
     , stmtUpdateFillQuoteBuyOrder(db, "UPDATE `" BUYORDERS_TABLE "` SET filledQuote = ? WHERE id = ?")
     , stmtDeleteQuoteBuyOrder(db, "DELETE FROM `" BUYORDERS_TABLE "` WHERE id = ?")
     , stmtDeleteQuoteBuyOrderTxid(db, "DELETE FROM `" BUYORDERS_TABLE "` WHERE account_id = ? AND pin_height = ? AND nonce_id = ?")
+    , stmtBuyOrderDeleteFrom(db, "DELETE FROM `" BUYORDERS_TABLE "` WHERE id >= ?")
     , stmtSelectBaseSellOrderAsc(db, "SELECT id, account_id, pin_height, nonce_id, totalBase, filledBase, limitPrice FROM `" SELLORDERS_TABLE "` WHERE asset_id=? ORDER BY limitPrice ASC, id ASC")
     , stmtSelectQuoteBuyOrderDesc(db, "SELECT id, account_id, pin_height, nonce_id, totalQuote, filledQuote, limitPrice FROM `" BUYORDERS_TABLE "` WHERE asset_id=? ORDER BY limitPrice DESC, id ASC")
     , stmtSelectBaseSellOrderTxhashAsc(db, "SELECT o.id, account_id, pin_height, nonce_id, totalBase, filledBase, limitPrice, hash FROM `" SELLORDERS_TABLE "` `o` JOIN `" HISTORY_TABLE "` `h` ON h.id = o.id WHERE asset_id=? ORDER BY limitPrice ASC, o.id ASC")
@@ -919,6 +921,8 @@ void ChainDB::delete_history_from(NonzeroHeight h)
     const auto nextHistoryId { stmtConsensusSelectHistory.one(h).get<uint64_t>(0) };
     stmtHistoryDeleteFrom.run(nextHistoryId);
     stmtAccountHistoryDeleteFrom.run(nextHistoryId);
+    stmtBuyOrderDeleteFrom.run(nextHistoryId);
+    stmtSellOrderDeleteFrom.run(nextHistoryId);
     cache.nextHistoryId = HistoryId { nextHistoryId };
 }
 

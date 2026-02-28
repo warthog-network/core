@@ -434,10 +434,12 @@ private:
     Statement stmtUpdateFillBaseSellOrder;
     Statement stmtDeleteBaseSellOrder;
     Statement stmtDeleteBaseSellOrderTxid;
+    Statement stmtSellOrderDeleteFrom;
     Statement stmtInsertQuoteBuyOrder;
     Statement stmtUpdateFillQuoteBuyOrder;
     Statement stmtDeleteQuoteBuyOrder;
     Statement stmtDeleteQuoteBuyOrderTxid;
+    Statement stmtBuyOrderDeleteFrom;
     mutable Statement stmtSelectBaseSellOrderAsc;
     mutable Statement stmtSelectQuoteBuyOrderDesc;
     mutable Statement stmtSelectBaseSellOrderTxhashAsc;
