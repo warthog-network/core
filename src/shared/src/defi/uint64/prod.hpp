@@ -152,7 +152,7 @@ private:
     {
         assert(v != 0);
         if (upper == 0)
-            return lower / v + ceil && (lower % v != 0);
+            return (lower / v) + (ceil && (lower % v != 0) ? 1 : 0);
         auto shift { std::countl_zero(upper) };
         uint64_t t0 { (upper << shift) + (lower >> (64 - shift)) };
         uint64_t t1 { lower << shift };
