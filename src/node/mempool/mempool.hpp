@@ -5,6 +5,7 @@
 #include "comparators.hpp"
 #include "defi/token/account_token.hpp"
 #include "mempool/updates.hpp"
+#include <generator>
 namespace chainserver {
 struct TransactionIds;
 }
@@ -116,6 +117,7 @@ public:
     auto& by_fee() const { return byFee; }
     [[nodiscard]] auto cache_validity() const { return txs.cache_validity(); }
     auto find(TransactionId id) const { return txs().find(id); }
+    auto& txset() const { return txs(); }
     auto begin() const { return txs().begin(); }
     auto end() const { return txs().end(); }
 
@@ -277,6 +279,24 @@ public:
     {
         return get_sorted_orders(market, true);
     }
+    // This class is representing a range of iterators
+    // which correspond to entries of specific accountId
+    class AccountTxs {
+        friend Mempool;
+    private:
+        iter_t _begin;
+        iter_t _end;
+        AccountTxs(iter_t _begin, iter_t _end)
+            : _begin(_begin)
+            , _end(_end)
+        {
+        }
+
+    public:
+        iter_t begin() const { return _begin; }
+        iter_t end() const { return _end; }
+    };
+    AccountTxs account_txs(AccountId accId) const;
     OrderLoader sells_asc(AssetId market) const
     {
         return get_sorted_orders(market, false);

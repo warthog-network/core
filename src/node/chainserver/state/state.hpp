@@ -106,6 +106,8 @@ public:
 
     // api getters
     api::WartBalanceLookup api_get_wart_balance(api::AccountIdOrAddress a) const;
+    std::vector<api::MarketOrders> api_account_orders(api::AccountIdOrAddress a) const;
+    api::MarketOrders api_account_orders_market(api::AccountIdOrAddress a, api::AssetIdOrHash) const;
     Result<api::TokenBalanceLookup> api_get_token_balance_recursive(api::AccountIdOrAddress a, api::TokenIdOrSpec t) const;
     auto api_get_head() const -> api::ChainHead;
     auto api_get_history(const api::AccountIdOrAddress& a, int64_t beforeId = 0x7fffffffffffffff) const -> wrt::optional<api::AccountHistory>;
@@ -130,8 +132,8 @@ public:
 
 private:
     using NormalizedToken = api::Token;
-    [[nodiscard]] wrt::optional<NormalizedToken> normalize(api::TokenIdOrSpec) const;
-    [[nodiscard]] wrt::optional<api::Account> normalize(api::AccountIdOrAddress) const;
+    [[nodiscard]] Result<NormalizedToken> normalize(api::TokenIdOrSpec) const;
+    [[nodiscard]] Result<api::Account> normalize(api::AccountIdOrAddress) const;
     [[nodiscard]] Result<AssetDetail> normalize(const api::AssetIdOrHash&) const;
     // delegated getters
     auto api_get_block(Height h) const -> wrt::optional<api::Block>;

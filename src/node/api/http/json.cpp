@@ -359,7 +359,7 @@ json tx_to_json(const api::block::Match& tx)
         [&]<typename T>(const std::vector<T>& v) {
             json res = json::array();
             for (auto& s : v) {
-                auto e ( bq_json(s) );
+                auto e(bq_json(s));
                 e["historyId"] = s.referred_history_id().value();
                 res.push_back(std::move(e));
             }
@@ -739,7 +739,7 @@ json to_json(const api::Token& t)
     };
 }
 
-nlohmann::json to_json(const api::Wallet& w)
+json to_json(const api::Wallet& w)
 {
     auto pubKey { w.pk.pubkey() };
     return {
@@ -836,23 +836,48 @@ json to_json(const api::Peerinfo& pi)
     };
     return elem;
 }
+namespace {
+json order_json(const api::Order& o, TokenPrecision basePrec, bool convertToWart)
+{
+    // o.txid
+    return json {
+        { "txHash", serialize_hex(o.txHash) },
+        { "txId", jsonmsg::to_json(o.txid) },
+        { "height", o.height ? json(o.height.value()) : json(nullptr) },
+        { "historyId", o.historyId ? json(o.historyId.value()) : json(nullptr) },
+        { "confirmations", o.confirmations },
+        { "amount", convertToWart ? jsonmsg::to_json(o.amount.as_wart()) : jsonmsg::to_json(o.amount.to_decimal(basePrec), false) },
+        { "filled", convertToWart ? jsonmsg::to_json(o.filled.as_wart()) : jsonmsg::to_json(o.filled.to_decimal(basePrec), false) },
+        { "limit", limit_json(o.limit, basePrec) }
+    };
+};
+}
+
+json to_json(const api::MarketOrders& orders)
+{
+    auto basePrec { orders.base.precision };
+    auto quote(json::array());
+    auto base(json::array());
+    for (auto& o : orders.buys)
+        quote.push_back(order_json(o, basePrec, true));
+    for (auto& o : orders.sells)
+        base.push_back(order_json(o, basePrec, false));
+    return {
+        { "baseAsset", to_json(orders.base) },
+        { "swapOrders", {
+                            { "quoteWart", quote },
+                            { "baseAsset", base },
+                        } }
+    };
+}
 
 json to_json(const api::MarketDetail& mdet)
 {
     auto basePrec { mdet.base.precision };
     auto quote(json::array());
     auto base(json::array());
-    auto order_json { [&](const api::Order& o, TokenPrecision inPrec, bool convertToWart) {
-        return json {
-            { "txHash", serialize_hex(o.txHash) },
-            { "confirmations", o.confirmations },
-            { "amount", convertToWart ? to_json(o.amount.as_wart()) : to_json(o.amount.to_decimal(inPrec), false) },
-            { "filled", convertToWart ? to_json(o.filled.as_wart()) : to_json(o.filled.to_decimal(inPrec), false) },
-            { "limit", limit_json(o.limit, basePrec) }
-        };
-    } };
     for (auto& o : mdet.buys)
-        quote.push_back(order_json(o, TokenPrecision::WART, true));
+        quote.push_back(order_json(o, basePrec, true));
     for (auto& o : mdet.sells)
         base.push_back(order_json(o, basePrec, false));
 

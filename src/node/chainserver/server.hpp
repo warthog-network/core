@@ -35,6 +35,10 @@
     XX(GetDBSize, api::DBSize)                                                   \
     XX(GetChainHead, api::ChainHead)                                             \
     XX(GetWartBalance, api::WartBalanceLookup, api::AccountIdOrAddress, account) \
+    XX(GetAccountOrders, std::vector<api::MarketOrders>,                         \
+        api::AccountIdOrAddress, account)                                        \
+    XX(GetAccountOrdersAsset, api::MarketOrders,                                 \
+        api::AccountIdOrAddress, account, api::AssetIdOrHash, asset)             \
     XX(GetTokenBalance, api::TokenBalanceLookup,                                 \
         api::AccountIdOrAddress, account, api::TokenIdOrSpec, token)             \
     XX(GetAccountHistory, api::AccountHistory,                                   \
@@ -201,6 +205,8 @@ private:
     auto handle_api(chainserver::GetRichlist&& e) { return state.api_get_richlist(e.token(), 100); }
     auto handle_api(chainserver::GetTokenBalance&& e) { return state.api_get_token_balance_recursive(e.account(), e.token()); }
     auto handle_api(chainserver::GetWartBalance&& e) { return state.api_get_wart_balance(e.account()); }
+    auto handle_api(chainserver::GetAccountOrders&& e) { return state.api_account_orders(e.account()); }
+    auto handle_api(chainserver::GetAccountOrdersAsset&& e) { return state.api_account_orders_market(e.account(), e.asset()); }
     auto handle_api(chainserver::GetBlock&& e) { return state.api_get_block(e.heightOrHash()); }
     auto handle_api(chainserver::GetGrid&&) { return state.get_headers().grid(); }
     auto handle_api(chainserver::GetMempool&&) { return state.api_get_mempool(2000); }

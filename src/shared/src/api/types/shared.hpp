@@ -260,11 +260,24 @@ struct AssetSearchArgs {
 
 struct Order {
     uint32_t confirmations; // age of this order, 0 means it is in mempool
+    std::optional<Height> height;
+    std::optional<HistoryId> historyId;
     TxHash txHash;
+    TransactionId txid;
     Price_uint64 limit;
     Funds_uint64 amount;
     Funds_uint64 filled;
 };
+struct MarketOrders {
+    MarketOrders(AssetBasic base)
+        : base(base)
+    {
+    }
+    AssetBasic base;
+    std::vector<Order> buys;
+    std::vector<Order> sells;
+};
+
 struct MarketDetail {
     MarketDetail(AssetBasic base, LiquidityPool liquidityPool, defi::MatchResult_uint64 res)
         : base(std::move(base))

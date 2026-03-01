@@ -37,6 +37,7 @@ json to_json(const api::LiquidityPool&, TokenPrecision basePrecision, bool prec=
 json to_json(const api::MempoolEntries&);
 json to_json(const api::MempoolUpdate&);
 json to_json(const api::MiningState&);
+json to_json(const api::MarketOrders&);
 json to_json(const api::MarketDetail&);
 json to_json(const api::ParsedPrice&);
 json to_json(const api::Peerinfo&);

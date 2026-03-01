@@ -499,6 +499,11 @@ size_t Mempool::on_constraint_update()
     return deleted;
 }
 
+auto Mempool::account_txs(AccountId accId) const -> AccountTxs
+{
+    return { transactions.txset().lower_bound(accId),
+        transactions.txset().upper_bound(accId) };
+}
 void Mempool::prune()
 {
     while (size() > transactions.max_size())

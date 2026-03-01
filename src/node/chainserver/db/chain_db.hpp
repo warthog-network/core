@@ -231,6 +231,9 @@ public:
     void delete_order(const chain_db::OrderDelete&);
     [[nodiscard]] wrt::optional<chain_db::OrderData> select_order(TransactionId) const;
 
+    [[nodiscard]] std::vector<std::pair<chain_db::OrderData,TxHash>> lookup_account_orders(AccountId) const;
+    [[nodiscard]] std::vector<std::pair<chain_db::OrderData, TxHash>> lookup_account_orders_market(AccountId, AssetId) const;
+
     [[nodiscard]] OrderLoaderAscending base_order_loader_ascending(AssetId) const;
     [[nodiscard]] OrderLoaderDescending quote_order_loader_descending(AssetId) const;
 
@@ -444,6 +447,12 @@ private:
     mutable Statement stmtSelectQuoteBuyOrderDesc;
     mutable Statement stmtSelectBaseSellOrderTxhashAsc;
     mutable Statement stmtSelectQuoteBuyOrderTxhashDesc;
+
+    mutable Statement stmtSelectQuoteBuyOrderAccount;
+    mutable Statement stmtSelectQuoteBuyOrderAccountAsset;
+    mutable Statement stmtSelectBaseSellOrderAccount;
+    mutable Statement stmtSelectBaseSellOrderAccountAsset;
+
     mutable Statement stmtSelectBaseSell;
     mutable Statement stmtSelectQuoteBuy;
 

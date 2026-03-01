@@ -126,6 +126,7 @@ using MempoolOrderLoader = mempool::Mempool::OrderLoader;
 struct OrderInfo : public defi::Order_uint64 {
     std::optional<HistoryId> hid;
     TxHash txHash;
+    TransactionId txid;
     Funds_uint64 filled { 0 };
     Funds_uint64 remaining() const
     {
@@ -135,12 +136,14 @@ struct OrderInfo : public defi::Order_uint64 {
         : defi::Order_uint64(od.order)
         , hid(od.id)
         , txHash(od.txHash)
+        , txid(od.txid)
         , filled(od.filled)
     {
     }
     OrderInfo(const MempoolOrderLoader::Entry& e)
         : defi::Order_uint64(e.swap().amount(), e.swap().limit())
         , txHash(e.hash())
+        , txid(e.swap().txid())
     {
     }
 };
@@ -297,13 +300,18 @@ Result<api::MarketDetail> State::api_market_detail(const api::AssetIdOrHash& h, 
     auto to_api {
         [&](const OrderInfo& order) -> api::Order {
             uint32_t confirmations { 0 };
+            std::optional<Height> height;
             if (order.hid) {
                 auto hh { chainstate.history_height(*order.hid) };
+                height = hh;
                 confirmations = chainlength() - hh + 1;
             }
             return {
                 .confirmations = confirmations,
+                .height { height },
+                .historyId { order.hid },
                 .txHash { order.txHash },
+                .txid { order.txid },
                 .limit { order.limit },
                 .amount { order.amount },
                 .filled { order.filled },
@@ -1567,19 +1575,140 @@ State::append_gentx(const TransactionCreate& m)
 
 api::WartBalanceLookup State::api_get_wart_balance(api::AccountIdOrAddress account) const
 {
-    auto acc { normalize(account) };
+    wrt::optional<api::Account> acc;
+    if (auto a { normalize(account) })
+        acc = *a;
     auto balance { acc ? api_get_token_balance_recursive(acc->id, TokenId::WART).balance : api::FundsBalance::zero() };
+
     return {
-        .account { acc },
+        .account { std::move(acc) },
         .balance { .total { Wart::from_funds(balance.total.funds) }, .locked { Wart::from_funds(balance.locked.funds) } }
     };
 }
+template <class Factory>
+struct CallConverter {
+    constexpr CallConverter(Factory f)
+        : factory(std::move(f))
+    {
+    }
+    constexpr operator auto() const { return factory(); }
+    Factory factory;
+};
+
+std::vector<api::MarketOrders> State::api_account_orders(api::AccountIdOrAddress account) const
+{
+    auto acc { normalize(account).value_or_throw() };
+    std::map<AssetId, api::MarketOrders> map;
+    auto map_entry {
+        [&, assetId = std::optional<AssetId>(),
+            pOrders = (api::MarketOrders*)(nullptr)](AssetId id) mutable -> api::MarketOrders& {
+            if (id != assetId) {
+                assetId = id;
+                pOrders = &map.try_emplace(id, CallConverter([&]() {
+                                  auto asset { normalize(id) };
+                                  assert(asset.has_value());
+                                  return api::MarketOrders(*asset);
+                              }))
+                               .first->second;
+            }
+            return *pOrders;
+        }
+    };
+
+    for (auto& [e, txhash] : db.lookup_account_orders(acc.id)) {
+        auto& ref { map_entry(e.aid) };
+        auto& v { (e.buy ? ref.buys : ref.sells) };
+        auto height { chainstate.history_height(e.id) };
+        v.push_back({
+            .confirmations = chainlength() - height + 1,
+            .height { height },
+            .historyId { e.id },
+            .txHash { txhash },
+            .txid { e.txid },
+            .limit { e.limit },
+            .amount { e.total },
+            .filled { e.filled },
+        });
+    }
+    for (auto& entry : chainstate.mempool().account_txs(acc.id)) {
+        if (entry.holds<LimitSwapMessage>()) {
+            auto nw { entry.altTokenId.non_wart() };
+            assert(nw);
+            auto& swap { entry.get<LimitSwapMessage>() };
+            auto currentAssetId { nw->asset_id() };
+            auto& ref { map_entry(currentAssetId) };
+            auto& v { (swap.buy() ? ref.buys : ref.sells) };
+            v.push_back({
+                .confirmations = 0,
+                .height {},
+                .historyId {},
+                .txHash { entry.txhash },
+                .txid { entry.txid() },
+                .limit { swap.limit() },
+                .amount { swap.amount() },
+                .filled { 0 },
+            });
+        }
+    };
+
+    // now convert map values to vector
+    std::vector<api::MarketOrders> out;
+    for (auto&& e : std::move(map)) {
+        out.push_back(std::move(e.second));
+    }
+    return out;
+}
+
+api::MarketOrders State::api_account_orders_market(api::AccountIdOrAddress account, api::AssetIdOrHash asset) const
+{
+    auto acc { normalize(account).value_or_throw() };
+    auto as { normalize(asset).value_or_throw() };
+    api::MarketOrders out(as);
+
+    for (auto& [e, txhash] : db.lookup_account_orders_market(acc.id, as.id)) {
+        assert(e.aid == as.id);
+        auto& v { (e.buy ? out.buys : out.sells) };
+        auto height { chainstate.history_height(e.id) };
+        v.push_back({
+            .confirmations = chainlength() - height + 1,
+            .height { height },
+            .historyId { e.id },
+            .txHash { txhash },
+            .txid { e.txid },
+            .limit { e.limit },
+            .amount { e.total },
+            .filled { e.filled },
+        });
+    }
+
+    for (auto& entry : chainstate.mempool().account_txs(acc.id)) {
+        if (!entry.holds<LimitSwapMessage>())
+            continue;
+        auto nw { entry.altTokenId.non_wart() };
+        assert(nw);
+        if (nw->asset_id() != as.id)
+            continue;
+        auto& swap { entry.get<LimitSwapMessage>() };
+        auto& v { (swap.buy() ? out.buys : out.sells) };
+        v.push_back({
+            .confirmations = 0,
+            .height {},
+            .historyId {},
+            .txHash { entry.txhash },
+            .txid { entry.txid() },
+            .limit { swap.limit() },
+            .amount { swap.amount() },
+            .filled { 0 },
+        });
+    };
+    return out;
+}
 
 auto State::normalize(api::TokenIdOrSpec token) const
-    -> wrt::optional<api::Token>
+    -> Result<api::Token>
 {
     return token.visit_overload(
-        [&](TokenId id) -> wrt::optional<api::Token> {
+        [&](TokenId id) -> Result<api::Token> {
             if (auto nwId { id.non_wart() }) {
                 auto asset { db.lookup_asset(nwId->asset_id()) };
                 if (asset)
@@ -1589,12 +1718,12 @@ auto State::normalize(api::TokenIdOrSpec token) const
                         .name { asset->name.to_string() },
                         .assetPrecision { asset->precision },
                     };
-                return {}; // asset corresponding to token id does not exist
+                return Error(ETOKENNOTFOUND); // asset corresponding to token id does not exist
             } else {
                 return api::Token::WART();
             }
         },
-        [&](const api::TokenSpec& h) -> wrt::optional<NormalizedToken> {
+        [&](const api::TokenSpec& h) -> Result<NormalizedToken> {
             auto asset { db.lookup_asset(h.assetHash) };
             if (asset) {
                 auto tid { asset->id.token_id(h.isLiquidity) };
@@ -1608,7 +1737,7 @@ auto State::normalize(api::TokenIdOrSpec token) const
             } else if (h.assetHash.is_wart()) {
                 return api::Token::WART();
             }
-            return {};
+            return Error(ETOKENNOTFOUND);
         });
 }
 
@@ -1616,18 +1745,18 @@ size_t State::on_mempool_constraint_update()
 {
     return chainstate.on_mempool_constraint_update();
 }
-wrt::optional<api::Account> State::normalize(api::AccountIdOrAddress a) const
+Result<api::Account> State::normalize(api::AccountIdOrAddress a) const
 {
     return a.visit_overload(
-        [&](const AccountId& id) -> wrt::optional<api::Account> {
+        [&](const AccountId& id) -> Result<api::Account> {
             if (auto addr { db.lookup_address(id) })
                 return api::Account { .address { *addr }, .id { id } };
-            return {};
+            return Error(EACCIDNOTFOUND);
         },
-        [&](const Address& addr) -> wrt::optional<api::Account> {
+        [&](const Address& addr) -> Result<api::Account> {
             if (auto id { db.lookup_account(addr) })
                 return api::Account { .address { addr }, .id { *id } };
-            return {};
+            return Error(EADDRNOTFOUND);
         });
 }
 
@@ -1641,7 +1770,7 @@ Result<api::TokenBalanceLookup> State::api_get_token_balance_recursive(api::Acco
     if (!acc)
         return api::TokenBalanceLookup { .token { *token }, .balance { api::FundsBalance::zero() }, .account {}, .lookupTrace {} };
     auto b { api_get_token_balance_recursive(acc->id, token->id) };
-    return api::TokenBalanceLookup { .token { *token }, .balance { b.balance }, .account { acc }, .lookupTrace { std::move(b.lookupTrace) } };
+    return api::TokenBalanceLookup { .token { *token }, .balance { b.balance }, .account { *acc }, .lookupTrace { std::move(b.lookupTrace) } };
 }
 
 auto State::api_get_token_balance_recursive(AccountId aid, TokenId tid) const -> BalanceLookup

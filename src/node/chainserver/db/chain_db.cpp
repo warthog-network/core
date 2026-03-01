@@ -100,6 +100,8 @@ ChainDB::Database::Database(const std::string& path)
          "PRIMARY KEY(`id`))");
     exec("CREATE INDEX IF NOT EXISTS `" SELLORDERS_TABLE "Index` ON "
          "`" SELLORDERS_TABLE "` (asset_id, limitPrice ASC, id ASC)");
+    exec("CREATE INDEX IF NOT EXISTS `" SELLORDERS_TABLE "AssetAccountIndex` ON "
+         "`" SELLORDERS_TABLE "` (asset_id, account_id)");
     exec("CREATE UNIQUE INDEX IF NOT EXISTS `" SELLORDERS_TABLE "AccountIndex` ON "
          "`" SELLORDERS_TABLE "` (account_id, pin_height, nonce_id)");
 
@@ -116,6 +118,8 @@ ChainDB::Database::Database(const std::string& path)
          "PRIMARY KEY(`id`))");
     exec("CREATE INDEX IF NOT EXISTS `" BUYORDERS_TABLE "Index` ON "
          "`" BUYORDERS_TABLE "` (asset_id, limitPrice DESC, id ASC)");
+    exec("CREATE INDEX IF NOT EXISTS `" BUYORDERS_TABLE "AssetAccountIndex` ON "
+         "`" BUYORDERS_TABLE "` (asset_id, account_id)");
     exec("CREATE UNIQUE INDEX IF NOT EXISTS `" BUYORDERS_TABLE "AccountIndex` ON "
          "`" BUYORDERS_TABLE "` (account_id, pin_height, nonce_id)");
 
@@ -288,6 +292,10 @@ ChainDB::ChainDB(const std::string& path)
     , stmtSelectQuoteBuyOrderDesc(db, "SELECT id, account_id, pin_height, nonce_id, totalQuote, filledQuote, limitPrice FROM `" BUYORDERS_TABLE "` WHERE asset_id=? ORDER BY limitPrice DESC, id ASC")
     , stmtSelectBaseSellOrderTxhashAsc(db, "SELECT o.id, account_id, pin_height, nonce_id, totalBase, filledBase, limitPrice, hash FROM `" SELLORDERS_TABLE "` `o` JOIN `" HISTORY_TABLE "` `h` ON h.id = o.id WHERE asset_id=? ORDER BY limitPrice ASC, o.id ASC")
     , stmtSelectQuoteBuyOrderTxhashDesc(db, "SELECT o.id, account_id, pin_height, nonce_id, totalQuote, filledQuote, limitPrice, hash FROM `" BUYORDERS_TABLE "` `o` JOIN `" HISTORY_TABLE "` `h` ON h.id = o.id WHERE asset_id=? ORDER BY limitPrice DESC, o.id ASC")
+    , stmtSelectQuoteBuyOrderAccount(db, "SELECT o.id, account_id, pin_height, nonce_id, totalQuote, filledQuote, limitPrice, hash, asset_id FROM `" BUYORDERS_TABLE "` `o` JOIN `" HISTORY_TABLE "` `h` ON h.id = o.id WHERE account_id=? ORDER BY pin_height ASC, nonce_id ASC")
+    , stmtSelectQuoteBuyOrderAccountAsset(db, "SELECT o.id, account_id, pin_height, nonce_id, totalQuote, filledQuote, limitPrice, hash FROM `" BUYORDERS_TABLE "` `o` JOIN `" HISTORY_TABLE "` `h` ON h.id = o.id WHERE asset_id = ? AND account_id=?")
+    , stmtSelectBaseSellOrderAccount(db, "SELECT o.id, account_id, pin_height, nonce_id, totalBase, filledBase, limitPrice, hash, asset_id FROM `" SELLORDERS_TABLE "` `o` JOIN `" HISTORY_TABLE "` `h` ON h.id = o.id WHERE account_id=? ORDER BY pin_height ASC, nonce_id ASC")
+    , stmtSelectBaseSellOrderAccountAsset(db, "SELECT o.id, account_id, pin_height, nonce_id, totalBase, filledBase, limitPrice, hash FROM `" SELLORDERS_TABLE "` `o` JOIN `" HISTORY_TABLE "` `h` ON h.id = o.id WHERE asset_id = ? AND account_id=?")
     , stmtSelectBaseSell(db, "SELECT id, asset_id, totalBase, filledBase, limitPrice FROM `" SELLORDERS_TABLE "` WHERE account_id = ? AND pin_height = ? AND nonce_id = ?")
     , stmtSelectQuoteBuy(db, "SELECT id, asset_id, totalQuote, filledQuote, limitPrice FROM `" BUYORDERS_TABLE "` WHERE account_id = ? AND pin_height = ? AND nonce_id = ?")
     , stmtInsertCanceled(db, "INSERT INTO `" CANCELED_TABLE "` (id, account_id, pin_height, nonce_id) VALUES (?,?,?,?)")
@@ -735,6 +743,65 @@ wrt::optional<chain_db::OrderData> ChainDB::select_order(TransactionId id) const
         });
     }
     return res;
+}
+
+std::vector<std::pair<chain_db::OrderData, TxHash>> ChainDB::lookup_account_orders(AccountId accId) const
+{
+    std::vector<std::pair<chain_db::OrderData, TxHash>> out;
+    // wrt::optional<chain_db::OrderData> res {
+
+    stmtSelectQuoteBuyOrderAccount.for_each([&](const sqlite::Row& o) {
+        out.push_back({ chain_db::OrderData {
+                            .id = o[0],
+                            .buy = true,
+                            .txid { { .accountId = o[1], .pinHeight = o[2], .nonceId = o[3] } },
+                            .aid = o[8],
+                            .total = o[4],
+                            .filled = o[5],
+                            .limit = o[6] },
+            TxHash(o[7]) });
+    },
+        accId);
+    stmtSelectBaseSellOrderAccount.for_each([&](const sqlite::Row& o) {
+        out.push_back({ chain_db::OrderData {
+                            .id = o[0],
+                            .buy = false,
+                            .txid { { .accountId = o[1], .pinHeight = o[2], .nonceId = o[3] } },
+                            .aid = o[8],
+                            .total = o[4],
+                            .filled = o[5],
+                            .limit = o[6] },
+            TxHash(o[7]) });
+    },
+        accId);
+    return out;
+}
+std::vector<std::pair<chain_db::OrderData, TxHash>> ChainDB::lookup_account_orders_market(AccountId accId, AssetId aid) const
+{
+    std::vector<std::pair<chain_db::OrderData, TxHash>> out;
+    stmtSelectQuoteBuyOrderAccountAsset.for_each([&](const sqlite::Row& o) {
+        out.push_back({ chain_db::OrderData {
+                            .id = o[0],
+                            .buy = true,
+                            .txid { { .accountId = o[1], .pinHeight = o[2], .nonceId = o[3] } },
+                            .aid = aid,
+                            .total = o[4],
+                            .filled = o[5],
+                            .limit = o[6] },
+            TxHash(o[7]) });
+    }, aid, accId);
+    stmtSelectBaseSellOrderAccountAsset.for_each([&](const sqlite::Row& o) {
+        out.push_back({ chain_db::OrderData {
+                            .id = o[0],
+                            .buy = false,
+                            .txid { { .accountId = o[1], .pinHeight = o[2], .nonceId = o[3] } },
+                            .aid = aid,
+                            .total = o[4],
+                            .filled = o[5],
+                            .limit = o[6] },
+            TxHash(o[7]) });
+    }, aid, accId);
+    return out;
 }
 OrderLoaderAscending ChainDB::base_order_loader_ascending(AssetId aid) const
 {

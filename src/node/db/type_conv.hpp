@@ -71,6 +71,7 @@ public:
     }
 
     operator Hash() const { return { get_array<32>() }; }
+    operator AccountId() const { return AccountId(getUInt64()); }
     operator Height() const { return Height(getUInt32()); }
     operator PinHeight() const
     {
