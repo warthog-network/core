@@ -1324,7 +1324,7 @@ private:
         for (auto& d : deposits) {
             auto verified { d.verify(txVerifier, ah.hash()) };
             auto shares { pool.deposit(d.base(), d.quote().E8()) };
-            balanceChecker.add_balance(d.origin.id, ah.id().token_id(), shares);
+            balanceChecker.add_balance(d.origin.id, ah.id().token_id(true), shares);
             auto& ref { history.push_liquidity_deposit(verified, shares) };
             api.liquidityDeposit.push_back(
                 { make_signed_info(verified, ref.historyId),
