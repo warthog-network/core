@@ -269,6 +269,11 @@ struct Order {
     Funds_uint64 amount;
     Funds_uint64 filled;
 };
+struct OrderDetail {
+    Order order;
+    AssetBasic base;
+    bool buy;
+};
 struct MarketOrders {
     MarketOrders(AssetBasic base)
         : base(base)

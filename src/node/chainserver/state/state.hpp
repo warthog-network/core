@@ -131,6 +131,7 @@ public:
 
     auto api_get_block(const api::HeightOrHash& h) const -> Result<api::Block>;
     auto api_market_detail(const api::AssetIdOrHash&, size_t N=100) const -> Result<api::MarketDetail>;
+    auto api_get_order(HistoryId id) const -> Result<api::OrderDetail>;
     auto api_get_block_binary(const api::HeightOrHash& h) const -> wrt::optional<api::BlockBinary>;
     auto api_tx_cache() const -> const TransactionIds;
     size_t api_db_size() const;

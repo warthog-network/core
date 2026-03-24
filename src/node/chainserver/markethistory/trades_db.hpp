@@ -62,7 +62,7 @@ struct Trade : public TradeAmount {
 
 struct FIVEMIN {
     constexpr FIVEMIN() { };
-    static inline constexpr const char* slug = "5min";
+    static inline constexpr const char* slug = "5m";
     static const uint32_t seconds = 5 * 60;
 };
 struct ONEHOUR {

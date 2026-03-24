@@ -377,6 +377,33 @@ Result<api::MarketDetail> State::api_market_detail(const api::AssetIdOrHash& h, 
     return orders;
 };
 
+Result<api::OrderDetail> State::api_get_order(HistoryId id) const
+{
+    if (auto opt { db.select_order(id) }) {
+        auto& [hash, o] = *opt;
+        auto height { chainstate.history_height(id) };
+        auto confirmations { chainlength() - height + 1 };
+        auto assetId { o.aid };
+        auto asset { db.lookup_asset(assetId) };
+        assert(asset.has_value());
+        return api::OrderDetail {
+            .order = {
+                .confirmations = confirmations,
+                .height { height },
+                .historyId { id },
+                .txHash { hash },
+                .txid { o.txid },
+                .limit { o.limit },
+                .amount { o.total },
+                .filled { o.filled },
+            },
+            .base = std::move(*asset),
+            .buy = o.buy
+        };
+    }
+    return Error(ENOTFOUND);
+}
+
 Result<api::Block> State::api_get_block(const api::HeightOrHash& hh) const
 {
     if (std::holds_alternative<Height>(hh.data)) {

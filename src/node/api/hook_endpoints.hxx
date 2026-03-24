@@ -1,8 +1,8 @@
 #pragma once
 #include "api/http/json.hpp"
 #include "general/static_string.hpp"
-#include "types/opt_param.hpp"
 #include "tools/try_parse.hpp"
+#include "types/opt_param.hpp"
 // #include "general/funds.hpp"
 #include "api/http/parse.hpp"
 #include "api/types/accountid_or_address.hpp"
@@ -66,6 +66,10 @@ struct ParameterParser {
         if (sv.length() == 48)
             return { Address { *this } };
         return { AccountId { static_cast<uint64_t>(*this) } };
+    }
+    operator HistoryId()
+    {
+        return HistoryId(static_cast<uint64_t>(*this));
     }
     operator TokenDecimals()
     {
@@ -409,6 +413,7 @@ public:
 
         SECTION("Market Endpoints");
         GET_PUB<"/market/:market">(api_call<MarketDetail>);
+        GET_PUB<"/market/:market/order/:historyId">(api_call<OrderDetail>);
         //
         SECTION("Account Endpoints");
         GET_PUB<"/account/:account/mempool">(api_call<GetAccountMempool>);
@@ -434,7 +439,7 @@ public:
         // GET_PRIV<t,"/peers/endpoints">( inspect_eventloop, jsonmsg::endpoints);
         // GET_PRIV<t,"/peers/connect_timers">( inspect_eventloop, jsonmsg::connect_timers);
 
-        SECTION("chart Endpoint");
+        SECTION("Chart Endpoint");
         GET_PUB<"/chart/candles/:asset/:interval?from=...&to=...&n=...">(api_call<GetCandles>);
         GET_PUB<"/chart/trades/:asset?from=...&to=...&n=...">(api_call<GetTrades>);
 

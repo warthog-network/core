@@ -39,6 +39,7 @@ json to_json(const api::MempoolUpdate&);
 json to_json(const api::MiningState&);
 json to_json(const api::MarketOrders&);
 json to_json(const api::MarketDetail&);
+json to_json(const api::OrderDetail&);
 json to_json(const api::ParsedPrice&);
 json to_json(const api::Peerinfo&);
 json to_json(const api::PeerinfoConnections&);
@@ -66,6 +67,7 @@ json to_json(const api::Rollback&);
 json to_json(const api::IPCounter& ipc);
 json to_json(const api::NodeInfo& info);
 json to_json(const api::AssetLookupTrace&);
+json to_json(const api::OrderDetail&);
 
 json to_json(const api::Candle&);
 json to_json(const api::Trade&);
@@ -81,6 +83,7 @@ json tx_to_json(const api::block::Match&);
 json tx_to_json(const api::block::LiquidityDeposit&);
 json tx_to_json(const api::block::LiquidityWithdrawal&);
 json tx_to_json(const api::block::TransactionCancelation&);
+json tx_to_json(const api::block::OrderCancelation& tx);
 
 inline json to_json(const json& j) { return j; }
 

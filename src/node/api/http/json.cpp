@@ -205,6 +205,7 @@ json header_json(const Header& header, NonzeroHeight height)
     j["liquidityWithdrawals"] = gen_arr(actions.liquidityWithdrawal);
     j["assetCreations"] = gen_arr(actions.assetCreations);
     j["cancelations"] = gen_arr(actions.cancelations);
+    j["orderCancelations"] = gen_arr(actions.orderCancelations);
     return j;
 }
 
@@ -378,7 +379,7 @@ json tx_to_json(const api::block::LiquidityDeposit& tx)
     j["baseDeposited"] = to_json(tx.baseDeposited.to_decimal(tx.assetInfo.decimals));
     j["quoteDeposited"] = to_json(tx.quoteDeposited);
     j["sharesReceived"] = (tx.sharesReceived ? to_json(tx.sharesReceived->to_decimal(TokenDecimals::LIQUIDITY)) : json(nullptr));
-    return {};
+    return j;
 }
 
 json tx_to_json(const api::block::LiquidityWithdrawal& tx)
@@ -388,12 +389,13 @@ json tx_to_json(const api::block::LiquidityWithdrawal& tx)
     j["sharesRedeemed"] = to_json(tx.sharesRedeemed.to_decimal(TokenDecimals::LIQUIDITY));
     j["baseReceived"] = (tx.baseReceived ? to_json(tx.baseReceived->to_decimal(tx.assetInfo.decimals)) : json(nullptr));
     j["quoteReceived"] = (tx.quoteReceived ? to_json(*tx.quoteReceived) : json(nullptr));
-    return {};
+    return j;
 }
 
 json tx_to_json(const api::block::TransactionCancelation& tx)
 {
     json j(to_json_signed_info(tx, "address"));
+    j["cancelTxid"] = to_json(tx.cancelTxid);
     return j;
 }
 
@@ -837,7 +839,7 @@ json to_json(const api::Peerinfo& pi)
     return elem;
 }
 namespace {
-json order_json(const api::Order& o, TokenDecimals basePrec, bool convertToWart)
+[[nodiscard]] json order_json(const api::Order& o, TokenDecimals basePrec, bool convertToWart)
 {
     // o.txid
     return json {
@@ -900,6 +902,15 @@ json to_json(const api::MarketDetail& mdet)
                             { "baseAsset", base },
                         } },
         { "match", { { "filled", { { "baseAsset", to_json(match.filled.base.to_decimal(basePrec), false) }, { "quoteWart", to_json(match.filled.quote.as_wart()) } } }, { "toPool", toPool } } }
+    };
+}
+
+json to_json(const api::OrderDetail& od)
+{
+    return {
+        { "order", order_json(od.order, od.base.decimals, od.buy)},
+        {"isBuy", od.buy},
+        { "base", to_json(od.base) }
     };
 }
 
@@ -1092,18 +1103,17 @@ json to_json(const api::AssetLookupTrace& alt)
         { "snapshotHeight", to_json(alt.snapshotHeight) } };
 }
 
-json to_json(const api::CandlesVector& v) {
+json to_json(const api::CandlesVector& v)
+{
     json arr(json::array());
-    v.foreach([&](const api::Candle& c){
-        arr.push_back(to_json(c));});
+    v.foreach ([&](const api::Candle& c) { arr.push_back(to_json(c)); });
     return arr;
 }
 
 json to_json(const api::TradesVector& v)
 {
     json arr(json::array());
-    v.foreach([&](const api::Trade& c){
-        arr.push_back(to_json(c));});
+    v.foreach ([&](const api::Trade& c) { arr.push_back(to_json(c)); });
     return arr;
 }
 
