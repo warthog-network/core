@@ -417,10 +417,10 @@ public:
         GET_PUB<"/account/:account/mempool">(api_call<GetAccountMempool>);
         GET_PUB<"/account/:account/open_orders">(api_call<GetAccountOrders>);
         GET_PUB<"/account/:account/open_orders/:asset">(api_call<GetAccountOrdersAsset>);
-        GET_PUB<"/account/:account/balance/:token">(api_call<GetTokenBalance>);
+        GET_PUB<"/account/:account/balance/:tokenspec">(api_call<GetTokenBalance>);
         GET_PUB<"/account/:account/wart_balance">(api_call<GetWartBalance>);
         GET_PUB<"/account/:account/history/:beforeTxIndex">(api_call<GetAccountHistory>);
-        GET_PUB<"/account/richlist/:token">(get_token_richlist);
+        GET_PUB<"/account/richlist/:tokenspec">(get_token_richlist);
 
         SECTION("Peers Endpoints");
         GET_PUB<"/peers/ip_count">(get_ip_count);
