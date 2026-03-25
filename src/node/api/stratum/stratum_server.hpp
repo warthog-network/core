@@ -41,7 +41,7 @@ public:
     void on_message(std::string_view msg);
     ~Connection();
 
-    void send_result(int64_t stratumId, wrt::optional<Error>);
+    void send_result(int64_t stratumId, Error);
 
 private:
     void handle_message(msg::MiningSubscribe&& s);
@@ -95,7 +95,7 @@ class StratumServer {
     struct AppendResult {
         std::weak_ptr<stratum::Connection> p;
         int64_t stratumId;
-        wrt::optional<Error> result;
+        Error result;
     };
     using Event = std::variant<SubscriptionFeed, ShutdownEvent, AppendResult>;
     void push(Event e);

@@ -126,31 +126,18 @@ inline std::string status(Error e)
     return j.dump(1);
 }
 
-inline std::string status(const wrt::optional<Error>& e)
-{
-    if (e.has_value()) {
-        return status(*e);
-    } else {
-        return status(Error::none);
-    }
-}
-
-inline std::string serialize(const wrt::optional<Error>& e)
-{
-    if (e.has_value()) {
-        return status(*e);
-    } else {
-        return status(Error::none);
-    }
-}
-
 template <typename T>
 inline json success_json(T&& t)
 {
-    return {
-        { "code", 0 },
-        { "data", std::move(t) }
-    };
+    return { { "code", 0 }, { "data", std::move(t) } };
+}
+
+inline json to_json(Error e){
+    if (e.is_error()) {
+        return {{"code", e.code}, {"error", e.strerror()}};
+    }else{
+        return { { "code", e.code }, { "data", nullptr } };
+    }
 }
 
 inline std::string serialize(const Result<json>& e)

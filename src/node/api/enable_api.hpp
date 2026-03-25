@@ -6,13 +6,11 @@
 template <typename T>
 struct APIResponseType {
     using response_t = Result<T>;
-    static Result<T> make_error(Error e) { return e; }
 };
 
 template <>
 struct APIResponseType<void> {
-    using response_t = wrt::optional<Error>;
-    static wrt::optional<Error> make_error(Error e) { return e; }
+    using response_t = Error;
 };
 
 template <typename DerivedRequest, typename ResultType, typename... Args>

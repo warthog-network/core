@@ -66,7 +66,7 @@ public:
         return std::ldexp(m, e2);
     }
 
-    int base10_precision_exponent(TokenDecimals prec) const
+    int base10_decimals_exponent(TokenDecimals prec) const
     {
         // - real limit price is quote/base
         // - limit price variable is quoteU64/baseU64
@@ -78,7 +78,7 @@ public:
     // compute double price respecting the asset precision
     double to_double_adjusted(TokenDecimals prec) const
     {
-        auto b10e { base10_precision_exponent(prec) };
+        auto b10e { base10_decimals_exponent(prec) };
         return to_double_raw() * std::pow(10.0, -b10e);
     }
     [[nodiscard]] static wrt::optional<Price_uint64>

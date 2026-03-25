@@ -224,12 +224,12 @@ void Connection::on_message(std::string_view msg)
     stratumLine += msg.substr(lower, msg.size() - lower);
 };
 
-void Connection::send_result(int64_t stratumId, wrt::optional<Error> result)
+void Connection::send_result(int64_t stratumId, Error result)
 {
-    if (result.has_value()) {
-        write() << msg::OK(stratumId);
+    if (result.is_error()) {
+        write() << msg::StratumError(stratumId, 40, result.strerror());
     } else {
-        write() << msg::StratumError(stratumId, 40, result->strerror());
+        write() << msg::OK(stratumId);
     }
 };
 using namespace stratum::msg;
@@ -254,7 +254,7 @@ void Connection::handle_message(msg::MiningSubmit&& m)
     m.apply_to(extra2prefix, *b);
     put_chain_append(BlockWorker { std::move(*b), authorized->worker },
         // [&, p = shared_from_this(), id = m.id](const wrt::optional<Error>& res) {
-        [&, p = shared_from_this(), id = m.id](const wrt::optional<Error>& res) {
+        [&, p = shared_from_this(), id = m.id](Error res) {
             server.on_append_result({ .p = p, .stratumId = id, .result { res } });
         });
 }
