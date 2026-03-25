@@ -247,14 +247,19 @@ json to_json(const api::BlockBinary& b)
         { "structure", to_json(b.annotations) }
     };
 }
+
+json to_json(const api::Asset& a)
+{
+    return { { "height", a.height },
+        { "hash", serialize_hex(a.hash) },
+        { "decimals", a.decimals.value() },
+        { "name", a.name } };
+}
 json to_json(const api::AssetSearchResult& a)
 {
     json matches = json::array();
-    for (auto& e : a.entries) {
-        matches.push_back({ { "height", e.height },
-            { "hash", serialize_hex(e.hash) },
-            { "decimals", e.decimals.value() },
-            { "name", e.name } });
+    for (auto& a : a.entries) {
+        matches.push_back(to_json(a));
     }
 
     return {
@@ -908,8 +913,8 @@ json to_json(const api::MarketDetail& mdet)
 json to_json(const api::OrderDetail& od)
 {
     return {
-        { "order", order_json(od.order, od.base.decimals, od.buy)},
-        {"isBuy", od.buy},
+        { "order", order_json(od.order, od.base.decimals, od.buy) },
+        { "isBuy", od.buy },
         { "base", to_json(od.base) }
     };
 }

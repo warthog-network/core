@@ -127,6 +127,7 @@ public:
     auto api_get_miners(HeightRange) const -> std::vector<api::Account>;
     auto api_get_transaction_range(HistoryId lower, HistoryId upper) const -> api::TransactionsByBlocks;
     auto api_get_header(const api::HeightOrHash& h) const -> Result<api::HeaderInfo>;
+    auto api_get_asset(const api::AssetIdOrHash&) const -> wrt::optional<api::Asset>;
     auto api_search_asset(const api::AssetSearchArgs&) const -> Result<api::AssetSearchResult>;
 
     auto api_get_block(const api::HeightOrHash& h) const -> Result<api::Block>;

@@ -145,7 +145,7 @@ api_types::TokenList Endpoint::token_complete(std::string_view namePrefix, std::
             return isalnum(c);
         }))
         return res; // return empty list
-    std::string url { std::format("/token/complete?namePrefix={}&hashPrefix={}", namePrefix, hashPrefix) };
+    std::string url { std::format("/asset/complete?namePrefix={}&hashPrefix={}", namePrefix, hashPrefix) };
     auto l { parse_get<GetTokenList>(url) };
     res.entries = std::move(l.matches);
     return res;

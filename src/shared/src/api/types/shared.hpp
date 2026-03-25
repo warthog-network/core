@@ -298,18 +298,19 @@ struct MarketDetail {
     std::vector<Order> sells;
 };
 
+struct Asset {
+    std::string name;
+    AssetHash hash;
+    NonzeroHeight height;
+    TokenDecimals decimals;
+};
+
 struct AssetSearchResult {
     AssetSearchResult(AssetSearchArgs args)
         : args(std::move(args))
     {
     }
-    struct Entry {
-        std::string name;
-        AssetHash hash;
-        NonzeroHeight height;
-        TokenDecimals decimals;
-    };
-    std::vector<Entry> entries;
+    std::vector<Asset> entries;
     AssetSearchArgs args;
 };
 

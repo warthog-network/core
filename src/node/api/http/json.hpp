@@ -21,6 +21,7 @@ json to_json(const TxHash&);
 json to_json(const api::Account&);
 json to_json(const api::AccountHistory&);
 json to_json(const api::AddressCount&);
+json to_json(const api::Asset& a);
 json to_json(const api::AssetSearchResult&);
 json to_json(const api::Block&);
 json to_json(const api::BlockBinary&);

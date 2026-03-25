@@ -407,9 +407,10 @@ public:
         GET_PRIV<"/chain/hashrate/chart/time/:from/:to/:interval">(get_hashrate_time_chart);
         POST_PRIV<"/chain/append">(parse_block_worker, put_chain_append);
 
-        SECTION("Token Endpoints");
+        SECTION("Asset Endpoints");
         // GET_PUB_HIDDEN<"/token/complete/">(api_call<ListTokens>);
-        GET_PUB<"/token/complete?namePrefix=...&hashPrefix=...">(api_call<CompleteToken>);
+        GET_PUB<"/asset/complete?namePrefix=...&hashPrefix=...">(api_call<CompleteAsset>);
+        GET_PUB<"/asset/lookup/:asset">(api_call<LookupAsset>);
 
         SECTION("Market Endpoints");
         GET_PUB<"/market/:market">(api_call<MarketDetail>);

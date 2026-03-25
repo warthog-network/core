@@ -84,6 +84,18 @@ auto State::api_get_header(const api::HeightOrHash& hh) const
     return get_header(*h);
 }
 
+auto State::api_get_asset(const api::AssetIdOrHash& a) const -> wrt::optional<api::Asset>
+{
+    auto asset { normalize(a) };
+    if (!asset.has_value())
+        return {};
+    return api::Asset {
+        .name {asset->name.to_string()},
+        .hash {asset->hash},
+        .height {asset->height},
+        .decimals {asset->decimals},
+    };
+}
 auto State::api_search_asset(const api::AssetSearchArgs& args) const -> Result<api::AssetSearchResult>
 {
     api::AssetSearchResult result(args);
