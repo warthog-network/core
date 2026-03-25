@@ -408,7 +408,6 @@ public:
         POST_PRIV<"/chain/append">(parse_block_worker, put_chain_append);
 
         SECTION("Asset Endpoints");
-        // GET_PUB_HIDDEN<"/token/complete/">(api_call<ListTokens>);
         GET_PUB<"/asset/complete?namePrefix=...&hashPrefix=...">(api_call<CompleteAsset>);
         GET_PUB<"/asset/lookup/:asset">(api_call<LookupAsset>);
 

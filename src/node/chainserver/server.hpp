@@ -12,7 +12,6 @@
 #include "communication/stage_operation/request.hpp"
 #include "state/state.hpp"
 #include <condition_variable>
-#include <queue>
 #include <thread>
 
 #define LIST_API_TYPES(XX)                                                       \
@@ -30,10 +29,9 @@
     XX(GetBlock, api::Block, api::HeightOrHash, heightOrHash)                    \
     XX(GetMining, ChainMiningTask, Address, address)                             \
     XX(GetBlockBinary, api::BlockBinary, api::HeightOrHash, heightOrHash)        \
-    XX(ListTokens, api::AssetSearchResult)                                       \
     XX(MarketDetail, api::MarketDetail, api::AssetIdOrHash, asset)               \
     XX(OrderDetail, api::OrderDetail, HistoryId, history_id)                     \
-    XX(LookupAsset, api::Asset, api::AssetIdOrHash, asset)                            \
+    XX(LookupAsset, api::Asset, api::AssetIdOrHash, asset)                       \
     XX(CompleteAsset, api::AssetSearchResult,                                    \
         std::string, namePrefix, std::string, hashPrefix)                        \
     XX(MempoolConstraintUpdate, api::MempoolUpdate)                              \
@@ -252,7 +250,6 @@ private:
     auto handle_api(chainserver::GetBlockBinary&& e) { return state.api_get_block_binary(e.heightOrHash()); }
     auto handle_api(chainserver::LookupAsset&& e) { return state.api_get_asset(e.asset()); }
     auto handle_api(chainserver::CompleteAsset&& e) { return state.api_search_asset({ .namePrefix = e.namePrefix(), .hashPrefix = e.hashPrefix() }); }
-    auto handle_api(chainserver::ListTokens&&) { return state.api_search_asset({}); }
     auto handle_api(chainserver::MarketDetail&& o) { return state.api_market_detail(o.asset()); }
     auto handle_api(chainserver::OrderDetail&& o) { return state.api_get_order(o.history_id()); }
     auto handle_api(chainserver::GetMining&& e) { return state.mining_task(e.address()); }
