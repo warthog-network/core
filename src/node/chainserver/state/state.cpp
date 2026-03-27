@@ -657,7 +657,6 @@ api::TransactionDetails State::api_dispatch_history(const TxHash& txHash,
     NonzeroHeight h { chainstate.history_height(hid) };
     auto fetch_addr { [&](AccountId aid) { return dbcache.existing_address(aid); } };
     // TransactionMetaData(TxHash txhash, uint32_t confirmations, HistoryId hid, Height height, uint32_t timestamp)
-    auto confirmations { (chainlength() + 1) - h };
     api::TransactionMinedData minedData {
         .hid { hid },
         .block {
