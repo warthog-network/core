@@ -34,13 +34,12 @@ json to_json(const api::HashrateTimeChart&);
 json to_json(const api::Head&);
 json to_json(const api::HeaderInfo&);
 json to_json(const api::JanushashNumber&);
-json to_json(const api::LiquidityPool&, TokenDecimals baseDecimals, bool prec=true);
+json to_json(const api::LiquidityPool&, TokenDecimals baseDecimals, bool prec = true);
 json to_json(const api::MempoolEntries&);
 json to_json(const api::MempoolUpdate&);
 json to_json(const api::MiningState&);
 json to_json(const api::MarketOrders&);
 json to_json(const api::MarketDetail&);
-json to_json(const api::OrderDetail&);
 json to_json(const api::ParsedPrice&);
 json to_json(const api::Peerinfo&);
 json to_json(const api::PeerinfoConnections&);
@@ -50,7 +49,7 @@ json to_json(const api::ThrottleState&);
 json to_json(const api::ThrottledPeer&);
 json to_json(const api::Token&);
 json to_json(const api::TokenBalanceLookup&);
-json to_json(const api::Transaction&);
+json to_json(const api::TransactionDetails&);
 json to_json(const api::TransactionMinfee&);
 json to_json(const api::TransactionsByBlocks&);
 json to_json(const api::TransmissionTimeseries&);
@@ -68,25 +67,75 @@ json to_json(const api::Rollback&);
 json to_json(const api::IPCounter& ipc);
 json to_json(const api::NodeInfo& info);
 json to_json(const api::AssetLookupTrace&);
-json to_json(const api::OrderDetail&);
+json to_json(const api::OpenOrder&);
 
 json to_json(const api::Candle&);
 json to_json(const api::Trade&);
 json to_json(const api::CandlesVector&);
 json to_json(const api::TradesVector&);
+json to_json(const api::block::TransactionSignedData &);
+json to_json(const api::block::RewardData&);
+json to_json(const api::block::WartTransferData&);
+json to_json(const api::block::TokenTransferData&);
+json to_json(const api::block::AssetCreationData&);
+json to_json(const api::block::NewOrderData& tx);
+json to_json(const api::block::MatchData&);
+json to_json(const api::block::LiquidityDepositData&);
+json to_json(const api::block::LiquidityWithdrawalData&);
+json to_json(const api::block::CancelationData&);
+json to_json(const api::block::OrderCancelationData& tx);
+json to_json(const api::TransactionMinedData&);
+inline json to_json(const Height& h){return h.value();}
+
+template <typename T>
+inline json to_json(const wrt::optional<T>& v)
+{
+    if (v) {
+        return to_json(*v);
+    } else {
+        return nullptr;
+    }
+}
+
+template <typename T>
+json to_json(const api::block::IsTransaction<T>& tx){
+    return {
+        {"hash", serialize_hex(tx.hash)},
+        {"data", to_json(tx.data)}
+    };
+}
+
+template <typename TxType>
+json to_json(const api::Mined<TxType>& tx)
+{
+    return {
+        { "mined", to_json(tx.mined) },
+        { "transaction", to_json(tx.transaction) }
+    };
+}
+
+template <typename TxType>
+json to_json(const api::MaybeMined<TxType>& tx)
+{
+    return {
+        { "mined", to_json(tx.mined) },
+        { "transaction", to_json(tx.transaction) }
+    };
+}
+
+template <typename T>
+json to_json(const api::block::IsSignedTransaction<T>& tx){
+    auto j(to_json(*static_cast<const api::block::IsTransaction<T>*>(&tx)));
+    j["signingData"] = to_json(tx.signedData);
+    return j;
+}
 
 template<typename T>
-json tx_to_json(const api::Temporal<T>&);
-json tx_to_json(const api::block::Reward&);
-json tx_to_json(const api::block::WartTransfer&);
-json tx_to_json(const api::block::TokenTransfer&);
-json tx_to_json(const api::block::AssetCreation&);
-json tx_to_json(const api::block::NewOrder& tx);
-json tx_to_json(const api::block::Match&);
-json tx_to_json(const api::block::LiquidityDeposit&);
-json tx_to_json(const api::block::LiquidityWithdrawal&);
-json tx_to_json(const api::block::TransactionCancelation&);
-json tx_to_json(const api::block::OrderCancelation& tx);
+json to_json(const api::block::WithHistoryId<T>& wh){
+    return {{"transaction",to_json(wh.transaction)},
+        {"historyId",wh.historyId.value()}
+    };
+}
 
 inline json to_json(const json& j) { return j; }
 
@@ -100,15 +149,6 @@ inline json to_json(const std::vector<T>& e, const auto& map)
     return j;
 }
 
-template <typename T>
-inline json to_json(const wrt::optional<T>& v)
-{
-    if (v) {
-        return to_json(*v);
-    } else {
-        return nullptr;
-    }
-}
 
 template <typename T>
 inline json to_json(const std::vector<T>& e)
@@ -134,10 +174,11 @@ inline json success_json(T&& t)
     return { { "code", 0 }, { "data", std::move(t) } };
 }
 
-inline json to_json(Error e){
+inline json to_json(Error e)
+{
     if (e.is_error()) {
-        return {{"code", e.code}, {"error", e.strerror()}};
-    }else{
+        return { { "code", e.code }, { "error", e.strerror() } };
+    } else {
         return { { "code", e.code }, { "data", nullptr } };
     }
 }

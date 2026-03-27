@@ -18,7 +18,7 @@
     XX(MiningAppend, void, Block, block, std::string, worker)                    \
     XX(PutMempool, TxHash, TransactionCreate, message)                           \
     XX(LatestTxs, api::TransactionsByBlocks)                                     \
-    XX(LookupTxByHash, api::Transaction, TxHash, hash)                             \
+    XX(LookupTxByHash, api::TransactionDetails, TxHash, hash)                    \
     XX(GetHeader, api::HeaderInfo, api::HeightOrHash, heightOrHash)              \
     XX(GetTransactionMinfee, api::TransactionMinfee)                             \
     XX(GetGrid, Grid)                                                            \
@@ -250,6 +250,7 @@ private:
     auto handle_api(chainserver::LookupAsset&& e) { return state.api_get_asset(e.asset()); }
     auto handle_api(chainserver::CompleteAsset&& e) { return state.api_search_asset({ .namePrefix = e.namePrefix(), .hashPrefix = e.hashPrefix() }); }
     auto handle_api(chainserver::MarketDetail&& o) { return state.api_market_detail(o.asset()); }
+    // auto handle_api(chainserver::GetOpenOrder&& o) { return state.api_market_detail(o.tx_hash()); }
     auto handle_api(chainserver::GetMining&& e) { return state.mining_task(e.address()); }
     auto handle_api(chainserver::GetTxcache&&) { return state.api_tx_cache(); }
     auto handle_api(chainserver::GetAccountHistory&& e) { return state.api_get_history(e.address(), e.beforeId()); }

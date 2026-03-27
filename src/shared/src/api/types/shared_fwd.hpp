@@ -14,20 +14,22 @@ struct OrderCancelationData;
 struct MatchData;
 
 template <typename T>
-struct WithHistoryBase;
+struct IsTransaction;
 template <typename T>
-struct WithSignedInfo;
+struct IsSignedTransaction;
+template <typename T>
+struct WithHistoryId;
 
-using Reward = WithHistoryBase<RewardData>;
-using WartTransfer = WithSignedInfo<WartTransferData>;
-using TokenTransfer = WithSignedInfo<TokenTransferData>;
-using AssetCreation = WithSignedInfo<AssetCreationData>;
-using NewOrder = WithSignedInfo<NewOrderData>;
-using LiquidityDeposit = WithSignedInfo<LiquidityDepositData>;
-using LiquidityWithdrawal = WithSignedInfo<LiquidityWithdrawalData>;
-using TransactionCancelation = WithSignedInfo<CancelationData>;
-using OrderCancelation = WithHistoryBase<OrderCancelationData>;
-using Match = WithHistoryBase<MatchData>;
+using Reward = IsTransaction<RewardData>;
+using WartTransfer = IsSignedTransaction<WartTransferData>;
+using TokenTransfer = IsSignedTransaction<TokenTransferData>;
+using AssetCreation = IsSignedTransaction<AssetCreationData>;
+using NewOrder = IsSignedTransaction<NewOrderData>;
+using LiquidityDeposit = IsSignedTransaction<LiquidityDepositData>;
+using LiquidityWithdrawal = IsSignedTransaction<LiquidityWithdrawalData>;
+using TransactionCancelation = IsSignedTransaction<CancelationData>;
+using OrderCancelation = IsTransaction<OrderCancelationData>;
+using Match = IsTransaction<MatchData>;
 
 }
 }

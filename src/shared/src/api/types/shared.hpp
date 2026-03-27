@@ -97,24 +97,10 @@ struct BlockSummary {
     Wart blockReward;
 };
 namespace block {
-struct HistoryDataBase {
-    TxHash txhash;
-    wrt::optional<HistoryId> hid;
-};
 
-template <typename T>
-struct WithHistoryBase : public HistoryDataBase, T {
-    WithHistoryBase(TxHash txhash, HistoryId hid, T t)
-        : HistoryDataBase(std::move(txhash), std::move(hid))
-        , T(std::move(t))
-    {
-    }
-};
-
-struct SignedInfoData : public HistoryDataBase {
-    SignedInfoData(TxHash txHash, wrt::optional<HistoryId> hid, AccountId originId, Address originAddress, Wart fee, NonceId nonceId, PinHeight pinHeight)
-        : HistoryDataBase(std::move(txHash), std::move(hid))
-        , originId(std::move(originId))
+struct TransactionSignedData {
+    TransactionSignedData(AccountId originId, Address originAddress, Wart fee, NonceId nonceId, PinHeight pinHeight)
+        : originId(std::move(originId))
         , originAddress(std::move(originAddress))
         , fee(std::move(fee))
         , nonceId(std::move(nonceId))
@@ -129,10 +115,22 @@ struct SignedInfoData : public HistoryDataBase {
 };
 
 template <typename T>
-struct WithSignedInfo : public SignedInfoData, T {
-    WithSignedInfo(SignedInfoData i, T t)
-        : SignedInfoData(std::move(i))
-        , T(std::move(t))
+struct IsTransaction {
+    TxHash hash;
+    T data;
+    IsTransaction(TxHash txhash, T t)
+        : hash(std::move(txhash))
+        , data(std::move(t))
+    {
+    }
+};
+
+template <typename T>
+struct IsSignedTransaction : public IsTransaction<T> {
+    TransactionSignedData signedData;
+    IsSignedTransaction(TxHash txhash, T t, TransactionSignedData s)
+        : IsTransaction<T>(std::move(txhash), std::move(t))
+        , signedData(std::move(s))
     {
     }
 };
@@ -140,7 +138,7 @@ struct WithSignedInfo : public SignedInfoData, T {
 struct RewardData {
     static constexpr const char* label = ::block::labels::reward;
     Address toAddress;
-    Wart wart;
+    Wart amount;
 };
 
 struct WartTransferData {
@@ -215,17 +213,23 @@ struct LiquidityWithdrawalData {
     wrt::optional<Wart> quoteReceived;
 };
 
+template <typename T>
+struct WithHistoryId {
+    T transaction;
+    HistoryId historyId;
+};
+
 struct Actions {
-    wrt::optional<block::Reward> reward;
-    std::vector<block::WartTransfer> wartTransfers;
-    std::vector<block::TokenTransfer> tokenTransfers;
-    std::vector<block::AssetCreation> assetCreations;
-    std::vector<block::NewOrder> newOrders;
-    std::vector<block::Match> matches;
-    std::vector<block::LiquidityDeposit> liquidityDeposit;
-    std::vector<block::LiquidityWithdrawal> liquidityWithdrawal;
-    std::vector<block::TransactionCancelation> cancelations;
-    std::vector<block::OrderCancelation> orderCancelations;
+    wrt::optional<WithHistoryId<block::Reward>> reward;
+    std::vector<WithHistoryId<block::WartTransfer>> wartTransfers;
+    std::vector<WithHistoryId<block::TokenTransfer>> tokenTransfers;
+    std::vector<WithHistoryId<block::AssetCreation>> assetCreations;
+    std::vector<WithHistoryId<block::NewOrder>> newOrders;
+    std::vector<WithHistoryId<block::Match>> matches;
+    std::vector<WithHistoryId<block::LiquidityDeposit>> liquidityDeposit;
+    std::vector<WithHistoryId<block::LiquidityWithdrawal>> liquidityWithdrawal;
+    std::vector<WithHistoryId<block::TransactionCancelation>> cancelations;
+    std::vector<WithHistoryId<block::OrderCancelation>> orderCancelations;
 };
 }
 
@@ -247,7 +251,7 @@ public:
         , actions(std::move(actions))
     {
     }
-    void set_reward(block::Reward r);
+    void set_reward(block::WithHistoryId<block::Reward> r);
 };
 
 struct BlockBinary {
@@ -269,11 +273,13 @@ struct Order {
     Funds_uint64 amount;
     Funds_uint64 filled;
 };
-struct OrderDetail {
+
+struct OpenOrder {
     Order order;
     AssetBasic base;
     bool buy;
 };
+
 struct MarketOrders {
     MarketOrders(AssetBasic base)
         : base(base)
@@ -324,15 +330,25 @@ struct CompleteBlock : public Block {
     auto& reward() const { return *actions.reward; }
 };
 
-struct TemporalInfo {
-    uint32_t confirmations;
-    Height height { 0 };
-    uint32_t timestamp = 0;
+struct TransactionMinedData {
+    HistoryId hid;
+    struct Block {
+        Height height { 0 };
+        BlockHash hash;
+        uint32_t timestamp;
+    } block;
+};
+
+template <typename Transaction>
+struct MaybeMined {
+    wrt::optional<TransactionMinedData> mined;
+    Transaction transaction;
 };
 
 template <typename TxType>
-struct Temporal : public TemporalInfo {
-     TxType tx;
+struct Mined {
+    TransactionMinedData mined;
+    TxType transaction;
 };
 
 struct AddressCount {

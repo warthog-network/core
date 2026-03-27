@@ -105,13 +105,13 @@ void MinerdistSubscriptionState::on_chain_changed(const chainserver::State& a, c
     if (blocks.size() > nMiners) {
         aggregator->clear();
         for (size_t i = blocks.size() - nMiners; i < blocks.size(); ++i) {
-            aggregator->push_back(blocks[i].reward().toAddress);
+            aggregator->push_back(blocks[i].reward().transaction.data.toAddress);
         }
     } else {
         if (nbi.rollback)
             aggregator->rollback(nbi.rollback->distance);
         for (auto& b : blocks)
-            aggregator->push_back(b.reward().toAddress);
+            aggregator->push_back(b.reward().transaction.data.toAddress);
         fill_aggregator(a);
         aggregator->truncate(nMiners);
     }
@@ -388,13 +388,13 @@ void AddressSubscriptionState::session_rollback(Height h)
 void AddressSubscriptionState::session_block(const api::Block& b)
 {
     if (auto& r { b.actions.reward }) {
-        if (auto c { session_address_cursor(b, r->toAddress, b.height) })
+        if (auto c { session_address_cursor(b, r->transaction.data.toAddress, b.height) })
             c->b.set_reward(*r);
     }
     for (auto& t : b.actions.wartTransfers) {
-        if (auto c { session_address_cursor(b, t.toAddress, b.height) })
+        if (auto c { session_address_cursor(b, t.transaction.data.toAddress, b.height) })
             c->b.actions.wartTransfers.push_back(t);
-        if (auto c { session_address_cursor(b, t.originAddress, b.height) })
+        if (auto c { session_address_cursor(b, t.transaction.signedData.originAddress, b.height) })
             c->b.actions.wartTransfers.push_back(t);
     }
 }

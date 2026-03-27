@@ -409,8 +409,9 @@ public:
         GET_PUB<"/asset/complete?namePrefix=...&hashPrefix=...">(api_call<CompleteAsset>);
         GET_PUB<"/asset/lookup/:asset">(api_call<LookupAsset>);
 
-        SECTION("Market Endpoints");
-        GET_PUB<"/market/:market">(api_call<MarketDetail>);
+        SECTION("DEX Endpoints");
+        GET_PUB<"/dex/market/:market">(api_call<MarketDetail>);
+        // GET_PUB<"/dex/open_order/:txhash">(api_call<GetOpenOrder>);
         //
         SECTION("Account Endpoints");
         GET_PUB<"/account/:account/mempool">(api_call<GetAccountMempool>);

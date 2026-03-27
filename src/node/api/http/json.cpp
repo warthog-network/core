@@ -89,22 +89,14 @@ std::string format_utc(uint32_t timestamp)
     return out;
 }
 
-json to_json_history_base(const api::block::HistoryDataBase& hb)
-{
-    return {
-        { "txHash", serialize_hex(hb.txhash) },
-        { "historyId", (hb.hid ? json(hb.hid.value().value()) : json(nullptr)) },
-    };
-}
-[[nodiscard]] json to_json_signed_info(const api::block::SignedInfoData& d, const char* originLabel)
-{
-    auto j(to_json_history_base(d));
-    j[originLabel] = d.originAddress.to_string();
-    j["fee"] = to_json(d.fee);
-    j["nonceId"] = d.nonceId.value();
-    j["pinHeight"] = d.pinHeight.value();
-    return j;
-}
+// json to_json_history_base(const api::block::HistoryEntryData& hb)
+// {
+//     return {
+//         { "txHash", serialize_hex(hb.txhash) },
+//         { "historyId", (hb.hid ? json(hb.hid.value().value()) : json(nullptr)) },
+//     };
+// }
+
 template <typename T>
 json verified_json(const std::map<TCPPeeraddr, T>& map)
 {
@@ -179,7 +171,7 @@ json header_json(const Header& header, NonzeroHeight height)
     { // rewards
         json a = json::array();
         if (b.actions.reward) {
-            a.push_back(tx_to_json(*b.actions.reward));
+            a.push_back(to_json(*b.actions.reward));
         }
         j["rewards"] = a;
     }
@@ -187,7 +179,7 @@ json header_json(const Header& header, NonzeroHeight height)
     auto gen_arr { [&](auto& arr) {
         json a(json::array());
         for (auto& e : arr)
-            a.push_back(tx_to_json(e));
+            a.push_back(to_json(e));
         return a;
     } };
     j["wartTransfers"] = gen_arr(actions.wartTransfers);
@@ -281,67 +273,75 @@ json to_json(const FundsDecimal& fd, bool printDecimals)
     return out;
 }
 
-json tx_to_json(const api::block::WartTransfer& tx)
+json to_json(const api::block::TransactionSignedData& sd)
 {
-    json j(to_json_signed_info(tx, "fromAddress"));
-    j["toAddress"] = tx.toAddress.to_string();
-    j["amount"] = to_json(tx.amount);
-    return j;
-}
-json tx_to_json(const api::block::Reward& tx)
-{
-    auto j(to_json_history_base(tx));
-    j["toAddress"] = tx.toAddress.to_string();
-    j["amount"] = to_json(tx.wart);
-    return j;
+
+    return {
+        { "originId", sd.originId.value() },
+        { "originAddress", sd.originAddress.to_string() },
+        { "fee", to_json(sd.fee) },
+        { "nonceId", sd.nonceId.value() },
+        { "pinHeight", sd.pinHeight },
+    };
 }
 
-json tx_to_json(const api::block::TokenTransfer& tx)
+json to_json(const api::block::RewardData& d)
 {
-
-    json j(to_json_signed_info(tx, "fromAddress"));
-    j["toAddress"] = tx.toAddress.to_string();
-    j["amount"] = to_json(tx.amount_decimal());
-    j["asset"] = to_json(tx.assetInfo);
-    j["isLiquidity"] = tx.isLiquidity;
-    j["tokenSpec"] = api::TokenSpec(tx.assetInfo.hash, tx.isLiquidity).to_string();
-    return j;
+    return {
+        { "toAddress", d.toAddress.to_string() },
+        { "amount", to_json(d.amount) },
+    };
 }
 
-json tx_to_json(const api::block::AssetCreation& tx)
+json to_json(const api::block::WartTransferData& d)
 {
-    json j(to_json_signed_info(tx, "creatorAddress"));
-    j["supply"] = to_json(tx.supply.to_string());
-    j["name"] = tx.name.to_string();
-    j["assetId"] = (tx.assetId ? json(tx.assetId->value()) : json(nullptr));
-    return j;
+    return {
+        { "toAddress", d.toAddress.to_string() },
+        { "amount", to_json(d.amount) },
+    };
 }
 
-json tx_to_json(const api::block::NewOrder& tx)
+json to_json(const api::block::TokenTransferData& d)
 {
-    json j(to_json_signed_info(tx, "address"));
-    j["baseAsset"] = jsonmsg::to_json(tx.assetInfo);
-    j["amount"] = to_json(tx.amount_decimal());
-    j["limit"] = limit_json(tx.limit, tx.assetInfo.decimals);
-    j["buy"] = tx.buy;
-    return j;
+    return {
+        { "toAddress", d.toAddress.to_string() },
+        { "amount", to_json(d.amount_decimal()) },
+        { "asset", to_json(d.assetInfo) },
+        { "isLiquidity", d.isLiquidity },
+        { "tokenSpec",
+            api::TokenSpec(d.assetInfo.hash, d.isLiquidity).to_string() },
+    };
 }
 
-json tx_to_json(const api::block::Match& tx)
+json to_json(const api::block::AssetCreationData& d)
 {
-    auto j(to_json_history_base(tx));
-    j["baseAsset"] = to_json(tx.assetInfo);
+    return {
+        { "supply", to_json(d.supply.to_string()) },
+        { "name", d.name.to_string() },
+        { "assetId", (d.assetId ? json(d.assetId->value()) : json(nullptr)) },
+    };
+}
 
+json to_json(const api::block::NewOrderData& tx)
+{
+    return {
+        { "baseAsset", jsonmsg::to_json(tx.assetInfo) },
+        { "amount", to_json(tx.amount_decimal()) },
+        { "limit", limit_json(tx.limit, tx.assetInfo.decimals) },
+        { "buy", tx.buy },
+    };
+}
+
+json to_json(const api::block::MatchData& d)
+{
     auto bq_json {
         [&](const auto& bq) -> json {
             return {
-                { "base", to_json(bq.base().to_decimal(tx.assetInfo.decimals)) },
+                { "base", to_json(bq.base().to_decimal(d.assetInfo.decimals)) },
                 { "quote", to_json(bq.quote()) }
             };
         }
     };
-    j["poolBefore"] = bq_json(tx.poolBefore);
-    j["poolAfter"] = bq_json(tx.poolAfter);
     auto match_json {
         [&]<typename T>(const std::vector<T>& v) {
             json res = json::array();
@@ -353,47 +353,49 @@ json tx_to_json(const api::block::Match& tx)
             return res;
         }
     };
-    j["buySwaps"] = match_json(tx.buySwaps);
-    j["sellSwaps"] = match_json(tx.sellSwaps);
-    return j;
+    return {
+        { "baseAsset", jsonmsg::to_json(d.assetInfo) },
+        { "poolBefore", bq_json(d.poolBefore) },
+        { "poolAfter", bq_json(d.poolAfter) },
+        { "buySwaps", match_json(d.buySwaps) },
+        { "sellSwaps", match_json(d.sellSwaps) },
+    };
 }
 
-json tx_to_json(const api::block::LiquidityDeposit& tx)
+json to_json(const api::block::LiquidityDepositData& d)
 {
-    json j(to_json_signed_info(tx, "address"));
-    j["baseAsset"] = jsonmsg::to_json(tx.assetInfo);
-    j["baseDeposited"] = to_json(tx.baseDeposited.to_decimal(tx.assetInfo.decimals));
-    j["quoteDeposited"] = to_json(tx.quoteDeposited);
-    j["sharesReceived"] = (tx.sharesReceived ? to_json(tx.sharesReceived->to_decimal(TokenDecimals::LIQUIDITY)) : json(nullptr));
-    return j;
+    return {
+        { "baseAsset", jsonmsg::to_json(d.assetInfo) },
+        { "baseDeposited", to_json(d.baseDeposited.to_decimal(d.assetInfo.decimals)) },
+        { "quoteDeposited", to_json(d.quoteDeposited) },
+        { "sharesReceived", (d.sharesReceived ? to_json(d.sharesReceived->to_decimal(TokenDecimals::LIQUIDITY)) : json(nullptr)) },
+    };
 }
 
-json tx_to_json(const api::block::LiquidityWithdrawal& tx)
+json to_json(const api::block::LiquidityWithdrawalData& d)
 {
-    json j(to_json_signed_info(tx, "address"));
-    j["baseAsset"] = jsonmsg::to_json(tx.assetInfo);
-    j["sharesRedeemed"] = to_json(tx.sharesRedeemed.to_decimal(TokenDecimals::LIQUIDITY));
-    j["baseReceived"] = (tx.baseReceived ? to_json(tx.baseReceived->to_decimal(tx.assetInfo.decimals)) : json(nullptr));
-    j["quoteReceived"] = (tx.quoteReceived ? to_json(*tx.quoteReceived) : json(nullptr));
-    return j;
+    return {
+        { "baseAsset", jsonmsg::to_json(d.assetInfo) },
+        { "sharesRedeemed", to_json(d.sharesRedeemed.to_decimal(TokenDecimals::LIQUIDITY)) },
+        { "baseReceived", (d.baseReceived ? to_json(d.baseReceived->to_decimal(d.assetInfo.decimals)) : json(nullptr)) },
+        { "quoteReceived", (d.quoteReceived ? to_json(*d.quoteReceived) : json(nullptr)) },
+    };
 }
 
-json tx_to_json(const api::block::TransactionCancelation& tx)
+json to_json(const api::block::CancelationData& tx)
 {
-    json j(to_json_signed_info(tx, "address"));
-    j["cancelTxid"] = to_json(tx.cancelTxid);
-    return j;
+    return { { "cancelTxid", to_json(tx.cancelTxid) } };
 }
 
-json tx_to_json(const api::block::OrderCancelation& tx)
+json to_json(const api::block::OrderCancelationData& tx)
 {
-    auto j(to_json_history_base(tx));
-    j["cancelTxid"] = to_json(tx.cancelTxid);
-    j["buy"] = tx.buy;
-    j["baseAsset"] = jsonmsg::to_json(tx.assetInfo);
-    j["historyId"] = tx.historyId.value();
-    j["remaining"] = to_json(tx.buy ? tx.remaining.to_decimal(Wart::decimals) : tx.remaining.to_decimal(tx.assetInfo.decimals));
-    return j;
+    return {
+        { "cancelTxid", to_json(tx.cancelTxid) },
+        { "buy", tx.buy },
+        { "baseAsset", jsonmsg::to_json(tx.assetInfo) },
+        { "historyId", tx.historyId.value() },
+        { "remaining", to_json(tx.buy ? tx.remaining.to_decimal(Wart::decimals) : tx.remaining.to_decimal(tx.assetInfo.decimals)) },
+    };
 }
 
 json to_json(const PeerDB::BanEntry& item)
@@ -557,7 +559,7 @@ json to_json(const api::MempoolEntries& entries)
                 elem["baseU64"] = m.base().value(); // TODO: this should be looked up and the mempool should only contain elements where it can be looked up (i.e. such elements where the base currency exists)
             },
             [&](const LiquidityWithdrawalMessage& m) {
-                elem["type"] = api::block::LiquidityWithdrawal::label;
+                elem["type"] = api::block::LiquidityWithdrawalData::label;
                 elem["assetHash"] = m.asset_hash().hex_string();
                 elem["liquidityU64"] = m.amount().value();
             },
@@ -572,22 +574,10 @@ json to_json(const api::MempoolEntries& entries)
     return j;
 }
 
-template <typename T>
-json tx_to_json(const api::Temporal<T>& tx)
-{
-    auto j(tx_to_json(tx.tx));
-    j["confirmations"] = tx.confirmations;
-    j["blockHeight"] = tx.height.value();
-    j["utc"] = format_utc(tx.timestamp);
-    j["timestamp"] = tx.timestamp;
-    j["type"] = tx.tx.label;
-    return j;
-}
-
-json to_json(const api::Transaction& tx)
+json to_json(const api::TransactionDetails& tx)
 {
     return std::visit([&](const auto& e) {
-        return tx_to_json(e);
+        return to_json(e);
     },
         tx);
 }
@@ -901,7 +891,7 @@ json to_json(const api::MarketDetail& mdet)
     };
 }
 
-json to_json(const api::OrderDetail& od)
+json to_json(const api::OpenOrder& od)
 {
     return {
         { "order", order_json(od.order, od.base.decimals, od.buy) },
@@ -1111,6 +1101,20 @@ json to_json(const api::TradesVector& v)
     json arr(json::array());
     v.foreach ([&](const api::Trade& c) { arr.push_back(to_json(c)); });
     return arr;
+}
+
+json to_json(const api::TransactionMinedData& mined)
+{
+    auto& b { mined.block };
+    return {
+        { "historyId", mined.hid },
+        { "block",
+            {
+                { "height", b.height.value() },
+                { "hash", serialize_hex(b.hash) },
+                { "timestamp", b.timestamp },
+            } }
+    };
 }
 
 std::string serialize(const api::Raw& r)

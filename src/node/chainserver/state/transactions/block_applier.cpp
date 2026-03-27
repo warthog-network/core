@@ -3,6 +3,7 @@
 #include "block/body/rollback.hpp"
 #include "block/chain/header_chain.hpp"
 #include "block/chain/history/history.hpp"
+#include "block/header/header_impl.hpp"
 #include "block_effects.hpp"
 #include "chainserver/db/chain_db.hpp"
 #include "chainserver/db/state_ids.hpp"
@@ -18,11 +19,9 @@ using namespace block::body;
 namespace chainserver {
 namespace {
 
-api::block::SignedInfoData make_signed_info(const auto& verified, HistoryId hid)
+api::block::TransactionSignedData make_signed_info(const auto& verified)
 {
-    return api::block::SignedInfoData {
-        verified.hash,
-        std::move(hid),
+    return api::block::TransactionSignedData {
         verified.ref.origin.id,
         verified.ref.origin.address,
         verified.ref.compactFee.uncompact(),
@@ -919,6 +918,7 @@ private:
     const BlockHash& blockhash;
     const Body& body;
     const NonzeroHeight height;
+    const Timestamp timestamp;
 
     // variables needed for block verification
     const Reward reward;
@@ -939,7 +939,6 @@ private:
                 throw Error(EADDRPOLICY);
         }
     }
-
     void register_wart_transfers()
     {
         // Read transfer section for WART coins
@@ -1089,15 +1088,9 @@ private:
         if (r.wart > sum_throw(height.reward(), balanceChecker.getTotalFee()))
             throw Error(EBALANCE);
         assert(!r.toAddress.is_null());
-        auto& ref { history.push_reward(r) };
-        api.reward = api::block::Reward {
-            ref.he.hash,
-            ref.historyId,
-            {
-                .toAddress { r.toAddress },
-                .wart { r.wart },
-            }
-        };
+        auto& hist { history.push_reward(r) };
+        api.reward = api::block::WithHistoryId<api::block::Reward>(
+            { hist.he.hash, { .toAddress { r.toAddress }, .amount { r.wart } } }, hist.historyId);
     }
 
     auto verify_txid(TransactionId tid) -> bool
@@ -1169,7 +1162,7 @@ private:
                         .ownerAccountId { ac.origin.id },
                         .supply { ac.supply() },
                         .groupId { id.token_id() },
-                        .parentId { },
+                        .parentId {},
                         .name { ac.asset_name() },
                         .hash { AssetHash(TxHash(verified.hash)) },
                         .data {}
@@ -1178,8 +1171,10 @@ private:
             };
             auto assetId { blockEffects.generate_asset(assetGenerator).id };
             balanceChecker.create_asset_balance(ac.origin.id, assetId, ac.supply().funds);
-            auto& ref { history.push_asset_creation(verified, assetId) };
-            api.assetCreations.push_back({ make_signed_info(verified, ref.historyId), { .name { ac.asset_name() }, .supply { ac.supply() }, .assetId { assetId } } });
+            auto& hist { history.push_asset_creation(verified, assetId) };
+            api.assetCreations.push_back({ { hist.he.hash,
+                                               { .name { ac.asset_name() }, .supply { ac.supply() }, .assetId { assetId } }, make_signed_info(verified) },
+                hist.historyId });
         }
     }
 
@@ -1191,13 +1186,14 @@ private:
         for (auto& tr : balanceChecker.get_wart_transfers()) {
             auto verified { tr.verify(txVerifier) };
 
-            auto& hid { history.push_wart_transfer(verified).historyId };
-            api.wartTransfers.push_back(api::block::WartTransfer {
-                make_signed_info(verified, hid),
-                {
-                    .toAddress { tr.to_address() },
-                    .amount { tr.wart() },
-                } });
+            auto& hist { history.push_wart_transfer(verified) };
+            api.wartTransfers.push_back({ { hist.he.hash,
+                                              {
+                                                  .toAddress { tr.to_address() },
+                                                  .amount { tr.wart() },
+                                              },
+                                              make_signed_info(verified) },
+                hist.historyId });
         }
     }
 
@@ -1207,13 +1203,13 @@ private:
         for (auto& c : balanceChecker.get_cancelations()) {
             auto verified { c.verify(txVerifier) };
             auto& ref { verified.ref };
-            auto hid { history.push_cancelation(verified).historyId };
             TransactionId cancelTxid { ref.origin.id, ref.cancel_height(), ref.cancel_nonceid() };
             if (verified.txid.pinHeight < cancelTxid.pinHeight)
                 throw Error(ECANCELFUTURE);
             if (verified.txid == cancelTxid)
                 throw Error(ECANCELSELF);
-            api.cancelations.push_back({ make_signed_info(verified, hid), { cancelTxid } });
+            auto& hist { history.push_cancelation(verified) };
+            api.cancelations.push_back({ { hist.he.hash, { cancelTxid }, make_signed_info(verified) }, hist.historyId });
             txset.emplace(cancelTxid);
             auto o { db.select_open_order(cancelTxid) };
             if (o) { // transaction is removed from the database
@@ -1228,15 +1224,16 @@ private:
     {
         for (auto& tr : transfers) {
             auto verified { tr.verify(txVerifier, asset.info().hash) };
-            auto& ref { history.push_token_transfer(verified, asset.id().token_id()) };
-            api.tokenTransfers.push_back(api::block::TokenTransfer {
-                make_signed_info(verified, ref.historyId),
-                {
-                    .assetInfo { asset.info() },
-                    .isLiquidity = tr.is_liquidity(),
-                    .toAddress { tr.to_address() },
-                    .amount { tr.amount() },
-                } });
+            auto& hist { history.push_token_transfer(verified, asset.id().token_id()) };
+            api.tokenTransfers.push_back({ { hist.he.hash,
+                                               {
+                                                   .assetInfo { asset.info() },
+                                                   .isLiquidity = tr.is_liquidity(),
+                                                   .toAddress { tr.to_address() },
+                                                   .amount { tr.amount() },
+                                               },
+                                               make_signed_info(verified) },
+                hist.historyId });
         }
     }
     [[nodiscard]] NewOrdersInternal generate_new_orders(const AssetHandle& asset, const std::vector<block_apply::Order::Internal>& orders)
@@ -1244,18 +1241,19 @@ private:
         NewOrdersInternal res;
         for (auto& o : orders) {
             auto verified { o.verify(txVerifier, asset.hash()) };
-            auto& ref { history.push_order(verified) };
-            api.newOrders.push_back(api::block::NewOrder {
-                make_signed_info(verified, ref.historyId),
-                {
-                    .assetInfo { asset.info() },
-                    .amount { o.amount() },
-                    .limit { o.limit() },
-                    .buy = o.buy(),
-                } });
-            res.push_back({ verified, ref.historyId });
+            auto& hist { history.push_order(verified) };
+            api.newOrders.push_back({ { hist.he.hash,
+                                          {
+                                              .assetInfo { asset.info() },
+                                              .amount { o.amount() },
+                                              .limit { o.limit() },
+                                              .buy = o.buy(),
+                                          },
+                                          make_signed_info(verified) },
+                hist.historyId });
+            res.push_back({ verified, hist.historyId });
             blockEffects.insert_order(
-                { .id { ref.historyId },
+                { .id { hist.historyId },
                     .buy = o.buy(),
                     .txid { verified.txid },
                     .aid { asset.id() },
@@ -1298,21 +1296,21 @@ private:
 
         h.pool_after() = pool; // write moodified pool after match
 
-        auto& ref { history.push_match(accounts, h, blockhash, ah.id()) };
+        auto& hist { history.push_match(accounts, h, blockhash, ah.id()) };
 
         // create API entry
         api.matches.push_back(
-            api::block::Match {
-                ref.he.hash,
-                ref.historyId,
-                api::block::MatchData {
-                    ah.info(),
-                    h.pool_before(),
-                    h.pool_after(),
-                    h.buy_swaps(),
-                    h.sell_swaps(),
-                },
-            });
+            { {
+                  hist.he.hash,
+                  api::block::MatchData {
+                      ah.info(),
+                      h.pool_before(),
+                      h.pool_after(),
+                      h.buy_swaps(),
+                      h.sell_swaps(),
+                  },
+              },
+                hist.historyId });
         auto b { api.matches.back() };
     }
 
@@ -1325,14 +1323,16 @@ private:
             auto verified { d.verify(txVerifier, ah.hash()) };
             auto shares { pool.deposit(d.base(), d.quote().E8()) };
             balanceChecker.add_balance(d.origin.id, ah.id().token_id(true), shares);
-            auto& ref { history.push_liquidity_deposit(verified, shares) };
+            auto& hist { history.push_liquidity_deposit(verified, shares) };
             api.liquidityDeposit.push_back(
-                { make_signed_info(verified, ref.historyId),
-                    api::block::LiquidityDepositData {
-                        .assetInfo { ah.info() },
-                        .baseDeposited { verified.ref.base() },
-                        .quoteDeposited { verified.ref.quote() },
-                        .sharesReceived = shares } });
+                { { hist.he.hash,
+                      api::block::LiquidityDepositData {
+                          .assetInfo { ah.info() },
+                          .baseDeposited { verified.ref.base() },
+                          .quoteDeposited { verified.ref.quote() },
+                          .sharesReceived = shares },
+                      make_signed_info(verified) },
+                    hist.historyId });
         }
     }
 
@@ -1352,15 +1352,17 @@ private:
             balanceChecker.add_balance(a.origin.id, ah.id().token_id(), baseReceived);
             balanceChecker.add_balance(a.origin.id, TokenId::WART, quoteReceived);
 
-            auto& ref { history.push_liquidity_withdrawal(verified, baseReceived, quoteReceived) };
+            auto& hist { history.push_liquidity_withdrawal(verified, baseReceived, quoteReceived) };
             api.liquidityWithdrawal.push_back(
-                { make_signed_info(verified, ref.historyId),
-                    {
-                        .assetInfo { ah.info() },
-                        .sharesRedeemed { a.amount() },
-                        .baseReceived { baseReceived },
-                        .quoteReceived { quoteReceived },
-                    } });
+                { { hist.he.hash,
+                      {
+                          .assetInfo { ah.info() },
+                          .sharesRedeemed { a.amount() },
+                          .baseReceived { baseReceived },
+                          .quoteReceived { quoteReceived },
+                      },
+                      make_signed_info(verified) },
+                    hist.historyId });
         }
     }
 
@@ -1380,6 +1382,7 @@ public:
         , blockhash(hash)
         , body { b.body }
         , height(b.height)
+        , timestamp(b.header.timestamp())
         , reward(b.body.reward)
         , balanceChecker(b.body, height, blockEffects)
         , history(historyEntries, db.next_history_id())

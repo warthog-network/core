@@ -73,6 +73,15 @@ struct Chainstate {
     const auto& headers() const { return headerchain; }
     auto mining_data() const { return headerchain.mining_data(); };
     const Hash& final_hash() const { return headerchain.final_hash(); }
+    const Hash& hash_at(Height h) const { 
+        if (h==headerchain.length()) 
+            return headerchain.final_hash(); 
+        auto hash{headerchain.get_hash(h)};
+        if (!hash) 
+            headerchain.throw_out_of_bounds(h);
+        return *hash;
+    }
+
     auto prepare_append(const wrt::optional<SignedSnapshot>& sp, HeaderView hv, bool verifyPOW) const { return headerchain.prepare_append(sp, hv, verifyPOW); }
     Height length() const { return headerchain.length(); }
     Descriptor descriptor() const { return dsc; }

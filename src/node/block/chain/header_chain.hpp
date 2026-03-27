@@ -118,6 +118,7 @@ public:
     Headerchain& operator=(const Headerchain&) = default;
     Headerchain& operator=(Headerchain&&) = default;
     const HeaderViewNoHash operator[](NonzeroHeight) const;
+    void throw_out_of_bounds(Height h) const;
     Grid grid(Batchslot begin = Batchslot(0)) const;
     const HeaderBatch* operator[](Batchslot bs) const
     {

@@ -329,10 +329,14 @@ Headerchain::Headerchain(const Headerchain& from, Height subheight)
     initialize_worksum();
 }
 
+void Headerchain::throw_out_of_bounds(Height h)const{
+    throw std::out_of_range("Headerchain has length " + to_string(length()) + ". Cannot access index " + to_string(h));
+}
+
 const Headerchain::HeaderViewNoHash Headerchain::operator[](NonzeroHeight h) const
 {
     if (h > length())
-        throw std::out_of_range("Headerchain has length " + to_string(length()) + ". Cannot access index " + to_string(h));
+        throw_out_of_bounds(h);
     Batchslot bs(h);
     size_t i = bs.index();
     size_t rem = h - bs.lower();
