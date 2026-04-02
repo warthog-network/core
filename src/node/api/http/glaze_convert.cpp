@@ -4,9 +4,15 @@
 #include "general/funds.hpp"
 #include "general/hex.hpp"
 #include "transport/helpers/peer_addr.hpp"
+#include <ranges>
 
 namespace api {
 namespace glaze {
+
+std::string from(const Address& a)
+{
+    return a.to_string();
+}
 
 TransactionId from(const ::TransactionId txid)
 {
@@ -61,6 +67,12 @@ uint32_t from(const IsUint32& i)
 }
 
 template <typename T>
+auto from(const api::block::WithHistoryId<T>& tx)
+{
+    return WithHistoryId { .data = from(tx.transaction), .historyId = tx.historyId.value() };
+}
+
+template <typename T>
 static auto from(const wrt::optional<T>& o)
 {
     std::optional<target_type<T>> out;
@@ -81,13 +93,6 @@ static auto from(const std::vector<T>& v)
 
 namespace {
 
-FundsDecimalNoDecimals convert_funds_no_decimals(::FundsDecimal fd)
-{
-    return {
-        .str = fd.to_string(),
-        .u64 = fd.funds.value()
-    };
-}
 FundsDecimal from(::FundsDecimal fd)
 {
     return {
@@ -134,7 +139,7 @@ Wart from(const ::Wart w)
     };
 }
 
-Hash from(const ::Hash& h)
+HashResult from(const ::Hash& h)
 {
     return { .hash = serialize_hex(h) };
 }
@@ -216,58 +221,33 @@ TokenBalanceLookup from(const ::api::TokenBalanceLookup& l)
 TransactionDetails to_json(const api::TransactionDetails& d)
 {
     wrt::Overload convert_transaction(
-        [&](const api::MinedReward& m) -> reward::Transaction {
-            return {
-                .data {
-                    .toAddress { m.transaction.data.toAddress.to_string() },
-                    .amount = from(m.transaction.data.amount),
-                },
-                .hash = serialize_hex(m.transaction.hash),
-            };
+        [&](const block::Reward& t) -> reward::Transaction {
+            return from(t);
         },
-        [&](const api::MaybeMinedWartTransfer& m) -> wart_transfer::Transaction {
-            return {
-                .data {
-                    .toAddress { m.transaction.data.toAddress.to_string() },
-                    .amount = from(m.transaction.data.amount),
-                },
-                .hash { serialize_hex(m.transaction.hash) },
-                .signedCommon { from(m.transaction.signedData) }
-            };
+        [&](const block::WartTransfer& t) -> wart_transfer::Transaction {
+            return from(t);
         },
-        [&](const api::MaybeMinedTokenTransfer& m) -> token_transfer::Transaction {
-            auto& data { m.transaction.data };
-            auto funds { ::FundsDecimal(data.amount, data.assetInfo.decimals) };
-            return {
-                .data {
-                    .toAddress { data.toAddress.to_string() },
-                    .amount = from(funds),
-                    .asset = from(data.assetInfo),
-                    .isLiquidity = data.isLiquidity,
-                    .tokenSpec = TokenSpec(data.assetInfo.hash, data.isLiquidity).to_string(),
-                },
-                .hash { serialize_hex(m.transaction.hash) },
-                .signedCommon { from(m.transaction.signedData) }
-            };
+        [&](const block::TokenTransfer& t) -> token_transfer::Transaction {
+            return from(t);
         },
-        [&](const api::MaybeMinedAssetCreation& m) -> asset_creation::TransactionMaybeProcessed {
+        [&](const block::AssetCreation& t) -> asset_creation::TransactionMaybeProcessed {
             asset_creation::TransactionMaybeProcessed out {
-                .data { .name = m.transaction.data.name.to_string(),
-                    .supply = from(m.transaction.data.supply) },
+                .data {
+                    .name = t.data.name.to_string(),
+                    .supply = from(t.data.supply) },
                 .processed {},
-                .hash { serialize_hex(m.transaction.hash) },
-                .signedCommon { from(m.transaction.signedData) }
+                .hash { serialize_hex(t.hash) },
+                .signedCommon { from(t.signedData) }
             };
 
-            auto& aid { m.transaction.data.assetId };
+            auto& aid { t.data.assetId };
             if (aid) {
                 out.processed = asset_creation::Processed { from(*aid) };
             }
             return out;
         },
-        [&](const api::MaybeMinedNewOrder& m) -> new_order::TransactionMaybeProcessed {
-            auto& d { m.transaction.data };
-            // d.amount_decimal
+        [&](const block::NewOrder& t) -> new_order::TransactionMaybeProcessed {
+            auto& d { t.data };
             new_order::TransactionMaybeProcessed out {
                 .data {
                     .baseAsset { from(d.assetInfo) },
@@ -275,8 +255,8 @@ TransactionDetails to_json(const api::TransactionDetails& d)
                     .limit { make_price(d.limit, d.assetInfo.decimals) },
                     .buy = d.buy },
                 .processed {},
-                .hash { serialize_hex(m.transaction.hash) },
-                .signedCommon { from(m.transaction.signedData) }
+                .hash { serialize_hex(t.hash) },
+                .signedCommon { from(t.signedData) }
             };
             if (d.filled) {
                 out.processed = new_order::Processed {
@@ -285,43 +265,19 @@ TransactionDetails to_json(const api::TransactionDetails& d)
             }
             return out;
         },
-        [&](const api::MinedMatch& m) -> match::Transaction {
-            auto& d { m.transaction.data };
-            std::vector<match::Data::SwapEntry> buySwaps, sellSwaps;
-            for (auto& s : m.transaction.data.buySwaps) {
-                defi::BaseQuote bq { s.base(), s.quote() };
-                buySwaps.push_back(
-                    { .swapped = make_base_quote(bq, d.assetInfo.decimals),
-                        .historyId = from(s.referred_history_id()) });
-            }
-            for (auto& s : m.transaction.data.sellSwaps) {
-                defi::BaseQuote bq { s.base(), s.quote() };
-                sellSwaps.push_back(
-                    { .swapped = make_base_quote(bq, d.assetInfo.decimals),
-                        .historyId = from(s.referred_history_id()) });
-            }
-            // std::vector<SwapEntry> sellSwaps;
-            return {
-                .data {
-                    .baseAsset { from(d.assetInfo) },
-                    .poolBefore { make_base_quote(d.poolBefore, d.assetInfo.decimals) },
-                    .poolAfter { make_base_quote(d.poolBefore, d.assetInfo.decimals) },
-                    .buySwaps { std::move(buySwaps) },
-                    .sellSwaps { std::move(sellSwaps) } },
-
-                .hash { serialize_hex(m.transaction.hash) },
-            };
+        [&](const block::Match& t) -> match::Transaction {
+            return from(t);
         },
-        [&](const api::MaybeMinedLiquidityDeposit& m) -> liquidity_deposit::TransactionMaybeProcessed {
-            auto& d { m.transaction.data };
+        [&](const block::LiquidityDeposit& t) -> liquidity_deposit::TransactionMaybeProcessed {
+            auto& d { t.data };
             defi::BaseQuote bq { d.baseDeposited, d.quoteDeposited };
             liquidity_deposit::TransactionMaybeProcessed out {
                 .data {
                     .baseAsset { from(d.assetInfo) },
                     .deposited { make_base_quote(bq, d.assetInfo.decimals) } },
                 .processed {},
-                .hash { serialize_hex(m.transaction.hash) },
-                .signedCommon { from(m.transaction.signedData) }
+                .hash { serialize_hex(t.hash) },
+                .signedCommon { from(t.signedData) }
             };
             if (d.sharesReceived) {
                 out.processed = liquidity_deposit::Processed { .sharesReceived = from(
@@ -329,30 +285,30 @@ TransactionDetails to_json(const api::TransactionDetails& d)
             }
             return out;
         },
-        [&](const api::MaybeMinedLiquidityWithdrawal& m) -> liquidity_withdrawal::TransactionMaybeProcessed {
-            auto& d { m.transaction.data };
+        [&](const block::LiquidityWithdrawal& t) -> liquidity_withdrawal::TransactionMaybeProcessed {
+            auto& d { t.data };
             ::FundsDecimal fd(d.sharesRedeemed, TokenDecimals::LIQUIDITY);
             liquidity_withdrawal::TransactionMaybeProcessed out {
                 .data {
                     .baseAsset { from(d.assetInfo) },
                     .sharesRedeemed { from(fd) } },
                 .processed {},
-                .hash { serialize_hex(m.transaction.hash) },
-                .signedCommon { from(m.transaction.signedData) }
+                .hash { serialize_hex(t.hash) },
+                .signedCommon { from(t.signedData) }
             };
             if (d.received) {
                 out.processed = liquidity_withdrawal::Processed(make_base_quote(*d.received, d.assetInfo.decimals));
             }
             return out;
         },
-        [&](const api::MaybeMinedCancelation& m) -> cancelation::TransactionMaybeProcessed {
-            auto& d { m.transaction.data };
+        [&](const block::TransactionCancelation& t) -> cancelation::TransactionMaybeProcessed {
+            auto& d { t.data };
             // ::FundsDecimal fd(d.sharesRedeemed, TokenDecimals::LIQUIDITY);
             cancelation::TransactionMaybeProcessed out {
-                .data { .cancelTxid = from(m.transaction.data.cancelTxid) },
+                .data { .cancelTxid = from(t.data.cancelTxid) },
                 .processed {},
-                .hash { serialize_hex(m.transaction.hash) },
-                .signedCommon { from(m.transaction.signedData) }
+                .hash { serialize_hex(t.hash) },
+                .signedCommon { from(t.signedData) }
             };
             if (d.canceledOrder) {
                 auto& o { *d.canceledOrder };
@@ -369,7 +325,7 @@ TransactionDetails to_json(const api::TransactionDetails& d)
         if (md) {
             auto& m { *md };
             return TransactionDetails {
-                .transaction { convert_transaction(std::forward<decltype(arg)>(arg)) },
+                .transaction { convert_transaction(std::forward<decltype(arg)>(arg).transaction) },
                 .type { arg.transaction.data.label },
                 .mined { TransactionDetails::Mined {
                     .historyId = from(m.hid),
@@ -383,7 +339,7 @@ TransactionDetails to_json(const api::TransactionDetails& d)
             };
         } else {
             return TransactionDetails {
-                .transaction { convert_transaction(std::forward<decltype(arg)>(arg)) },
+                .transaction { convert_transaction(std::forward<decltype(arg)>(arg).transaction) },
                 .type { arg.transaction.data.label },
                 .mined {},
                 .confirmations = confirmations,
@@ -399,6 +355,149 @@ TransactionDetails to_json(const api::TransactionDetails& d)
             return mined_transaction_details(&a.mined, a.confirmations, a);
         });
     return d.visit(convert);
+}
+CompactFee from(::CompactUInt f)
+{
+    auto uc { f.uncompact() };
+    return {
+        .str { uc.to_string() },
+        .E8 = uc.E8(),
+        .bytes { serialize_hex(f.value()) },
+    };
+}
+TransactionMinfee from(const api::TransactionMinfee& f)
+{
+    return { .minFee = from(f.minfee) };
+}
+
+reward::Transaction from(const block::Reward& t)
+{
+    return {
+        .data {
+            .toAddress { from(t.data.toAddress) },
+            .amount { from(t.data.amount) } },
+        .hash { serialize_hex(t.hash) }
+    };
+}
+wart_transfer::Transaction from(const block::WartTransfer& t)
+{
+    return {
+        .data {
+            .toAddress = from(t.data.toAddress),
+            .amount = from(t.data.amount),
+        },
+        .hash { serialize_hex(t.hash) },
+        .signedCommon = from(t.signedData),
+    };
+}
+token_transfer::Transaction from(const block::TokenTransfer& t)
+{
+    auto& data { t.data };
+    auto funds { ::FundsDecimal(data.amount, data.assetInfo.decimals) };
+    return {
+        .data {
+            .toAddress { data.toAddress.to_string() },
+            .amount = from(funds),
+            .asset = from(data.assetInfo),
+            .isLiquidity = data.isLiquidity,
+            .tokenSpec = TokenSpec(data.assetInfo.hash, data.isLiquidity).to_string(),
+        },
+        .hash { serialize_hex(t.hash) },
+        .signedCommon { from(t.signedData) }
+    };
+}
+asset_creation::TransactionProcessed from_mined(const block::AssetCreation& t)
+{
+    assert(t.data.assetId);
+    return {
+        .data {
+            .name { t.data.name.to_string() },
+            .supply = from(t.data.supply) },
+        .processed = { t.data.assetId->value() },
+        .hash { serialize_hex(t.hash) },
+        .signedCommon = from(t.signedData),
+    };
+}
+
+new_order::TransactionProcessed from_mined(const block::NewOrder& t)
+{
+    assert(t.data.filled);
+    return {
+        .data {
+            .baseAsset = from(t.data.assetInfo),
+            .amount = from(::FundsDecimal(t.data.amount, t.data.assetInfo.decimals)),
+            .limit = make_price(t.data.limit, t.data.assetInfo.decimals),
+            .buy = t.data.buy,
+        },
+        .processed = { from(::FundsDecimal(*t.data.filled, t.data.assetInfo.decimals)) },
+        .hash { serialize_hex(t.hash) },
+        .signedCommon = from(t.signedData),
+    };
+}
+match::Transaction from(const block::Match& t)
+{
+    auto& d { t.data };
+    std::vector<match::Data::SwapEntry> buySwaps, sellSwaps;
+    for (auto& s : t.data.buySwaps) {
+        defi::BaseQuote bq { s.base(), s.quote() };
+        buySwaps.push_back(
+            { .swapped = make_base_quote(bq, d.assetInfo.decimals),
+                .historyId = from(s.referred_history_id()) });
+    }
+    for (auto& s : t.data.sellSwaps) {
+        defi::BaseQuote bq { s.base(), s.quote() };
+        sellSwaps.push_back(
+            { .swapped = make_base_quote(bq, d.assetInfo.decimals),
+                .historyId = from(s.referred_history_id()) });
+    }
+    // std::vector<SwapEntry> sellSwaps;
+    return {
+        .data {
+            .baseAsset { from(d.assetInfo) },
+            .poolBefore { make_base_quote(d.poolBefore, d.assetInfo.decimals) },
+            .poolAfter { make_base_quote(d.poolBefore, d.assetInfo.decimals) },
+            .buySwaps { std::move(buySwaps) },
+            .sellSwaps { std::move(sellSwaps) } },
+
+        .hash { serialize_hex(t.hash) },
+    };
+}
+// liquidity_deposit::TransactionProcessed from_mined(const block::LiquidityDeposit& t)
+// {
+// }
+// liquidity_withdrawal::TransactionProcessed from_mined(const api::block::WithHistoryId<block::LiquidityWithdrawal>& t)
+// {
+// }
+// cancelation::TransactionProcessed from_mined(const block::TransactionCancelation t)
+// {
+// }
+
+ActionsByBlock from(const api::TransactionsByBlocks& f)
+{
+    ActionsByBlock out {
+        .perBlock {},
+        .fromId = from(f.fromId),
+    };
+
+    for (auto& b : std::ranges::reverse_view(f.blocks_reversed)) {
+        out.perBlock.push_back(ActionsByBlock::BlockEntry {
+            .height = b.height.value(),
+            .confirmations = b.confirmations,
+            .actions = {},
+        });
+        auto& a { out.perBlock.back().actions };
+        // TODO
+        a.reward = from(b.actions.reward);
+        a.wartTransfers = from(b.actions.wartTransfers);
+        a.tokenTransfers = from(b.actions.tokenTransfers);
+        // a.assetCreations = from(b.actions.assetCreations);
+        // a.newOrders = from(b.actions.newOrders);
+        // a.matches = from(b.actions.matches);
+        // a.liquidityDeposits = from(b.actions.liquidityDeposit);
+        // a.liquidityWithdrawals = from(b.actions.liquidityWithdrawal);
+        // a.cancelations = from(b.actions.cancelations);
+    }
+    return out;
 }
 }
 }

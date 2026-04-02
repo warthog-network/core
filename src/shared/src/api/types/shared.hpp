@@ -217,7 +217,6 @@ struct Actions {
     std::vector<WithHistoryId<block::LiquidityDeposit>> liquidityDeposit;
     std::vector<WithHistoryId<block::LiquidityWithdrawal>> liquidityWithdrawal;
     std::vector<WithHistoryId<block::TransactionCancelation>> cancelations;
-    std::vector<WithHistoryId<block::OrderCancelation>> orderCancelations;
 };
 }
 

@@ -20,7 +20,7 @@ struct FundsDecimal {
 struct Grid {
     std::vector<std::string> headers;
 };
-struct Hash {
+struct HashResult {
     std::string hash;
 };
 struct BanEntry {
@@ -261,7 +261,7 @@ struct MempoolEntry {
 };
 using MempoolEntries = std::vector<MempoolEntry>;
 
-struct AccountHistory {
+struct ActionsByBlock {
     struct BlockEntry {
         uint32_t height;
         uint32_t confirmations;
@@ -270,6 +270,7 @@ struct AccountHistory {
     std::vector<BlockEntry> perBlock;
     uint64_t fromId;
 };
+
 struct AddressCount {
     std::string address;
     uint64_t count;
@@ -517,6 +518,14 @@ struct TransactionDetails {
     };
     std::optional<Mined> mined;
     uint32_t confirmations;
+};
+struct CompactFee {
+    std::string str;
+    uint64_t E8;
+    std::string bytes;
+};
+struct TransactionMinfee{
+    CompactFee minFee;
 };
 
 }

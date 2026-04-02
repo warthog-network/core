@@ -608,7 +608,7 @@ json to_json(const api::TransactionsByBlocks& txs)
         arr.push_back(
             json {
                 { "header", header_json(block.header, block.height) },
-                { "body", actions_json(block) },
+                { "body", actions_json(block.actions) },
                 { "timestamp", block.header.timestamp() },
                 { "utc", format_utc(block.header.timestamp()) },
                 { "confirmations", block.confirmations },
@@ -662,7 +662,7 @@ json to_json(const api::AccountHistory& h)
         json elem;
         elem["height"] = b.height;
         elem["confirmations"] = b.confirmations;
-        elem["transactions"] = actions_json(b);
+        elem["transactions"] = actions_json(b.actions);
         a.push_back(elem);
     }
     json j;
@@ -895,7 +895,6 @@ json to_json(const api::OpenOrder& od)
 
 json to_json(const api::ParsedPrice& p)
 {
-
     return {
         { "assetDecimals", p.dec.value() },
         { "floor", limit_json(p.floor, p.dec) },

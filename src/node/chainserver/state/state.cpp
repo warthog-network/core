@@ -810,8 +810,7 @@ auto State::api_get_latest_blocks(size_t N) const -> api::TransactionsByBlocks
     return api_get_transaction_range(lower, upper);
 }
 
-auto State::api_get_miner(NonzeroHeight h) const
-    -> wrt::optional<api::Account>
+auto State::api_get_miner(NonzeroHeight h) const -> wrt::optional<api::Account>
 {
     if (chainlength() < h)
         return {};

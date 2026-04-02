@@ -28,7 +28,6 @@ using NewOrder = IsSignedTransaction<NewOrderData>;
 using LiquidityDeposit = IsSignedTransaction<LiquidityDepositData>;
 using LiquidityWithdrawal = IsSignedTransaction<LiquidityWithdrawalData>;
 using TransactionCancelation = IsSignedTransaction<CancelationData>;
-using OrderCancelation = IsTransaction<OrderCancelationData>;
 using Match = IsTransaction<MatchData>;
 
 }
