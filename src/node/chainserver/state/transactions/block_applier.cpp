@@ -1324,7 +1324,7 @@ private:
             auto shares { pool.deposit(d.base(), d.quote().E8()) };
             balanceChecker.add_balance(d.origin.id, ah.id().token_id(true), shares);
             auto& hist { history.push_liquidity_deposit(verified, shares) };
-            api.liquidityDeposit.push_back(
+            api.liquidityDeposits.push_back(
                 { { hist.he.hash,
                       api::block::LiquidityDepositData {
                           .assetInfo { ah.info() },
@@ -1353,7 +1353,7 @@ private:
             balanceChecker.add_balance(a.origin.id, TokenId::WART, quoteReceived);
 
             auto& hist { history.push_liquidity_withdrawal(verified, baseReceived, quoteReceived) };
-            api.liquidityWithdrawal.push_back(
+            api.liquidityWithdrawals.push_back(
                 { { hist.he.hash,
                       {
                           .assetInfo { ah.info() },

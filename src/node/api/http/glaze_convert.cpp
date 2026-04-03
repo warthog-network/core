@@ -3,11 +3,70 @@
 #include "crypto/hash.hpp"
 #include "general/funds.hpp"
 #include "general/hex.hpp"
+#include "global/globals.hpp"
 #include "transport/helpers/peer_addr.hpp"
 #include <ranges>
 
 namespace api {
 namespace glaze {
+
+namespace {
+std::string format_utc(uint32_t timestamp)
+{
+    std::chrono::system_clock::time_point tp { std::chrono::seconds(timestamp) };
+    auto tt { std::chrono::system_clock::to_time_t(tp) };
+    auto utc_f = *std::gmtime(&tt);
+    std::string out;
+    out.resize(30);
+    auto len { std::strftime(&out[0], out.size(), "%F %T UTC", &utc_f) };
+    out.resize(len);
+    return out;
+}
+Timepoint format_timestamp(uint32_t ts)
+{
+    return {
+        .UTC = format_utc(ts),
+        .timestamp = ts,
+    };
+}
+
+FundsDecimal from(::FundsDecimal fd)
+{
+    return {
+        .str = fd.to_string(),
+        .u64 = fd.funds.value(),
+        .decimals = fd.decimals.value()
+    };
+}
+std::string from(const ::Peeraddr a)
+{
+    return a.to_string();
+}
+Wart from(const ::Wart w)
+{
+    return {
+        .str { w.to_string() },
+        .E8 = w.E8(),
+    };
+}
+
+WartBalance from(const api::WartBalance& w)
+{
+    return {
+        .total = from(w.total),
+        .locked = from(w.locked),
+        .mempool = from(w.mempool)
+    };
+}
+FundsBalance from(const ::api::FundsBalance& fb)
+{
+    return {
+        .total = from(fb.total),
+        .locked = from(fb.locked),
+        .mempool = from(fb.mempool)
+    };
+}
+}
 
 std::string from(const Address& a)
 {
@@ -69,7 +128,7 @@ uint32_t from(const IsUint32& i)
 template <typename T>
 auto from(const api::block::WithHistoryId<T>& tx)
 {
-    return WithHistoryId { .data = from(tx.transaction), .historyId = tx.historyId.value() };
+    return WithHistoryId { .transaction = from(tx.transaction), .historyId = tx.historyId.value() };
 }
 
 template <typename T>
@@ -91,29 +150,6 @@ static auto from(const std::vector<T>& v)
     return out;
 }
 
-namespace {
-
-FundsDecimal from(::FundsDecimal fd)
-{
-    return {
-        .str = fd.to_string(),
-        .u64 = fd.funds.value(),
-        .decimals = fd.decimals.value()
-    };
-}
-std::string convert(const ::Peeraddr a)
-{
-    return a.to_string();
-}
-FundsBalance from(const ::api::FundsBalance& fb)
-{
-    return {
-        .total = from(fb.total),
-        .locked = from(fb.locked),
-        .mempool = from(fb.mempool)
-    };
-}
-}
 static BaseQuote make_base_quote(const defi::BaseQuote& bq, TokenDecimals d)
 {
     return {
@@ -129,14 +165,6 @@ Grid from(const ::Grid& g)
         out.headers.push_back(serialize_hex(header));
     }
     return out;
-}
-
-Wart from(const ::Wart w)
-{
-    return {
-        .str { w.to_string() },
-        .E8 = w.E8(),
-    };
 }
 
 HashResult from(const ::Hash& h)
@@ -406,34 +434,7 @@ token_transfer::Transaction from(const block::TokenTransfer& t)
         .signedCommon { from(t.signedData) }
     };
 }
-asset_creation::TransactionProcessed from_mined(const block::AssetCreation& t)
-{
-    assert(t.data.assetId);
-    return {
-        .data {
-            .name { t.data.name.to_string() },
-            .supply = from(t.data.supply) },
-        .processed = { t.data.assetId->value() },
-        .hash { serialize_hex(t.hash) },
-        .signedCommon = from(t.signedData),
-    };
-}
 
-new_order::TransactionProcessed from_mined(const block::NewOrder& t)
-{
-    assert(t.data.filled);
-    return {
-        .data {
-            .baseAsset = from(t.data.assetInfo),
-            .amount = from(::FundsDecimal(t.data.amount, t.data.assetInfo.decimals)),
-            .limit = make_price(t.data.limit, t.data.assetInfo.decimals),
-            .buy = t.data.buy,
-        },
-        .processed = { from(::FundsDecimal(*t.data.filled, t.data.assetInfo.decimals)) },
-        .hash { serialize_hex(t.hash) },
-        .signedCommon = from(t.signedData),
-    };
-}
 match::Transaction from(const block::Match& t)
 {
     auto& d { t.data };
@@ -462,15 +463,6 @@ match::Transaction from(const block::Match& t)
         .hash { serialize_hex(t.hash) },
     };
 }
-// liquidity_deposit::TransactionProcessed from_mined(const block::LiquidityDeposit& t)
-// {
-// }
-// liquidity_withdrawal::TransactionProcessed from_mined(const api::block::WithHistoryId<block::LiquidityWithdrawal>& t)
-// {
-// }
-// cancelation::TransactionProcessed from_mined(const block::TransactionCancelation t)
-// {
-// }
 
 ActionsByBlock from(const api::TransactionsByBlocks& f)
 {
@@ -486,18 +478,219 @@ ActionsByBlock from(const api::TransactionsByBlocks& f)
             .actions = {},
         });
         auto& a { out.perBlock.back().actions };
-        // TODO
         a.reward = from(b.actions.reward);
         a.wartTransfers = from(b.actions.wartTransfers);
         a.tokenTransfers = from(b.actions.tokenTransfers);
-        // a.assetCreations = from(b.actions.assetCreations);
-        // a.newOrders = from(b.actions.newOrders);
-        // a.matches = from(b.actions.matches);
-        // a.liquidityDeposits = from(b.actions.liquidityDeposit);
-        // a.liquidityWithdrawals = from(b.actions.liquidityWithdrawal);
-        // a.cancelations = from(b.actions.cancelations);
+        for (auto& e : b.actions.assetCreations) {
+            auto& t = e.transaction;
+            auto& aid { t.data.assetId };
+            assert(aid);
+            a.assetCreations.push_back(
+                { .transaction = asset_creation::TransactionProcessed {
+                      .data {
+                          .name = t.data.name.to_string(),
+                          .supply = from(t.data.supply) },
+                      .processed { .assetId = from(*aid) },
+                      .hash { serialize_hex(t.hash) },
+                      .signedCommon { from(t.signedData) } },
+                    .historyId = e.historyId.value() });
+        }
+        for (auto& e : b.actions.newOrders) {
+            auto& t = e.transaction;
+            auto& d { t.data };
+            assert(d.filled);
+            // if (d.filled) {
+            //     out.processed = new_order::Processed {
+            // };
+            a.newOrders.push_back(
+                { .transaction = new_order::TransactionProcessed {
+                      .data {
+                          .baseAsset { from(d.assetInfo) },
+                          .amount { from(d.amount_decimal()) },
+                          .limit { make_price(d.limit, d.assetInfo.decimals) },
+                          .buy = d.buy },
+                      .processed {
+                          .filled = from(::FundsDecimal(*d.filled, d.assetInfo.decimals)) },
+                      .hash { serialize_hex(t.hash) },
+                      .signedCommon { from(t.signedData) } },
+                    .historyId = e.historyId.value() });
+        }
+        a.matches = from(b.actions.matches);
+        for (auto& e : b.actions.liquidityDeposits) {
+            auto& t = e.transaction;
+            auto& d { t.data };
+            assert(d.sharesReceived);
+            defi::BaseQuote bq { d.baseDeposited, d.quoteDeposited };
+            a.liquidityDeposits.push_back(
+                { .transaction {
+                      .data {
+                          .baseAsset { from(d.assetInfo) },
+                          .deposited { make_base_quote(bq, d.assetInfo.decimals) } },
+                      .processed { .sharesReceived = from(::FundsDecimal(*d.sharesReceived, d.assetInfo.decimals)) },
+                      .hash { serialize_hex(t.hash) },
+                      .signedCommon { from(t.signedData) } },
+                    .historyId = e.historyId.value() });
+        }
+        for (auto& e : b.actions.liquidityWithdrawals) {
+            auto& t = e.transaction;
+            auto& d { t.data };
+            assert(d.received);
+            ::FundsDecimal fd(d.sharesRedeemed, TokenDecimals::LIQUIDITY);
+            a.liquidityWithdrawals.push_back(
+                { .transaction = {
+                      .data {
+                          .baseAsset { from(d.assetInfo) },
+                          .sharesRedeemed { from(fd) } },
+                      .processed { .received = make_base_quote(*d.received, d.assetInfo.decimals) },
+                      .hash { serialize_hex(t.hash) },
+                      .signedCommon { from(t.signedData) } },
+                    .historyId = e.historyId.value() });
+        }
+        for (auto& e : b.actions.cancelations) {
+            auto& t = e.transaction;
+            auto& d { t.data };
+            assert(d.canceledOrder);
+            auto& o { *d.canceledOrder };
+            a.cancelations.push_back(
+                { .transaction = {
+                      .data { .cancelTxid = from(t.data.cancelTxid) },
+                      .processed {
+                          .baseAsset = from(o.assetInfo),
+                          .buy = o.buy,
+                          .historyId = from(o.historyId),
+                          .remaining = from(::FundsDecimal(o.remaining, o.assetInfo.decimals)) },
+                      .hash { serialize_hex(t.hash) },
+                      .signedCommon { from(t.signedData) } },
+                    .historyId = e.historyId.value() });
+        }
     }
     return out;
+}
+
+TransmissionCharts::Element from(const rxtx::RangeAggregated& ra)
+{
+    return {
+        .begin = ra.begin.value(),
+        .end = ra.end.value(),
+        .rx = ra.rx,
+        .tx = ra.tx
+    };
+}
+TransmissionCharts from(const api::TransmissionTimeseries& ts)
+{
+    TransmissionCharts out;
+    for (auto& [host, vec] : ts.byHost) {
+        out.byHost.try_emplace(host, from(vec));
+    }
+    return out;
+}
+Wallet from(const api::Wallet& w)
+{
+    auto pubkey { w.pk.pubkey() };
+    return {
+        .privKey = w.pk.to_string(),
+        .pubKey = pubkey.to_string(),
+        .address = pubkey.address().to_string()
+    };
+}
+FundsBalance from(const api::FundsBalance& w)
+{
+    return {
+        .total = from(w.total),
+        .locked = from(w.locked),
+        .mempool = from(w.mempool)
+    };
+}
+
+WartBalanceResult from(const api::WartBalanceLookup& w)
+{
+    return {
+        .wart = from(w.balance),
+        .account = from(w.account)
+    };
+}
+OffenseEntry from(const api::OffenseEntry& o)
+{
+    return {
+        .ip = o.ip.to_string(),
+        .timestamp = o.timestamp,
+        .utc = format_utc(o.timestamp),
+        .offense = o.offense.err_name(),
+    };
+}
+
+RoundedFeeResult from(const api::Round16Bit& r)
+{
+    return {
+        .original = from(r.original),
+        .rounded = from(CompactUInt::compact(r.original))
+    };
+}
+RollbackResult from(const api::Rollback& rb)
+{
+    return { .length = from(rb.length) };
+}
+std::vector<std::pair<std::string, size_t>> from(const api::IPCounter& c)
+{
+    std::vector<std::pair<std::string, size_t>> out;
+    for (auto& e : c.vector)
+        out.push_back({ e.first.to_string(), e.second });
+    return out;
+}
+NodeInfo from(const api::NodeInfo& info)
+{
+    using namespace std;
+    using namespace std::chrono;
+    using namespace std::string_literals;
+    using sc = std::chrono::steady_clock;
+    auto format_duration = [](size_t s /* uptime seconds*/) {
+        size_t days = s / (24 * 60 * 60);
+        size_t hours = (s % (24 * 60 * 60)) / (60 * 60);
+        size_t minutes = (s % (60 * 60)) / 60;
+        size_t seconds = (s % 60);
+        return to_string(days) + "d "s + to_string(hours) + "h "s + to_string(minutes) + "m "s + to_string(seconds) + "s"s;
+    };
+
+    auto startedAt { config().started_at() };
+    auto uptime { sc::now() - startedAt.steady };
+    size_t uptimeSeconds(duration_cast<seconds>(uptime).count());
+    auto uptimeStr { format_duration(uptimeSeconds) };
+    uint32_t sinceTimestamp(duration_cast<seconds>(startedAt.system.time_since_epoch()).count());
+    return {
+        .dbSize = info.dbSize,
+        .chainDBPath = config().data.chaindb,
+        .peersDBPath = config().data.peersdb,
+        .rxtxDBPath = config().data.rxtxdb,
+        .version = {
+            .name = CMDLINE_PARSER_VERSION,
+            .major = VERSION_MAJOR,
+            .minor = VERSION_MINOR,
+            .patch = VERSION_PATCH,
+            .commit = GIT_COMMIT_INFO },
+        .uptime = { .since = format_timestamp(sinceTimestamp), .seconds = uint32_t(uptimeSeconds), .formatted = uptimeStr }
+    };
+}
+Candle from(const api::Candle& c)
+{
+    return {
+        c.timestamp.value(),
+        c.height.value(),
+        c.open,
+        c.high,
+        c.low,
+        c.close,
+        c.base,
+        c.quote,
+    };
+}
+Trade from(const api::Trade& t)
+{
+    return {
+        t.height.value(),
+        t.timestamp.value(),
+        t.base,
+        t.quote,
+    };
 }
 }
 }

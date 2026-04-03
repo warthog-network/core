@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <variant>
@@ -33,7 +34,7 @@ struct Account {
     std::string address;
     uint64_t accountId;
 };
-struct Wart { 
+struct Wart {
     std::string str;
     uint64_t E8;
 };
@@ -74,7 +75,7 @@ struct SignedTransactionMaybeProcessed {
 };
 template <typename Transaction>
 struct WithHistoryId {
-    Transaction data;
+    Transaction transaction;
     uint64_t historyId;
 };
 
@@ -340,6 +341,12 @@ struct FundsBalance {
     FundsDecimal locked;
     FundsDecimal mempool;
 };
+struct WartBalance {
+    Wart total;
+    Wart locked;
+    Wart mempool;
+};
+
 struct Uint32Range {
     uint32_t begin;
     uint32_t end;
@@ -430,10 +437,13 @@ struct ThrottleState {
     State blockRequest;
     State headerRequest;
 };
+struct Timepoint {
+    std::string UTC;
+    uint32_t timestamp;
+};
 struct Peerinfo {
     struct Connection {
-        std::string sinceUTC;
-        uint32_t sinceTimestamp;
+        Timepoint since;
         int port;
         std::optional<std::string> ip;
     };
@@ -524,9 +534,62 @@ struct CompactFee {
     uint64_t E8;
     std::string bytes;
 };
-struct TransactionMinfee{
+struct TransactionMinfee {
     CompactFee minFee;
 };
+struct TransmissionCharts {
+    struct Element {
+        uint32_t begin;
+        uint32_t end;
+        size_t rx;
+        size_t tx;
+    };
+    std::map<std::string, std::vector<Element>> byHost;
+};
+struct Wallet {
+    std::string privKey;
+    std::string pubKey;
+    std::string address;
+};
+struct WartBalanceResult {
+    WartBalance wart;
+    std::optional<Account> account;
+};
+struct OffenseEntry {
+    std::string ip;
+    uint32_t timestamp;
+    std::string utc;
+    std::string offense;
+};
+struct RoundedFeeResult {
+    Wart original;
+    CompactFee rounded;
+};
+struct RollbackResult {
+    uint32_t length;
+};
+struct NodeVersion {
+    std::string name;
+    int major;
+    int minor;
+    int patch;
+    std::string commit;
+};
+struct NodeInfo {
+    struct Uptime {
+        Timepoint since;
+        uint32_t seconds;
+        std::string formatted;
+    };
+    size_t dbSize;
+    std::string chainDBPath;
+    std::string peersDBPath;
+    std::string rxtxDBPath;
+    NodeVersion version;
+    Uptime uptime;
+};
+using Candle = std::tuple<uint32_t,uint32_t,double,double,double,double,double,double>;
+using Trade = std::tuple<uint32_t,uint32_t,double,double>;
 
 }
 }

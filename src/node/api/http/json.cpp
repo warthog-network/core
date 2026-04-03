@@ -185,8 +185,8 @@ json header_json(const Header& header, NonzeroHeight height)
     j["tokenTransfers"] = gen_arr(actions.tokenTransfers);
     j["newOrders"] = gen_arr(actions.newOrders);
     j["matches"] = gen_arr(actions.matches);
-    j["liquidityDeposits"] = gen_arr(actions.liquidityDeposit);
-    j["liquidityWithdrawals"] = gen_arr(actions.liquidityWithdrawal);
+    j["liquidityDeposits"] = gen_arr(actions.liquidityDeposits);
+    j["liquidityWithdrawals"] = gen_arr(actions.liquidityWithdrawals);
     j["assetCreations"] = gen_arr(actions.assetCreations);
     j["cancelations"] = gen_arr(actions.cancelations);
     j["orderCancelations"] = gen_arr(actions.orderCancelations);
@@ -884,15 +884,6 @@ json to_json(const api::MarketDetail& mdet)
     };
 }
 
-json to_json(const api::OpenOrder& od)
-{
-    return {
-        { "order", order_json(od.order, od.base.decimals, od.buy) },
-        { "isBuy", od.buy },
-        { "base", to_json(od.base) }
-    };
-}
-
 json to_json(const api::ParsedPrice& p)
 {
     return {
@@ -928,6 +919,7 @@ json to_json(const api::WartBalanceLookup& b)
         { "account", to_json(b.account) }
     };
 }
+
 json to_json(const api::JanushashNumber& jn)
 {
     return {

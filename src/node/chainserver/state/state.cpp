@@ -479,7 +479,7 @@ void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p,
         },
         [&](const history::LiquidityDeposit& ld) {
             auto& asset { c.existing_asset(ld.asset_id()) };
-            b.actions.liquidityDeposit.push_back(
+            b.actions.liquidityDeposits.push_back(
                 { { e.hash,
                       { .assetInfo { asset },
                           .baseDeposited { ld.base() },
@@ -490,7 +490,7 @@ void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p,
         },
         [&](const history::LiquidityWithdraw& lw) {
             auto& asset { c.existing_asset(lw.asset_id()) };
-            b.actions.liquidityWithdrawal.push_back(
+            b.actions.liquidityWithdrawals.push_back(
                 { { e.hash,
                       {
                           .assetInfo { asset },

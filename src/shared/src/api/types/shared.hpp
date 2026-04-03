@@ -214,8 +214,8 @@ struct Actions {
     std::vector<WithHistoryId<block::AssetCreation>> assetCreations;
     std::vector<WithHistoryId<block::NewOrder>> newOrders;
     std::vector<WithHistoryId<block::Match>> matches;
-    std::vector<WithHistoryId<block::LiquidityDeposit>> liquidityDeposit;
-    std::vector<WithHistoryId<block::LiquidityWithdrawal>> liquidityWithdrawal;
+    std::vector<WithHistoryId<block::LiquidityDeposit>> liquidityDeposits;
+    std::vector<WithHistoryId<block::LiquidityWithdrawal>> liquidityWithdrawals;
     std::vector<WithHistoryId<block::TransactionCancelation>> cancelations;
 };
 }
@@ -259,12 +259,6 @@ struct Order {
     Price_uint64 limit;
     Funds_uint64 amount;
     Funds_uint64 filled;
-};
-
-struct OpenOrder {
-    Order order;
-    AssetBasic base;
-    bool buy;
 };
 
 struct MarketOrders {
