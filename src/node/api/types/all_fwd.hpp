@@ -44,7 +44,7 @@ using MaybeMinedNewOrder = MaybeMined<block::NewOrder>;
 using MinedMatch = Mined<block::Match>;
 using MaybeMinedLiquidityDeposit = MaybeMined<block::LiquidityDeposit>;
 using MaybeMinedLiquidityWithdrawal = MaybeMined<block::LiquidityWithdrawal>;
-using MaybeMinedCancelation = MaybeMined<block::TransactionCancelation>;
+using MaybeMinedCancelation = MaybeMined<block::Cancelation>;
 
 // this is returned for transaction lookup
 using TransactionDetails = wrt::variant<

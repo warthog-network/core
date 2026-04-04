@@ -365,6 +365,7 @@ public:
 
     [[nodiscard]] std::vector<std::pair<HistoryId, history::Entry>> lookup_history_range(HistoryId lower, HistoryId upper) const;
     [[nodiscard]] wrt::optional<history::Entry> lookup_history(HistoryId id) const;
+    [[nodiscard]] wrt::optional<TxHash> lookup_history_hash(HistoryId id) const;
     void insertAccountHistory(AccountId accountId, HistoryId historyId);
     HistoryId next_history_id() const
     {
@@ -520,6 +521,7 @@ private:
     Statement stmtHistoryDeleteFrom;
     mutable Statement stmtHistoryLookupByHash;
     mutable Statement stmtHistoryLookupRange;
+    mutable Statement stmtHistoryLookupHash;
     Statement stmtAccountHistoryInsert;
     Statement stmtAccountHistoryDeleteFrom;
 

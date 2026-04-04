@@ -329,7 +329,7 @@ TransactionDetails to_json(const api::TransactionDetails& d)
             }
             return out;
         },
-        [&](const block::TransactionCancelation& t) -> cancelation::TransactionMaybeProcessed {
+        [&](const block::Cancelation& t) -> cancelation::TransactionMaybeProcessed {
             auto& d { t.data };
             // ::FundsDecimal fd(d.sharesRedeemed, TokenDecimals::LIQUIDITY);
             cancelation::TransactionMaybeProcessed out {
@@ -338,13 +338,9 @@ TransactionDetails to_json(const api::TransactionDetails& d)
                 .hash { serialize_hex(t.hash) },
                 .signedCommon { from(t.signedData) }
             };
-            if (d.canceledOrder) {
-                auto& o { *d.canceledOrder };
+            if (d.canceledTxHash) {
                 out.processed = cancelation::Processed {
-                    .baseAsset = from(o.assetInfo),
-                    .buy = o.buy,
-                    .historyId = from(o.historyId),
-                    .remaining = from(::FundsDecimal(o.remaining, o.assetInfo.decimals))
+                    .canceledTxHash = serialize_hex(*d.canceledTxHash),
                 };
             }
             return out;
@@ -549,16 +545,11 @@ ActionsByBlock from(const api::TransactionsByBlocks& f)
         for (auto& e : b.actions.cancelations) {
             auto& t = e.transaction;
             auto& d { t.data };
-            assert(d.canceledOrder);
-            auto& o { *d.canceledOrder };
+            assert(d.canceledTxHash);
             a.cancelations.push_back(
                 { .transaction = {
                       .data { .cancelTxid = from(t.data.cancelTxid) },
-                      .processed {
-                          .baseAsset = from(o.assetInfo),
-                          .buy = o.buy,
-                          .historyId = from(o.historyId),
-                          .remaining = from(::FundsDecimal(o.remaining, o.assetInfo.decimals)) },
+                      .processed { .canceledTxHash = serialize_hex(*d.canceledTxHash) },
                       .hash { serialize_hex(t.hash) },
                       .signedCommon { from(t.signedData) } },
                     .historyId = e.historyId.value() });

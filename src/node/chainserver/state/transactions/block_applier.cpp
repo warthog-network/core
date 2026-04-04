@@ -740,8 +740,8 @@ struct InsertHistoryEntry {
         , historyId(historyId)
     {
     }
-    InsertHistoryEntry(const block_apply::Cancelation::Verified& t, HistoryId historyId)
-        : he(t)
+    InsertHistoryEntry(const block_apply::Cancelation::Verified& t, HistoryId canceledOrderId, HistoryId historyId)
+        : he(t, canceledOrderId)
         , historyId(historyId)
     {
     }
@@ -785,6 +785,7 @@ public:
     {
         return next++;
     }
+    HistoryId get_next() const { return next; }
 
 private:
     HistoryId next;
@@ -851,6 +852,7 @@ public:
         return h;
     };
 
+    [[nodiscard]] auto get_next_history_id() const { return next_id.get_next(); }
     [[nodiscard]] const auto& push_reward(const RewardInternal& r)
     {
         return for_account(r.toAccountId).insert_history(r);
@@ -863,9 +865,9 @@ public:
     {
         return for_account(r.ref.origin.id).insert_history(r);
     }
-    [[nodiscard]] auto& push_cancelation(const block_apply::Cancelation::Verified& r)
+    [[nodiscard]] auto& push_cancelation(const block_apply::Cancelation::Verified& r, HistoryId canceledOrderId)
     {
-        return for_account(r.ref.origin.id).insert_history(r);
+        return for_account(r.ref.origin.id).insert_history(r, canceledOrderId);
     }
     [[nodiscard]] auto& push_token_transfer(const block_apply::TokenTransfer::Verified& r, NonWartTokenId tokenId)
     {
@@ -1208,15 +1210,23 @@ private:
                 throw Error(ECANCELFUTURE);
             if (verified.txid == cancelTxid)
                 throw Error(ECANCELSELF);
-            auto& hist { history.push_cancelation(verified) };
-            api.cancelations.push_back({ { hist.he.hash, { cancelTxid }, make_signed_info(verified) }, hist.historyId });
-            txset.emplace(cancelTxid);
             auto o { db.select_open_order(cancelTxid) };
+            HistoryId canceledOrderId { 0 }; // no history entry has this id in the database
+            wrt::optional<TxHash> canceledOrderHash;
             if (o) { // transaction is removed from the database
+                canceledOrderId = o->id;
+                canceledOrderHash =  db.lookup_history_hash(o->id) ;
                 ignoreOrderIds.insert(o->id);
                 balanceChecker.unlock_balance(c.origin.id, o->spend_token_id(), o->remaining());
                 blockEffects.delete_order(*o);
             }
+            auto& hist { history.push_cancelation(verified, canceledOrderId) };
+            api.cancelations.push_back(
+                { .transaction = {
+                      hist.he.hash, api::block::CancelationData { .cancelTxid = cancelTxid, .canceledTxHash { std::move(canceledOrderHash) } },
+                      make_signed_info(verified) },
+                    .historyId = hist.historyId });
+            txset.emplace(cancelTxid);
         }
     }
 
@@ -1236,21 +1246,24 @@ private:
                 hist.historyId });
         }
     }
-    [[nodiscard]] NewOrdersInternal generate_new_orders(const AssetHandle& asset, const std::vector<block_apply::Order::Internal>& orders)
+    [[nodiscard]] std::pair<NewOrdersInternal, HistoryId> generate_new_orders(const AssetHandle& asset, const std::vector<block_apply::Order::Internal>& orders)
     {
         NewOrdersInternal res;
+        const auto beginOrdersHistoryId { history.get_next_history_id() };
         for (auto& o : orders) {
             auto verified { o.verify(txVerifier, asset.hash()) };
             auto& hist { history.push_order(verified) };
-            api.newOrders.push_back({ { hist.he.hash,
-                                          {
-                                              .assetInfo { asset.info() },
-                                              .amount { o.amount() },
-                                              .limit { o.limit() },
-                                              .buy = o.buy(),
-                                          },
-                                          make_signed_info(verified) },
-                hist.historyId });
+            api.newOrders.push_back(
+                { { hist.he.hash,
+                      {
+                          .assetInfo { asset.info() },
+                          .amount { o.amount() },
+                          .filled { Funds_uint64(0) }, // we will overwrite the fill amount later if this order is matched in process_orders
+                          .limit { o.limit() },
+                          .buy = o.buy(),
+                      },
+                      make_signed_info(verified) },
+                    hist.historyId });
             res.push_back({ verified, hist.historyId });
             blockEffects.insert_order(
                 { .id { hist.historyId },
@@ -1261,13 +1274,13 @@ private:
                     .filled { Funds_uint64::zero() },
                     .limit { o.limit() } });
         }
-        return res;
+        return { res, beginOrdersHistoryId };
     }
     void process_orders(const AssetHandle& ah, const std::vector<block_apply::Order::Internal>& orders)
     {
         if (orders.empty())
             return;
-        auto newOrders { generate_new_orders(ah, orders) };
+        auto [newOrders, beginOrdersHistoryId] { generate_new_orders(ah, orders) };
 
         auto& pool { ah.get_pool(db) };
 
@@ -1281,7 +1294,17 @@ private:
             .ignoreOrderIds { ignoreOrderIds },
             .unsortedOrderbook { newOrders },
             .on_order_delete = [&](block_apply::OrderDelete o) { blockEffects.delete_order(std::move(o)); },
-            .on_order_update = [&](block_apply::OrderUpdate o) { blockEffects.update_order(std::move(o)); },
+            .on_order_update = [&](block_apply::OrderUpdate o) {
+                blockEffects.update_order(std::move(o));
+                auto historyId { o.newFillState.id };
+                if (historyId >= beginOrdersHistoryId) { // this is a new order from this block
+                    // we must update the filled amount.
+                    auto index { historyId - beginOrdersHistoryId };
+                    assert(api.newOrders.size() > index);
+                    auto& apiOrder { api.newOrders[index] };
+                    assert(apiOrder.historyId == historyId);
+                    apiOrder.transaction.data.filled = o.newFillState.filled;
+                } },
             .on_buy_swap = [&](SwapInternal s) { 
                 auto accId{s.txid.accountId};
                 balanceChecker.fill_buy(accId,ah.id(),s.base,s.quote);
@@ -1355,12 +1378,12 @@ private:
             auto& hist { history.push_liquidity_withdrawal(verified, baseReceived, quoteReceived) };
             api.liquidityWithdrawals.push_back(
                 { { hist.he.hash,
-                      {
+                      api::block::LiquidityWithdrawalData {
                           .assetInfo { ah.info() },
                           .sharesRedeemed { a.amount() },
-                          .baseReceived { baseReceived },
-                          .quoteReceived { quoteReceived },
-                      },
+                          .received = defi::BaseQuote {
+                              baseReceived,
+                              quoteReceived } },
                       make_signed_info(verified) },
                     hist.historyId });
         }

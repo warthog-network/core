@@ -375,6 +375,7 @@ ChainDB::ChainDB(const std::string& path)
     , stmtHistoryLookupByHash(db,
           "SELECT `id`, `data` FROM `" HISTORY_TABLE "` WHERE `hash`=?")
     , stmtHistoryLookupRange(db, "SELECT `id`, `hash`, `data` FROM `" HISTORY_TABLE "` WHERE `id`>=? AND `id`<?")
+    , stmtHistoryLookupHash(db, "SELECT `hash` FROM `" HISTORY_TABLE "` WHERE `id`=?")
     , stmtAccountHistoryInsert(db, "INSERT OR IGNORE INTO `" ACCOUNTHISTORY_TABLE "` "
                                    "(`account_id`,`history_id`) VALUES (?,?)")
     , stmtAccountHistoryDeleteFrom(
@@ -1064,6 +1065,13 @@ wrt::optional<history::Entry> ChainDB::lookup_history(HistoryId id) const
     if (v.size() == 0)
         return wrt::nullopt;
     return std::move(v.front().second);
+}
+
+wrt::optional<TxHash> ChainDB::lookup_history_hash(HistoryId id) const
+{
+    return stmtHistoryLookupHash.one(id).process([](const sqlite::Row& r) {
+        return TxHash(r[0]);
+    });
 }
 
 void ChainDB::insertAccountHistory(AccountId accountId, HistoryId historyId)

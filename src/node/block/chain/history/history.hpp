@@ -38,8 +38,7 @@ using RewardData = IdCombine<2, ToAccIdEl, WartEl>;
 using AssetCreationData = IdCombineSigned<3, AssetIdEl, AssetSupplyEl, AssetNameEl>;
 using TokenTransferData = IdCombineSigned<4, NonWartTokenIdEl, ToAccIdEl, AmountEl>;
 using OrderData = IdCombineSigned<5, AssetIdEl, BuyEl, LimitPriceEl, AmountEl>;
-using CancelationData = IdCombineSigned<6, CancelTxidEl>;
-using OrderCancelationData = IdCombineSigned<7, CancelTxidEl, BuyEl, AssetIdEl, OrderIdEl, FillEl>;
+using CancelationData = IdCombineSigned<6, CancelTxidEl, ReferredHistoryIdEl>;
 
 struct PoolBeforeEl : public ElementBase<defi::BaseQuote> {
     using base_t::base_t;
@@ -132,7 +131,6 @@ using HistoryVariant = wrt::indicator_variant<
     TokenTransferData,
     OrderData,
     CancelationData,
-    OrderCancelationData,
     MatchData,
     LiquidityDeposit,
     LiquidityWithdraw>;
@@ -142,7 +140,7 @@ struct Entry {
     Entry(const block_apply::WartTransfer::Verified& p);
     Entry(const block_apply::TokenTransfer::Verified& p, NonWartTokenId);
     Entry(const block_apply::Order::Verified& p);
-    Entry(const block_apply::Cancelation::Verified& p);
+    Entry(const block_apply::Cancelation::Verified& p, HistoryId canceled);
     Entry(const block_apply::AssetCreation::Verified& p, AssetId);
     Entry(const block_apply::LiquidityDeposit::Verified& p, NonzeroFunds_uint64 receivedShares);
     Entry(const block_apply::LiquidityWithdrawal::Verified& p, Funds_uint64 receivedBase, Wart receivedQuote);

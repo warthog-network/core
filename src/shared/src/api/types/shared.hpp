@@ -150,7 +150,7 @@ struct NewOrderData {
     static constexpr const char* label = ::block::labels::limitSwap;
     AssetBasic assetInfo;
     Funds_uint64 amount;
-    std::optional<Funds_uint64> filled;
+    wrt::optional<Funds_uint64> filled;
     Price_uint64 limit;
     bool buy;
 
@@ -177,13 +177,7 @@ struct AssetCreationData {
 struct CancelationData {
     static constexpr const char* label = ::block::labels::cancelation;
     TransactionId cancelTxid;
-    struct OrderCancelationData {
-        bool buy;
-        AssetBasic assetInfo;
-        HistoryId historyId;
-        Funds_uint64 remaining;
-    };
-    std::optional<OrderCancelationData> canceledOrder;
+    wrt::optional<TxHash> canceledTxHash;
 };
 
 struct LiquidityDepositData {
@@ -216,7 +210,7 @@ struct Actions {
     std::vector<WithHistoryId<block::Match>> matches;
     std::vector<WithHistoryId<block::LiquidityDeposit>> liquidityDeposits;
     std::vector<WithHistoryId<block::LiquidityWithdrawal>> liquidityWithdrawals;
-    std::vector<WithHistoryId<block::TransactionCancelation>> cancelations;
+    std::vector<WithHistoryId<block::Cancelation>> cancelations;
 };
 }
 

@@ -86,7 +86,7 @@ auto State::api_get_header(const api::HeightOrHash& hh) const
 
 auto State::api_get_asset(const api::AssetIdOrHash& a) const -> Result<AssetDetail>
 {
-    return  normalize(a) ;
+    return normalize(a);
 }
 auto State::api_search_asset(const api::AssetSearchArgs& args) const -> Result<api::AssetSearchResult>
 {
@@ -440,11 +440,16 @@ void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p,
         },
         [&](const history::OrderData& d) {
             auto& assetData { c.existing_asset(d.asset_id()) };
+            wrt::optional<Funds_uint64> filled;
+            if (auto o { c.db.select_open_order(hid) }) {
+                filled = o->filled;
+            }
             b.actions.newOrders.push_back(
                 { { e.hash,
                       {
                           .assetInfo { assetData },
                           .amount { d.amount() },
+                          .filled { std::move(filled) },
                           .limit { d.limit() },
                           .buy = d.buy(),
                       },
@@ -452,8 +457,40 @@ void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p,
                     hid });
         },
         [&](const history::CancelationData& d) {
+
+            std::optional<api::block::OrderCancelationData> o;
+            if (auto& cm{d.cancel_match()}) {
+                c.db.lookup_history(d.cancel_txid());
+                auto& assetData { c.existing_asset(cm->asset_id()) };
+                // cm.
+                c.db.lookup_history_hash(cm->
+                
+                api::block::OrderCancelationData{
+                    .buy=cm->buy(),
+                    .assetInfo = *assetData;
+                    TxHash txHash;
+                    Funds_uint64 remaining;
+                };
+            }
+            auto& cm{
+
+            d.cancel_match().value().buy();
+            }
+
             b.actions.cancelations.push_back(
-                { { e.hash, { d.cancel_txid() }, signed_info_data(d.sign_data()) }, hid });
+                { { e.hash,
+                      { .cancelTxid = d.cancel_txid() 
+                        // .canceledOrder = 
+
+    // struct OrderCancelationData {
+    //     bool buy;
+    //     AssetBasic assetInfo;
+    //     TxHash txHash;
+    //     Funds_uint64 remaining;
+    // };
+                    },
+                      signed_info_data(d.sign_data()) },
+                    hid });
         },
         [&](const history::OrderCancelationData& d) {
             auto& asset { c.existing_asset(d.asset_id()) };
@@ -740,8 +777,9 @@ api::TransactionDetails State::api_dispatch_history(const TxHash& txHash,
                 { txHash,
                     { .assetInfo { a },
                         .sharesRedeemed { lw.shares() },
-                        .baseReceived { lw.base() },
-                        .quoteReceived { lw.quote() } },
+                        .received = defi::BaseQuote {
+                            lw.base(),
+                            lw.quote() } },
                     make_signed_info(lw) }
             };
         },

@@ -55,11 +55,11 @@ Entry::Entry(const block_apply::Order::Verified& p)
 {
 }
 
-Entry::Entry(const block_apply::Cancelation::Verified& p)
+Entry::Entry(const block_apply::Cancelation::Verified& p, HistoryId canceledOrder)
     : hash(p.hash)
     , data(CancelationData {
           sign_data(p.ref),
-          TransactionId(p.ref.origin.id, p.ref.cancel_height(), p.ref.cancel_nonceid()) })
+          TransactionId(p.ref.origin.id, p.ref.cancel_height(), p.ref.cancel_nonceid()), canceledOrder })
 {
 }
 

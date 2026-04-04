@@ -224,10 +224,7 @@ struct Data {
     TransactionId cancelTxid;
 };
 struct Processed {
-    AssetBasic baseAsset;
-    bool buy;
-    uint64_t historyId;
-    FundsDecimal remaining; // either asset or wart depending on `buy`
+    std::string canceledTxHash;
 };
 using TransactionUnprocessed = SignedTransaction<Data>;
 using TransactionProcessed = SignedTransactionProcessed<Data, Processed>;

@@ -82,6 +82,32 @@ struct CombineElements : public enumerated::CombineElementsEnumerated<0, Element
 };
 
 template <typename T>
+class OptionalElement : public wrt::optional<T> {
+    OptionalElement() { }
+    OptionalElement(wrt::optional<T> o)
+        : wrt::optional<T>(std::move(o))
+    {
+    }
+    OptionalElement(T t)
+        : wrt::optional<T>(std::move(t))
+    {
+    }
+    OptionalElement(Reader& r)
+    {
+        if (r.uint8() != 0)
+            *this = T(r);
+    }
+    [[nodiscard]] size_t byte_size() const { return count_bytes(*this); }
+    void serialize(RawSerializer auto&& s) const
+    {
+        if (this->has_value())
+            s << uint8_t(1) << *this;
+        else
+            s << uint8_t(0);
+    }
+};
+
+template <typename T>
 concept HasStaticBytesize = requires {
     { T::byte_size() } -> std::same_as<size_t>;
 };
@@ -150,7 +176,7 @@ struct CompactFeeEl : public ElementBaseWithAnnotation<"compactFee", CompactUInt
     ANNOTATE(CancelNonceEl, NonceId, cancel_nonceid, "cancelNonce")                    \
     ANNOTATE(CancelTxidEl, TransactionId, cancel_txid, "cancelTxid")                   \
     ANNOTATE(CreatorAddrEl, Address, creator_addr, "creatorAddress")                   \
-    ANNOTATE(FillEl, Funds_uint64, amount, "fillAmount")                               \
+    ANNOTATE(RemainingEl, Funds_uint64, amount, "remainingAmount")                     \
     ANNOTATE(LimitPriceEl, Price_uint64, limit, "limitPrice")                          \
     ANNOTATE(NonWartTokenIdEl, NonWartTokenId, token_id, "nonWartTokenId")             \
     ANNOTATE(NonceIdEl, NonceId, nonce_id, "nonceId")                                  \
@@ -162,11 +188,10 @@ struct CompactFeeEl : public ElementBaseWithAnnotation<"compactFee", CompactUInt
     ANNOTATE(QuoteEl, Wart, quote, "quoteWart")                                        \
     ANNOTATE(ReferredHistoryIdEl, HistoryId, referred_history_id, "referredHistoryId") \
     ANNOTATE(SharesEl, Funds_uint64, shares, "sharesAmount")                           \
-    ANNOTATE(NonzeroSharesEl, NonzeroFunds_uint64, shares, "sharesAmount")                           \
+    ANNOTATE(NonzeroSharesEl, NonzeroFunds_uint64, shares, "sharesAmount")             \
     ANNOTATE(SignatureEl, RecoverableSignature, signature, "signature")                \
     ANNOTATE(ToAccIdEl, AccountId, to_id, "toAccountId")                               \
     ANNOTATE(ToAddrEl, Address, to_addr, "toAddress")                                  \
-    /*ANNOTATE(AddrEl, Address, address, "address", "address")*/                       \
     ANNOTATE(WartEl, Wart, wart, "wart")                                               \
     ANNOTATE(NonzeroWartEl, NonzeroWart, wart, "wart")
 
@@ -181,6 +206,7 @@ struct CompactFeeEl : public ElementBaseWithAnnotation<"compactFee", CompactUInt
         [[nodiscard]] const auto& methodname() const { return data; }                     \
     };
 ELEMENTMAP(ELEMENT_DEFINE_NOANNOTATE, ELEMENT_DEFINE_ANNOTATE)
+
 #undef ERR_DEFINE
 
 struct BoolElBase {
@@ -210,6 +236,7 @@ struct BuyEl : BoolElBase {
     using BoolElBase::BoolElBase;
     bool buy() const { return get(); }
 };
+
 
 struct TransactionIdEl : public ElementBase<TransactionId> {
     using ElementBase::ElementBase;
