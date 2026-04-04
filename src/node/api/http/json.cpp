@@ -189,7 +189,6 @@ json header_json(const Header& header, NonzeroHeight height)
     j["liquidityWithdrawals"] = gen_arr(actions.liquidityWithdrawals);
     j["assetCreations"] = gen_arr(actions.assetCreations);
     j["cancelations"] = gen_arr(actions.cancelations);
-    j["orderCancelations"] = gen_arr(actions.orderCancelations);
     return j;
 }
 
@@ -376,8 +375,8 @@ json to_json(const api::block::LiquidityWithdrawalData& d)
     return {
         { "baseAsset", jsonmsg::to_json(d.assetInfo) },
         { "sharesRedeemed", to_json(d.sharesRedeemed.to_decimal(TokenDecimals::LIQUIDITY)) },
-        { "baseReceived", (d.baseReceived ? to_json(d.baseReceived->to_decimal(d.assetInfo.decimals)) : json(nullptr)) },
-        { "quoteReceived", (d.quoteReceived ? to_json(*d.quoteReceived) : json(nullptr)) },
+        { "baseReceived", (d.received ? to_json(d.received->base().to_decimal(d.assetInfo.decimals)) : json(nullptr)) },
+        { "quoteReceived", (d.received ? to_json(d.received->quote()) : json(nullptr)) },
     };
 }
 
@@ -386,16 +385,6 @@ json to_json(const api::block::CancelationData& tx)
     return { { "cancelTxid", to_json(tx.cancelTxid) } };
 }
 
-json to_json(const api::block::OrderCancelationData& tx)
-{
-    return {
-        { "cancelTxid", to_json(tx.cancelTxid) },
-        { "buy", tx.buy },
-        { "baseAsset", jsonmsg::to_json(tx.assetInfo) },
-        { "historyId", tx.historyId.value() },
-        { "remaining", to_json(tx.buy ? tx.remaining.to_decimal(Wart::decimals) : tx.remaining.to_decimal(tx.assetInfo.decimals)) },
-    };
-}
 
 json to_json(const PeerDB::BanEntry& item)
 {

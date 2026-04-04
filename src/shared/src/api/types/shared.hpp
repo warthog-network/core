@@ -150,7 +150,7 @@ struct NewOrderData {
     static constexpr const char* label = ::block::labels::limitSwap;
     AssetBasic assetInfo;
     Funds_uint64 amount;
-    wrt::optional<Funds_uint64> filled;
+    wrt::optional<Funds_uint64> remaining;
     Price_uint64 limit;
     bool buy;
 

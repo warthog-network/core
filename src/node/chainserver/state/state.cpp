@@ -440,16 +440,16 @@ void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p,
         },
         [&](const history::OrderData& d) {
             auto& assetData { c.existing_asset(d.asset_id()) };
-            wrt::optional<Funds_uint64> filled;
+            wrt::optional<Funds_uint64> remaining;
             if (auto o { c.db.select_open_order(hid) }) {
-                filled = o->filled;
+                remaining = o->remaining();
             }
             b.actions.newOrders.push_back(
                 { { e.hash,
                       {
                           .assetInfo { assetData },
                           .amount { d.amount() },
-                          .filled { std::move(filled) },
+                          .remaining { std::move(remaining) },
                           .limit { d.limit() },
                           .buy = d.buy(),
                       },
@@ -457,50 +457,18 @@ void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p,
                     hid });
         },
         [&](const history::CancelationData& d) {
-
-            std::optional<api::block::OrderCancelationData> o;
-            if (auto& cm{d.cancel_match()}) {
-                c.db.lookup_history(d.cancel_txid());
-                auto& assetData { c.existing_asset(cm->asset_id()) };
-                // cm.
-                c.db.lookup_history_hash(cm->
-                
-                api::block::OrderCancelationData{
-                    .buy=cm->buy(),
-                    .assetInfo = *assetData;
-                    TxHash txHash;
-                    Funds_uint64 remaining;
-                };
-            }
-            auto& cm{
-
-            d.cancel_match().value().buy();
+            wrt::optional<TxHash> cancelTxHash;
+            if (auto& hid { d.referred_history_id() }; hid.value() != 0) {
+                cancelTxHash = c.db.lookup_history_hash(hid);
+                assert(cancelTxHash);
             }
 
             b.actions.cancelations.push_back(
-                { { e.hash,
-                      { .cancelTxid = d.cancel_txid() 
-                        // .canceledOrder = 
-
-    // struct OrderCancelationData {
-    //     bool buy;
-    //     AssetBasic assetInfo;
-    //     TxHash txHash;
-    //     Funds_uint64 remaining;
-    // };
-                    },
-                      signed_info_data(d.sign_data()) },
-                    hid });
-        },
-        [&](const history::OrderCancelationData& d) {
-            auto& asset { c.existing_asset(d.asset_id()) };
-            b.actions.orderCancelations.push_back(
-                { { e.hash,
-                      { .cancelTxid { d.cancel_txid() },
-                          .buy = d.buy(),
-                          .assetInfo { asset },
-                          .historyId { d.order_id() },
-                          .remaining { d.amount() } } },
+                api::block::WithHistoryId<api::block::Cancelation> {
+                    { e.hash,
+                        { .cancelTxid = d.cancel_txid(),
+                            .canceledTxHash = cancelTxHash },
+                        signed_info_data(d.sign_data()) },
                     hid });
         },
         [&](const history::MatchData& d) {
@@ -529,12 +497,9 @@ void push_history(api::Block& b, const std::pair<HistoryId, history::Entry>& p,
             auto& asset { c.existing_asset(lw.asset_id()) };
             b.actions.liquidityWithdrawals.push_back(
                 { { e.hash,
-                      {
-                          .assetInfo { asset },
+                      { .assetInfo { asset },
                           .sharesRedeemed { lw.shares() },
-                          .baseReceived { lw.base() },
-                          .quoteReceived { lw.quote() },
-                      },
+                          .received { defi::BaseQuote { lw.base(), lw.quote() } } },
                       signed_info_data(lw.sign_data()) },
                     hid });
         });
@@ -631,6 +596,7 @@ api::TransactionDetails State::api_dispatch_mempool(const TxHash& txHash,
                     {
                         .assetInfo { get_asset(o.asset_hash()) },
                         .amount { o.amount() },
+                        .remaining {},
                         .limit { o.limit() },
                         .buy = o.buy(),
                     },
@@ -639,7 +605,7 @@ api::TransactionDetails State::api_dispatch_mempool(const TxHash& txHash,
         [&](CancelationMessage&& a) -> api::TransactionDetails {
             return api::MaybeMinedCancelation {
                 {}, 0,
-                { txHash, { .cancelTxid { a.cancel_txid() } }, make_signed_info(a) }
+                { txHash, { .cancelTxid { a.cancel_txid() }, .canceledTxHash {} }, make_signed_info(a) }
             };
         },
         [&](LiquidityDepositMessage&& ld) -> api::TransactionDetails {
@@ -659,12 +625,9 @@ api::TransactionDetails State::api_dispatch_mempool(const TxHash& txHash,
             return api::MaybeMinedLiquidityWithdrawal {
                 {}, 0,
                 { txHash,
-                    {
-                        .assetInfo { get_asset(lw.asset_hash()) },
+                    { .assetInfo { get_asset(lw.asset_hash()) },
                         .sharesRedeemed { lw.amount() },
-                        .baseReceived { wrt::nullopt },
-                        .quoteReceived { wrt::nullopt },
-                    },
+                        .received {} },
                     make_signed_info(lw) }
             };
         },
@@ -730,32 +693,25 @@ api::TransactionDetails State::api_dispatch_history(const TxHash& txHash,
         },
         [&](history::OrderData&& o) -> api::TransactionDetails {
             auto& a { dbcache.existing_asset(o.asset_id()) };
+            wrt::optional<Funds_uint64> remaining;
+            if (auto openOrder { db.select_open_order(hid) })
+                remaining = openOrder->remaining();
             return api::MaybeMinedNewOrder { minedData, confirmations,
                 { txHash,
                     {
                         .assetInfo { a },
                         .amount { o.amount() },
+                        .remaining { remaining },
                         .limit { o.limit() },
                         .buy = o.buy(),
                     },
                     make_signed_info(o) } };
         },
         [&](history::CancelationData&& c) -> api::TransactionDetails {
+            auto historyHash { db.lookup_history_hash(c.referred_history_id()) };
             return api::MaybeMinedCancelation {
                 minedData, confirmations,
-                { txHash, { .cancelTxid { c.cancel_txid() } }, make_signed_info(c) }
-            };
-        },
-        [&](history::OrderCancelationData&& c) -> api::TransactionDetails {
-            auto& a { dbcache.existing_asset(c.asset_id()) };
-            return api::MaybeMinedOrderCancelation {
-                minedData, confirmations,
-                { txHash,
-                    api::block::OrderCancelationData { .cancelTxid { c.cancel_txid() },
-                        .buy = c.buy(),
-                        .assetInfo { a },
-                        .historyId { c.order_id() },
-                        .remaining { c.amount() } } }
+                { txHash, { .cancelTxid { c.cancel_txid() }, .canceledTxHash { std::move(historyHash) } }, make_signed_info(c) }
             };
         },
         [&](history::LiquidityDeposit&& ld) -> api::TransactionDetails {

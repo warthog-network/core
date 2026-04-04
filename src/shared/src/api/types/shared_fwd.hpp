@@ -10,7 +10,6 @@ struct NewOrderData;
 struct LiquidityDepositData;
 struct LiquidityWithdrawalData;
 struct CancelationData;
-struct OrderCancelationData;
 struct MatchData;
 
 template <typename T>

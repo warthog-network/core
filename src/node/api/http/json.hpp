@@ -83,7 +83,6 @@ json to_json(const api::block::MatchData&);
 json to_json(const api::block::LiquidityDepositData&);
 json to_json(const api::block::LiquidityWithdrawalData&);
 json to_json(const api::block::CancelationData&);
-json to_json(const api::block::OrderCancelationData& tx);
 json to_json(const api::TransactionMinedData&);
 inline json to_json(const Height& h) { return h.value(); }
 inline json to_json(json j) { return j; }

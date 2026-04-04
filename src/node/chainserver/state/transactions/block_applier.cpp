@@ -1215,7 +1215,7 @@ private:
             wrt::optional<TxHash> canceledOrderHash;
             if (o) { // transaction is removed from the database
                 canceledOrderId = o->id;
-                canceledOrderHash =  db.lookup_history_hash(o->id) ;
+                canceledOrderHash = db.lookup_history_hash(o->id);
                 ignoreOrderIds.insert(o->id);
                 balanceChecker.unlock_balance(c.origin.id, o->spend_token_id(), o->remaining());
                 blockEffects.delete_order(*o);
@@ -1258,7 +1258,7 @@ private:
                       {
                           .assetInfo { asset.info() },
                           .amount { o.amount() },
-                          .filled { Funds_uint64(0) }, // we will overwrite the fill amount later if this order is matched in process_orders
+                          .remaining { o.amount() }, // we will overwrite the fill amount later if this order is matched in process_orders
                           .limit { o.limit() },
                           .buy = o.buy(),
                       },
@@ -1303,7 +1303,7 @@ private:
                     assert(api.newOrders.size() > index);
                     auto& apiOrder { api.newOrders[index] };
                     assert(apiOrder.historyId == historyId);
-                    apiOrder.transaction.data.filled = o.newFillState.filled;
+                    apiOrder.transaction.data.remaining = o.newFillState.filled;
                 } },
             .on_buy_swap = [&](SwapInternal s) { 
                 auto accId{s.txid.accountId};
