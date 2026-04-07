@@ -327,8 +327,6 @@ struct AddressCount {
 };
 
 struct AccountHistory {
-    Wart balance;
-    Wart locked;
     HistoryId fromId;
     std::vector<api::Block> blocks_reversed;
 };

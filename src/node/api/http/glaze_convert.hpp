@@ -24,7 +24,7 @@ uint32_t from(const IsUint32& i);
 uint32_t from(const TokenDecimals& d);
 TransactionId from(const ::TransactionId);
 AssetLookupTrace from(const ::api::AssetLookupTrace& a);
-TransactionDetails to_json(const api::TransactionDetails&);
+TransactionDetails from(const api::TransactionDetails&);
 TransactionSignedCommon from(const api::block::TransactionSignedData&);
 CompactFee from(::CompactUInt);
 TransactionMinfeeResult from(const api::TransactionMinfee&);
@@ -46,12 +46,58 @@ std::vector<std::pair<std::string, size_t>> from(const api::IPCounter&);
 NodeInfoResult from(const api::NodeInfo&);
 Candle from(const api::Candle&);
 Trade from(const api::Trade&);
+Error from(::Error e);
 
-// template <typename T>
-// using target_type = std::remove_cvref_t<decltype(from(std::declval<const T&>()))>;
+ChainHead from(const api::ChainHead&);
+ChainHeadSynced from(const api::Head& h);
+MempoolUpdateResult from(const api::MempoolUpdate& u);
+MempoolEntry from(const api::MempoolEntry& e);
+MempoolEntries from(const ::api::MempoolEntries&);
+HeaderResult from(const ::api::HeaderInfo&);
+
+BlockBinaryAnnotation from(const ParseAnnotation&);
+BlockBinaryResult from(const api::BlockBinary&);
+Block from(const api::Block&);
+MiningState from(const api::MiningState&);
+std::vector<TransactionId> from(const chainserver::TransactionIds&);
+HashrateInfo from(const api::HashrateInfo&);
+AssetSearchResult from(const api::AssetSearchResult&);
+MarketDetail from(const api::MarketDetail&);
+MarketOrders from(const api::MarketOrders&);
+AccountHistory from(const api::AccountHistory&);
+RichlistResult from(const api::RichlistInfo&);
+OffenseEntry from(const api::OffenseEntry&);
+Peerinfo from(const api::Peerinfo&);
+std::string from(const IP&);
+ThrottleState from(const api::ThrottleState&);
+HashrateBlockChart from(const api::HashrateBlockChart&);
+HashrateTimeChart from(const api::HashrateTimeChart&);
+ParsedPrice from(const api::ParsedPrice&);
+double from(const api::JanushashNumber&);
+std::string from(const TCPPeeraddr&);
+SignedSnapshot from(const ::SignedSnapshot&);
+BlockActions from(const api::block::Actions&);
+std::vector<PeerinfoConnection> from(const api::PeerinfoConnections&);
 
 template <typename T>
 auto from(const api::block::WithHistoryId<T>& tx);
+
+template <typename T>
+auto from(const ReversibleVector<T> v);
+
+template <typename T>
+auto from(const std::vector<T>& v);
+
+template <typename T>
+auto from(const std::vector<T>& v)
+{
+    using target_type = std::remove_cvref_t<decltype(from(std::declval<const T&>()))>;
+    std::vector<target_type> out;
+    for (auto& e : v) {
+        out.push_back(from(e));
+    }
+    return out;
+}
 
 template <typename T>
 auto from(const ReversibleVector<T> v)
@@ -62,18 +108,8 @@ auto from(const ReversibleVector<T> v)
     return out;
 }
 
-template<typename T>
-auto from(const std::vector<T>& v){
-    using target_type = std::remove_cvref_t<decltype(from(std::declval<const T&>()))>;
-    std::vector<target_type> out;
-    for (auto &e : v) {
-        out.push_back(from(e));
-    }
-    return out;
-}
-
 template <typename T>
-static auto from(const wrt::optional<T>& o)
+auto from(const wrt::optional<T>& o)
 {
     using target_type = std::remove_cvref_t<decltype(from(std::declval<const T&>()))>;
     std::optional<target_type> out;
@@ -82,13 +118,46 @@ static auto from(const wrt::optional<T>& o)
     return out;
 }
 
+template <typename T>
+auto from(const ::Result<T>& res)
+{
+    if constexpr (std::is_same_v<T, void>) {
+        using out_type = Result<void>;
+        if (res.has_value()) {
+            return out_type { Success<void> { .code = 0 } };
+        } else {
+            return out_type { from(res.error()) };
+        }
+    } else {
+        using target_type = std::remove_cvref_t<decltype(from(std::declval<const T&>()))>;
+        using out_type = Result<target_type>;
+        if (res.has_value()) {
 
+            return out_type { Success<target_type> { .code = 0, .data = from(res.value()) } };
+        } else {
+            return out_type { from(res.error()) };
+        }
+    }
+}
+
+// auto from(const ::Result<void>& res){
+//
+// }
+
+// template<typename ...Ts>
+// auto from(const wrt::variant<Ts...>& var){
+//     using out_type = std::variant<std::remove_cvref_t<decltype(from(std::declval<const Ts&>()))>...>;
+//     if (res.has_value()) {
+//         return out_type{Success<target_type>{.code = 0, .data = from(res.value())}};
+//     }else{
+//         return out_type{from(res.error())};
+//     }
+// }
 
 template <typename T>
 concept convertible = requires {
     api::glaze::from(std::declval<T>());
 };
 }
-
 
 }

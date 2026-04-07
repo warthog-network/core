@@ -1,8 +1,11 @@
 #include "glaze_convert.hpp"
 #include "api/types/all.hpp"
+#include "block/header/header_impl.hpp"
+#include "chainserver/transaction_ids.hpp"
 #include "crypto/hash.hpp"
 #include "general/funds.hpp"
 #include "general/hex.hpp"
+#include "general/is_testnet.hpp"
 #include "global/globals.hpp"
 #include "transport/helpers/peer_addr.hpp"
 #include <ranges>
@@ -22,7 +25,7 @@ std::string format_utc(uint32_t timestamp)
     out.resize(len);
     return out;
 }
-Timepoint format_timestamp(uint32_t ts)
+Timepoint make_timepoint(uint32_t ts)
 {
     return {
         .UTC = format_utc(ts),
@@ -67,6 +70,7 @@ FundsBalance from(const ::api::FundsBalance& fb)
     };
 }
 }
+BlockHeader make_header(const ::Header& h, NonzeroHeight height);
 
 std::string from(const Address& a)
 {
@@ -131,7 +135,6 @@ auto from(const api::block::WithHistoryId<T>& tx)
     return WithHistoryId { .transaction = from(tx.transaction), .historyId = tx.historyId.value() };
 }
 
-
 static BaseQuote make_base_quote(const defi::BaseQuote& bq, TokenDecimals d)
 {
     return {
@@ -176,12 +179,12 @@ ThrottledPeer from(const ::api::ThrottledPeer& p)
         .throttle {
             .delay = int(duration_cast<seconds>(p.throttle.delay).count()),
             .blockRequest {
-                .h1 = p.throttle.blockreq.h0.value(),
-                .h2 = p.throttle.blockreq.h1.value(),
+                .h0 = p.throttle.blockreq.h0.value(),
+                .h1 = p.throttle.blockreq.h1.value(),
                 .window = p.throttle.batchreq.window },
             .headerRequest {
-                .h1 = p.throttle.batchreq.h0.value(),
-                .h2 = p.throttle.batchreq.h1.value(),
+                .h0 = p.throttle.batchreq.h0.value(),
+                .h1 = p.throttle.batchreq.h1.value(),
                 .window = p.throttle.batchreq.window },
         },
         .connection {
@@ -228,7 +231,7 @@ TokenBalanceLookup from(const ::api::TokenBalanceLookup& l)
     };
     return out;
 }
-TransactionDetails to_json(const api::TransactionDetails& d)
+TransactionDetails from(const api::TransactionDetails& d)
 {
     wrt::Overload convert_transaction(
         [&](const block::Reward& t) -> reward::Transaction {
@@ -442,6 +445,89 @@ match::Transaction from(const block::Match& t)
     };
 }
 
+BlockActions from(const api::block::Actions& actions)
+{
+    BlockActions a;
+    a.reward = from(actions.reward);
+    a.wartTransfers = from(actions.wartTransfers);
+    a.tokenTransfers = from(actions.tokenTransfers);
+    for (auto& e : actions.assetCreations) {
+        auto& t = e.transaction;
+        auto& aid { t.data.assetId };
+        assert(aid);
+        a.assetCreations.push_back(
+            { .transaction = asset_creation::TransactionProcessed {
+                  .data {
+                      .name = t.data.name.to_string(),
+                      .supply = from(t.data.supply) },
+                  .processed { .assetId = from(*aid) },
+                  .hash { serialize_hex(t.hash) },
+                  .signedCommon { from(t.signedData) } },
+                .historyId = e.historyId.value() });
+    }
+    for (auto& e : actions.newOrders) {
+        auto& t = e.transaction;
+        auto& d { t.data };
+        assert(d.remaining);
+        a.newOrders.push_back(
+            { .transaction = new_order::TransactionProcessed {
+                  .data {
+                      .baseAsset { from(d.assetInfo) },
+                      .amount { from(d.amount_decimal()) },
+                      .limit { make_price(d.limit, d.assetInfo.decimals) },
+                      .buy = d.buy },
+                  .processed {
+                      .remaining = from(::FundsDecimal(*d.remaining, d.assetInfo.decimals)) },
+                  .hash { serialize_hex(t.hash) },
+                  .signedCommon { from(t.signedData) } },
+                .historyId = e.historyId.value() });
+    }
+    a.matches = from(actions.matches);
+    for (auto& e : actions.liquidityDeposits) {
+        auto& t = e.transaction;
+        auto& d { t.data };
+        assert(d.sharesReceived);
+        defi::BaseQuote bq { d.baseDeposited, d.quoteDeposited };
+        a.liquidityDeposits.push_back(
+            { .transaction {
+                  .data {
+                      .baseAsset { from(d.assetInfo) },
+                      .deposited { make_base_quote(bq, d.assetInfo.decimals) } },
+                  .processed { .sharesReceived = from(::FundsDecimal(*d.sharesReceived, d.assetInfo.decimals)) },
+                  .hash { serialize_hex(t.hash) },
+                  .signedCommon { from(t.signedData) } },
+                .historyId = e.historyId.value() });
+    }
+    for (auto& e : actions.liquidityWithdrawals) {
+        auto& t = e.transaction;
+        auto& d { t.data };
+        assert(d.received);
+        ::FundsDecimal fd(d.sharesRedeemed, TokenDecimals::LIQUIDITY);
+        a.liquidityWithdrawals.push_back(
+            { .transaction = {
+                  .data {
+                      .baseAsset { from(d.assetInfo) },
+                      .sharesRedeemed { from(fd) } },
+                  .processed { .received = make_base_quote(*d.received, d.assetInfo.decimals) },
+                  .hash { serialize_hex(t.hash) },
+                  .signedCommon { from(t.signedData) } },
+                .historyId = e.historyId.value() });
+    }
+    for (auto& e : actions.cancelations) {
+        auto& t = e.transaction;
+        auto& d { t.data };
+        assert(d.canceledTxHash);
+        a.cancelations.push_back(
+            { .transaction = {
+                  .data { .cancelTxid = from(t.data.cancelTxid) },
+                  .processed { .canceledTxHash = serialize_hex(*d.canceledTxHash) },
+                  .hash { serialize_hex(t.hash) },
+                  .signedCommon { from(t.signedData) } },
+                .historyId = e.historyId.value() });
+    }
+    return a;
+}
+
 ActionsByBlock from(const api::TransactionsByBlocks& f)
 {
     ActionsByBlock out {
@@ -453,86 +539,8 @@ ActionsByBlock from(const api::TransactionsByBlocks& f)
         out.perBlock.push_back(ActionsByBlock::BlockEntry {
             .height = b.height.value(),
             .confirmations = b.confirmations,
-            .actions = {},
+            .actions = from(b.actions),
         });
-        auto& a { out.perBlock.back().actions };
-        a.reward = from(b.actions.reward);
-        a.wartTransfers = from(b.actions.wartTransfers);
-        a.tokenTransfers = from(b.actions.tokenTransfers);
-        for (auto& e : b.actions.assetCreations) {
-            auto& t = e.transaction;
-            auto& aid { t.data.assetId };
-            assert(aid);
-            a.assetCreations.push_back(
-                { .transaction = asset_creation::TransactionProcessed {
-                      .data {
-                          .name = t.data.name.to_string(),
-                          .supply = from(t.data.supply) },
-                      .processed { .assetId = from(*aid) },
-                      .hash { serialize_hex(t.hash) },
-                      .signedCommon { from(t.signedData) } },
-                    .historyId = e.historyId.value() });
-        }
-        for (auto& e : b.actions.newOrders) {
-            auto& t = e.transaction;
-            auto& d { t.data };
-            assert(d.remaining);
-            a.newOrders.push_back(
-                { .transaction = new_order::TransactionProcessed {
-                      .data {
-                          .baseAsset { from(d.assetInfo) },
-                          .amount { from(d.amount_decimal()) },
-                          .limit { make_price(d.limit, d.assetInfo.decimals) },
-                          .buy = d.buy },
-                      .processed {
-                          .remaining = from(::FundsDecimal(*d.remaining, d.assetInfo.decimals)) },
-                      .hash { serialize_hex(t.hash) },
-                      .signedCommon { from(t.signedData) } },
-                    .historyId = e.historyId.value() });
-        }
-        a.matches = from(b.actions.matches);
-        for (auto& e : b.actions.liquidityDeposits) {
-            auto& t = e.transaction;
-            auto& d { t.data };
-            assert(d.sharesReceived);
-            defi::BaseQuote bq { d.baseDeposited, d.quoteDeposited };
-            a.liquidityDeposits.push_back(
-                { .transaction {
-                      .data {
-                          .baseAsset { from(d.assetInfo) },
-                          .deposited { make_base_quote(bq, d.assetInfo.decimals) } },
-                      .processed { .sharesReceived = from(::FundsDecimal(*d.sharesReceived, d.assetInfo.decimals)) },
-                      .hash { serialize_hex(t.hash) },
-                      .signedCommon { from(t.signedData) } },
-                    .historyId = e.historyId.value() });
-        }
-        for (auto& e : b.actions.liquidityWithdrawals) {
-            auto& t = e.transaction;
-            auto& d { t.data };
-            assert(d.received);
-            ::FundsDecimal fd(d.sharesRedeemed, TokenDecimals::LIQUIDITY);
-            a.liquidityWithdrawals.push_back(
-                { .transaction = {
-                      .data {
-                          .baseAsset { from(d.assetInfo) },
-                          .sharesRedeemed { from(fd) } },
-                      .processed { .received = make_base_quote(*d.received, d.assetInfo.decimals) },
-                      .hash { serialize_hex(t.hash) },
-                      .signedCommon { from(t.signedData) } },
-                    .historyId = e.historyId.value() });
-        }
-        for (auto& e : b.actions.cancelations) {
-            auto& t = e.transaction;
-            auto& d { t.data };
-            assert(d.canceledTxHash);
-            a.cancelations.push_back(
-                { .transaction = {
-                      .data { .cancelTxid = from(t.data.cancelTxid) },
-                      .processed { .canceledTxHash = serialize_hex(*d.canceledTxHash) },
-                      .hash { serialize_hex(t.hash) },
-                      .signedCommon { from(t.signedData) } },
-                    .historyId = e.historyId.value() });
-        }
     }
     return out;
 }
@@ -577,15 +585,6 @@ WartBalanceResult from(const api::WartBalanceLookup& w)
     return {
         .wart = from(w.balance),
         .account = from(w.account)
-    };
-}
-OffenseEntry from(const api::OffenseEntry& o)
-{
-    return {
-        .ip = o.ip.to_string(),
-        .timestamp = o.timestamp,
-        .utc = format_utc(o.timestamp),
-        .offense = o.offense.err_name(),
     };
 }
 
@@ -637,7 +636,7 @@ NodeInfoResult from(const api::NodeInfo& info)
             .minor = VERSION_MINOR,
             .patch = VERSION_PATCH,
             .commit = GIT_COMMIT_INFO },
-        .uptime = { .since = format_timestamp(sinceTimestamp), .seconds = uint32_t(uptimeSeconds), .formatted = uptimeStr }
+        .uptime = { .since = make_timepoint(sinceTimestamp), .seconds = uint32_t(uptimeSeconds), .formatted = uptimeStr }
     };
 }
 Candle from(const api::Candle& c)
@@ -661,6 +660,433 @@ Trade from(const api::Trade& t)
         t.base,
         t.quote,
     };
+}
+Error from(::Error e)
+{
+    return { .code = e.code, .error = e.strerror() };
+}
+
+MempoolUpdateResult from(const api::MempoolUpdate& u)
+{
+    return {
+        .deleted = u.deletedTransactions
+    };
+}
+
+ChainHead from(const api::ChainHead& h)
+{
+    return {
+        .hash = serialize_hex(h.hash),
+        .height = h.height.value(),
+        .difficulty = h.nextTarget.difficulty(),
+        .is_janushash = h.nextTarget.is_janushash(),
+        .pinHeight = h.pinHeight.value(),
+        .worksum = h.worksum.getdouble(),
+        .worksumHex = h.worksum.to_string(),
+        .pinHash = serialize_hex(h.pinHash),
+        .hashrate = h.hashrate,
+    };
+}
+
+BlockHeader make_header(const ::Header& header, NonzeroHeight height)
+{
+    auto version { header.version() };
+    const bool testnet { is_testnet() };
+    auto powVersion { POWVersion::from_params(height, version, testnet) };
+    assert(powVersion.has_value());
+    bool verusV2_2 { powVersion->uses_verus_2_2() };
+    auto verusHash { verusV2_2 ? verus_hash_v2_2(header) : verus_hash_v2_1(header) };
+    auto blockHash { header.hash() };
+    auto sha256tHash { hashSHA256(blockHash) };
+    auto target { header.target(height, testnet) };
+    uint32_t targetBE = hton32(target.binary());
+    return {
+        .raw = serialize_hex(header),
+        .time = make_timepoint(header.timestamp()),
+        .target = serialize_hex(targetBE),
+        .hash = serialize_hex(header.hash()),
+        .pow = {
+            .verusV2_2 = verusV2_2,
+            .hashVerus = serialize_hex(verusHash),
+            .hashSha256t = serialize_hex(sha256tHash),
+            .floatVerus = CustomFloat(verusHash).to_double(),
+            .floatSha256t = CustomFloat(sha256tHash).to_double(),
+        },
+        .merkleroot = serialize_hex(header.merkleroot()),
+        .nonce = serialize_hex(header.nonce()),
+        .prevHash = serialize_hex(header.prevhash()),
+        .version = serialize_hex(version.value()),
+    };
+}
+HeaderResult from(const ::api::HeaderInfo& h)
+{
+    return {
+        .header = make_header(h.header, h.height),
+        .height = h.height.value(),
+    };
+}
+ChainHeadSynced from(const api::Head& h)
+{
+    return {
+        .chainHead = from(h.chainHead),
+        .synced = h.synced
+    };
+}
+// MempoolEntry from(api::MempoolEntry e)
+// {
+//     std::string hash { serialize_hex(e.txHash) };
+//     TransactionSignedCommon signedCommon {
+//         .originId = e.from_id().value(),
+//         .originAddress = e.from_address(e.txHash).to_string(),
+//         .fee = from(e.fee()),
+//         .nonceId = e.nonce_id().value(),
+//         .pinHeight = e.pin_height().value()
+//     };
+//     e.visit_overload(
+//         [&](const WartTransferMessage& m) -> MempoolEntry {
+//             return {
+//                 .transaction = wart_transfer::Transaction{
+//                     .data = {
+//                         .toAddress = m.to_addr().to_string(),
+//                         .amount = from(m.wart())
+//                     },
+//                     .hash=std::move(hash),
+//                     .signedCommon{std::move(signedCommon)}
+//                 },
+//                 .tag = m.label.to_string()
+//             }
+//         },
+//         [&](const TokenTransferMessage& m) {
+//             return {
+//                 .transaction = token_transfer::Transaction{
+//                     .data = {
+//                         // .toAddress = m.to_addr().to_string(),
+//                         // .amount = from(m.amount())
+//
+//                     },
+//                     .hash=std::move(hash),
+//                     .signedCommon{std::move(signedCommon)}
+//                 },
+//                 .tag = m.label.to_string()
+//             }
+//             elem["type"] = api::block::TokenTransferData::label;
+//             elem["toAddress"] = m.to_addr().to_string();
+//             elem["amountU64"] = m.amount().value();
+//             elem["assetHash"] = m.asset_hash().hex_string();
+//             elem["isLiquidity"] = m.is_liquidity();
+//             elem["tokenSpec"] = api::TokenSpec(m.asset_hash(), m.is_liquidity()).to_string();
+//         },
+//         [&](const LimitSwapMessage& m) {
+//             elem["type"] = api::block::NewOrderData::label;
+//             elem["assetHash"] = m.asset_hash().hex_string();
+//             elem["buy"] = m.buy();
+//             elem["amountRaw"] = m.amount().value();
+//             elem["limitRaw"] = m.limit().to_double_raw();
+//         },
+//         [&](const CancelationMessage& m) {
+//             elem["type"] = api::block::CancelationData::label;
+//             elem["cancelHeight"] = m.cancel_height().value();
+//             elem["cancelNonce"] = m.cancel_nonceid();
+//         },
+//         [&](const LiquidityDepositMessage& m) {
+//             elem["type"] = api::block::LiquidityDepositData::label;
+//             elem["assetHash"] = m.asset_hash().hex_string();
+//             elem["quoteWart"] = m.quote();
+//             elem["baseU64"] = m.base().value(); // TODO: this should be looked up and the mempool should only contain elements where it can be looked up (i.e. such elements where the base currency exists)
+//         },
+//         [&](const LiquidityWithdrawalMessage& m) {
+//             elem["type"] = api::block::LiquidityWithdrawalData::label;
+//             elem["assetHash"] = m.asset_hash().hex_string();
+//             elem["liquidityU64"] = m.amount().value();
+//         },
+//         [&](const AssetCreationMessage& m) {
+//             elem["type"] = api::block::AssetCreationData::label;
+//             elem["supply"] = m.supply().to_string();
+//             elem["assetName"] = m.asset_name().to_string();
+//         });
+// }
+
+MempoolEntries from(const ::api::MempoolEntries& e)
+{
+    MempoolEntries out;
+    for (auto& i : e.entries) {
+        out.push_back(from(i));
+    }
+    return out;
+}
+
+BlockBinaryAnnotation from(const ParseAnnotation& a)
+{
+    return {
+        .tag = a.tag,
+        .beginOffset = a.offsetBegin,
+        .endOffset = a.offsetEnd,
+        .children = from(a.children)
+    };
+}
+
+BlockBinaryResult from(const api::BlockBinary& e)
+{
+    return {
+        .bytes { serialize_hex(e.data) },
+        .structure = from(e.annotations)
+    };
+}
+std::string from(const TCPPeeraddr& a)
+{
+    return a.to_string();
+}
+SignedSnapshot from(const ::SignedSnapshot& ss)
+{
+    return {
+        .hash = serialize_hex(ss.hash),
+        .signature = ss.signature.to_string(),
+        .priorityHeight = ss.priority.height.value(),
+        .priorityImportance = ss.priority.importance
+    };
+}
+Block from(const api::Block& b)
+{
+    return {
+        .header = make_header(b.header, b.height),
+        .body = from(b.actions),
+        .confirmations = b.confirmations,
+        .height = from(b.height)
+    };
+}
+MiningState from(const api::MiningState& ms)
+{
+    auto& mt { ms.miningTask };
+    auto height { mt.block.height };
+    auto blockReward { mt.block.body.reward };
+    return {
+        .synced = ms.synced,
+        .header = serialize_hex(mt.block.header),
+        .difficulty = mt.block.header.target(height, is_testnet()).difficulty(),
+        .merklePrefix = serialize_hex(mt.block.body.merkleLeaves.merkle_prefix()),
+        .body = serialize_hex(mt.block.body.data),
+        .blockReward = from(blockReward.wart()),
+        .height = height.value(),
+        .testnet = is_testnet(),
+    };
+}
+std::vector<TransactionId> from(const chainserver::TransactionIds& txids)
+{
+    std::vector<TransactionId> out;
+    for (auto& id : txids)
+        out.push_back(from(id));
+    return out;
+}
+HashrateInfo from(const api::HashrateInfo& e)
+{
+    return {
+        .nBlocks = e.nBlocks,
+        .estimate = e.estimate,
+    };
+}
+AssetSearchResult from(const api::AssetSearchResult& e)
+{
+    return {
+        .matches = from(e.entries),
+        .hashPrefix = e.args.hashPrefix,
+        .namePrefix = e.args.namePrefix
+    };
+}
+
+SwapOrder make_swap_order(const api::Order& o, const TokenDecimals& dec)
+{
+    return {
+        .inMempool = o.confirmations == 0,
+        .txHash = serialize_hex(o.txHash),
+        .limit = make_price(o.limit, dec),
+        .amount = from(::FundsDecimal(o.amount, dec)),
+        .filled = from(::FundsDecimal(o.filled, dec)),
+    };
+}
+std::vector<SwapOrder> make_swap_orders(
+    const std::vector<api::Order>& orders, const TokenDecimals& dec)
+{
+    std::vector<SwapOrder> out;
+    for (auto& o : orders) {
+        out.push_back(make_swap_order(o, dec));
+    }
+    return out;
+}
+LiquidityPool make_pool(const api::LiquidityPool& lp, const TokenDecimals dec)
+{
+    return {
+        .asset = from(::FundsDecimal(lp.base, dec)),
+        .wart = from(lp.quote),
+        .shares = from(::FundsDecimal(lp.shares, TokenDecimals::LIQUIDITY))
+    };
+}
+MarketDetail from(const api::MarketDetail& e)
+{
+    auto dec { e.base.decimals };
+    ToPool toPool {
+        .isQuote = false,
+        .amount { from(::FundsDecimal(0, dec)) },
+    };
+    if (auto& tp { e.matchResult.toPool }) {
+        bool isQuote = tp->is_quote();
+        toPool.isQuote = isQuote;
+        if (isQuote) {
+            toPool.amount = from(::FundsDecimal(tp->amount(), TokenDecimals::WART));
+        } else {
+            toPool.amount = from(::FundsDecimal(tp->amount(), dec));
+        }
+    }
+    return {
+        .baseAsset = from(e.base),
+        .wartToAssetSwaps = make_swap_orders(e.buys, dec),
+        .assetToWartSwaps = make_swap_orders(e.sells, dec),
+        .liquidityPool = make_pool(e.liquidityPool, dec),
+        .match {
+            .filled {
+                .base = from(::FundsDecimal(e.matchResult.filled.base, dec)),
+                .quote = from(::Wart(e.matchResult.filled.quote.value())) },
+            .toPool { std::move(toPool) } }
+    };
+}
+MarketOrders from(const api::MarketOrders& e)
+{
+    auto dec { e.base.decimals };
+    return {
+        .baseAsset = from(e.base),
+        .wartToAssetSwaps = make_swap_orders(e.buys, dec),
+        .assetToWartSwaps = make_swap_orders(e.sells, dec),
+    };
+}
+AccountHistory from(const api::AccountHistory& ah)
+{
+    std::vector<Block> blocks;
+    for (auto& b : std::ranges::reverse_view(ah.blocks_reversed)) {
+        blocks.push_back(from(b));
+    }
+    return {
+        .fromId = ah.fromId.value(),
+        .perBlock = std::move(blocks)
+    };
+}
+
+RichlistResult from(const api::RichlistInfo& ri)
+{
+    std::vector<RichlistEntry> entries;
+    for (auto& [address, funds] : ri.richlist.entries) {
+        entries.push_back({ .address = address.to_string(),
+            .balance = from(::FundsDecimal(funds, ri.token.token_decimals()))
+
+        });
+    }
+    return {
+        .token = from(ri.token),
+        .richlist = std::move(entries),
+    };
+}
+OffenseEntry from(const ::OffenseEntry& e)
+{
+    return {
+        .ip = e.ip.to_string(),
+        .time = make_timepoint(e.timestamp),
+        .offense = e.offense.err_name()
+    };
+}
+std::string from(const IP& ip)
+{
+    return ip.to_string();
+}
+ThrottleState from(const api::ThrottleState& s)
+{
+    using namespace std::chrono;
+
+    return {
+        .delay = int(duration_cast<seconds>(s.delay).count()),
+        .blockRequest {
+            .h0 = s.blockreq.h0.value(),
+            .h1 = s.blockreq.h1.value(),
+            .window = s.blockreq.window },
+        .headerRequest {
+            .h0 = s.batchreq.h0.value(),
+            .h1 = s.batchreq.h1.value(),
+            .window = s.batchreq.window }
+    };
+}
+
+Peerinfo from(const api::Peerinfo& pi)
+{
+    auto& pgrid { pi.chainstate.descripted()->grid() };
+    std::vector<std::string> grid;
+    grid.reserve(pgrid.size());
+    for (HeaderView hv : pgrid) {
+        grid.push_back(serialize_hex(hv));
+    }
+    return {
+        .connection = {
+            .since = make_timepoint(pi.since),
+            .port = pi.endpoint.port(),
+            .ip = from(pi.endpoint.ip()),
+        },
+        .throttle = from(pi.throttle),
+        .chain = { // uint32_t length;
+            .length = pi.chainstate.descripted()->chain_length().value(),
+            .forkLower = pi.chainstate.consensus_fork_range().lower().value(),
+            .forkUpper = pi.chainstate.consensus_fork_range().upper().value(),
+            .descriptor = pi.chainstate.descripted()->descriptor.value(),
+            .worksum = pi.chainstate.descripted()->worksum().getdouble(),
+            .worksumHex = pi.chainstate.descripted()->worksum().to_string(),
+            .grid = std::move(grid) },
+        .leaderPriority = { .ack { .importance = pi.acknowledgedSnapshotPriority.importance, .hegiht = pi.acknowledgedSnapshotPriority.height.value() }, .theirs { .importance = pi.theirSnapshotPriority.importance, .hegiht = pi.theirSnapshotPriority.height.value() } }
+    };
+}
+HashrateBlockChart from(const api::HashrateBlockChart& chart)
+{
+    return {
+        .range {
+            .begin = chart.range.begin.value(),
+            .end = chart.range.end.value() },
+        .data = std::move(chart.chart)
+    };
+}
+
+HashrateTimeChart from(const api::HashrateTimeChart& chart)
+{
+    std::vector<HashrateTimeChart::Entry> data;
+    for (auto& [timestamp, height, hashrate] : std::ranges::reverse_view(chart.chartReversed)) {
+        data.push_back({ .timestamp = timestamp,
+            .height = height.value(),
+            .hashrate = hashrate });
+    }
+    return {
+        .range {
+            .begin = chart.begin,
+            .end = chart.end },
+        .data = std::move(data),
+        .interval = chart.interval,
+    };
+}
+ParsedPrice from(const api::ParsedPrice& e)
+{
+    return {
+        .decimals = e.dec.value(),
+        .floor = make_price(e.floor, e.dec),
+        .ceil = make_price(e.ceil, e.dec)
+    };
+}
+double from(const api::JanushashNumber& e)
+{
+    return e.d;
+}
+std::vector<PeerinfoConnection> from(const api::PeerinfoConnections& pcs){
+    std::vector<PeerinfoConnection> out;
+    for (auto &pi : pcs.v) {
+        out.push_back(
+        {
+            .since = make_timepoint(pi.since),
+            .port = pi.endpoint.port(),
+            .ip = from(pi.endpoint.ip()),
+        });
+    }
+    return out;
 }
 }
 }

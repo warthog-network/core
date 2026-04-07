@@ -46,19 +46,8 @@ namespace {
 json to_json(const AccountState a)
 {
     json arr((json::array_t()));
-    Wart balance { [&]() {
-        if (a.history) {
-            for (auto& b : std::ranges::reverse_view(a.history->blocks_reversed)) {
-                arr.push_back(jsonmsg::to_json(b));
-            }
-            return a.history->balance;
-        }
-        return Wart::zero();
-    }() };
     return json {
         { "address", a.address.to_string() },
-        { "balance", balance.to_string() },
-        { "balanceE8", balance.E8() },
         { "history", arr },
     };
 }

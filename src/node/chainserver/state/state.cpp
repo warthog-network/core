@@ -1929,8 +1929,6 @@ auto State::api_get_history(const api::AccountIdOrAddress& a,
     if (!p)
         return {};
     auto& accountId(*p);
-    auto wartBalance(
-        db.get_token_balance_recursive(accountId, TokenId::WART).balance);
 
     std::vector entries_desc = db.lookup_history_100_desc(accountId, beforeId);
     std::vector<api::Block> blocks_reversed;
@@ -1963,8 +1961,6 @@ auto State::api_get_history(const api::AccountIdOrAddress& a,
     }
 
     return api::AccountHistory {
-        .balance = Wart::from_funds(wartBalance.total),
-        .locked = Wart::from_funds(wartBalance.locked),
         .fromId = firstHistoryId,
         .blocks_reversed = blocks_reversed
     };

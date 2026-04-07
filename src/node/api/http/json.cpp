@@ -199,7 +199,7 @@ json to_json(const ParseAnnotation& a)
         { "tag", a.tag },
         { "offsetBegin", a.offsetBegin },
         { "offsetEnd", a.offsetEnd },
-        { "children", a.children ? to_json(*a.children) : json::array() }
+        { "children", to_json(a.children) }
     };
 }
 json to_json(const ParseAnnotations& arr)
@@ -657,8 +657,6 @@ json to_json(const api::AccountHistory& h)
     json j;
     j["perBlock"] = a;
     j["fromId"] = h.fromId;
-    j["wartTotal"] = to_json(h.balance);
-    j["wartLocked"] = to_json(h.locked);
     return j;
 }
 

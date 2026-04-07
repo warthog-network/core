@@ -8,6 +8,13 @@
 
 namespace api {
 namespace glaze {
+struct Timepoint {
+    std::string UTC;
+    uint32_t timestamp;
+    struct glaze {
+        static constexpr const char* name = "Timepoint";
+    };
+};
 struct FundsDecimalNoDecimals {
     std::string str;
     uint64_t u64;
@@ -394,8 +401,7 @@ struct ProofOfWorkDetail {
 
 struct BlockHeader {
     std::string raw;
-    uint32_t timestamp;
-    std::string utc;
+    Timepoint time;
     std::string target;
     std::string hash;
     ProofOfWorkDetail pow;
@@ -409,6 +415,7 @@ struct BlockHeader {
 };
 struct HeaderResult {
     BlockHeader header;
+    uint32_t height;
     struct glaze {
         static constexpr const char* name = "HeaderResult";
     };
@@ -424,15 +431,15 @@ struct Block {
 };
 struct BlockBinaryAnnotation {
     std::string tag;
-    std::string beginOffset;
-    std::string endOffset;
+    size_t beginOffset;
+    size_t endOffset;
     std::vector<BlockBinaryAnnotation> children;
     struct glaze {
         static constexpr const char* name = "BlockBinaryAnnotation";
     };
 };
 
-struct BlockBinary {
+struct BlockBinaryResult {
     std::string bytes;
     std::vector<BlockBinaryAnnotation> structure;
     struct glaze {
@@ -522,6 +529,13 @@ struct JanushashResult {
     };
 };
 
+struct SignedSnapshot{
+    std::string hash;
+    std::string signature;
+    uint32_t priorityHeight;
+    uint32_t priorityImportance;
+};
+
 struct LiquidityPool {
     FundsDecimal asset;
     Wart wart;
@@ -551,6 +565,7 @@ struct MiningState {
 };
 
 struct SwapOrder {
+    bool inMempool;
     std::string txHash;
     PriceDetail limit;
     FundsDecimal amount;
@@ -598,11 +613,21 @@ struct ParsedPrice {
         static constexpr const char* name = "ParsedPrice";
     };
 };
+struct Order {
+    uint32_t confirmations; // 0 means it is in mempool
+    std::optional<uint32_t> height;
+    std::optional<uint64_t> historyId;
+    std::string txHash;
+    TransactionId txid;
+    PriceDetail limit;
+    FundsDecimal amount;
+    FundsDecimal filled;
+};
 
 struct ThrottleState {
     struct State {
+        uint32_t h0;
         uint32_t h1;
-        uint32_t h2;
         size_t window;
     };
     int delay;
@@ -612,19 +637,12 @@ struct ThrottleState {
         static constexpr const char* name = "ThrottleState";
     };
 };
-struct Timepoint {
-    std::string UTC;
-    uint32_t timestamp;
-    struct glaze {
-        static constexpr const char* name = "Timepoint";
-    };
+struct PeerinfoConnection {
+    Timepoint since;
+    int port;
+    std::optional<std::string> ip;
 };
 struct Peerinfo {
-    struct Connection {
-        Timepoint since;
-        int port;
-        std::optional<std::string> ip;
-    };
     struct LeaderPriority {
         struct Priority {
             int importance;
@@ -642,7 +660,7 @@ struct Peerinfo {
         std::string worksumHex;
         std::vector<std::string> grid;
     };
-    Connection connection;
+    PeerinfoConnection connection;
     ThrottleState throttle;
     Chain chain;
     LeaderPriority leaderPriority;
@@ -777,8 +795,7 @@ struct WartBalanceResult {
 };
 struct OffenseEntry {
     std::string ip;
-    uint32_t timestamp;
-    std::string utc;
+    Timepoint time;
     std::string offense;
     struct glaze {
         static constexpr const char* name = "OffenseEntry";
@@ -823,8 +840,37 @@ struct NodeInfoResult {
         static constexpr const char* name = "NodeInfoResult";
     };
 };
+struct HeaderInfo {
+    uint32_t height;
+    BlockHeader header;
+};
+struct HashrateInfo {
+    size_t nBlocks;
+    uint64_t estimate;
+};
+struct AccountHistory {
+    uint64_t fromId;
+    std::vector<Block> perBlock;
+};
+
 using Candle = std::tuple<uint32_t, uint32_t, double, double, double, double, double, double>;
 using Trade = std::tuple<uint32_t, uint32_t, double, double>;
+
+template <typename T>
+struct Success {
+    int code;
+    T data;
+};
+template<>
+struct Success<void> {
+    int code;
+};
+struct Error {
+    int code;
+    std::string error;
+};
+template <typename T>
+using Result = std::variant<Success<T>, Error>;
 
 }
 }

@@ -23,7 +23,7 @@ struct ParseAnnotation {
     std::string tag;
     size_t offsetBegin;
     size_t offsetEnd;
-    wrt::optional<Children> children;
+    Children children;
 };
 using ParseAnnotations = ParseAnnotation::Children;
 
@@ -117,8 +117,7 @@ public:
     {
         if (annotations) {
             if (pendingAnnotation) {
-                annotations->back().children.emplace();
-                annotations = &*annotations->back().children;
+                annotations = &annotations->back().children;
             }
             annotations->emplace_back(std::move(name), offset());
             pendingAnnotation = true;
