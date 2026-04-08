@@ -216,8 +216,9 @@ struct MatchProcessor {
 
     // block_apply::OrderInsert
 
-    void match(defi::PoolLiquidity_uint64& pool) const
+    [[nodiscard]] bool match(defi::PoolLiquidity_uint64& pool) const
     {
+        bool matched { false }; // whether there is any effect
         AggregatorMatch am { db, unsortedOrderbook, assetId, pool, ignoreOrderIds };
         auto& m { am.m };
         Funds_uint64 fromPool { 0 };
@@ -227,15 +228,22 @@ struct MatchProcessor {
             if (m.toPool->is_quote()) {
                 returned.quote.subtract_assert(pa);
                 fromPool = pool.buy(pa, 50);
-                returned.base.add_assert(fromPool);
+                if (!fromPool.is_zero()) {
+                    returned.base.add_assert(fromPool);
+                    matched = true;
+                }
             } else {
                 returned.base.subtract_assert(pa);
                 fromPool = pool.sell(pa, 50);
-                returned.quote.add_assert(fromPool);
+                if (!fromPool.is_zero()) {
+                    returned.quote.add_assert(fromPool);
+                    matched = true;
+                }
             }
         }
 
         if (m.filled.base != 0) { // seller match
+            matched = true;
             Nonzero_uint64 filledBase { m.filled.base.value() };
             Funds_uint64 quoteDistributed { 0 };
             auto remaining { m.filled.base };
@@ -275,6 +283,7 @@ struct MatchProcessor {
             returned.quote.subtract_assert(quoteDistributed);
         }
         if (m.filled.quote != 0) { // buyer match
+            matched = true;
             Nonzero_uint64 filledQuote { m.filled.quote.value() };
             Funds_uint64 baseDistributed { 0 };
             auto remaining { m.filled.quote };
@@ -313,6 +322,7 @@ struct MatchProcessor {
             assert(remaining == 0);
             returned.base.subtract_assert(baseDistributed);
         }
+        return matched;
     }
 
     AssetId assetId;
@@ -1288,7 +1298,7 @@ private:
 
         std::vector<AccountId> accounts;
 
-        MatchProcessor {
+        auto matched = MatchProcessor {
             .assetId { ah.id() },
             .db { db },
             .ignoreOrderIds { ignoreOrderIds },
@@ -1317,6 +1327,9 @@ private:
                 accounts.push_back(accId); }
         }.match(pool);
 
+        if (!matched)
+            return;
+
         h.pool_after() = pool; // write moodified pool after match
 
         auto& hist { history.push_match(accounts, h, blockhash, ah.id()) };
@@ -1334,7 +1347,6 @@ private:
                   },
               },
                 hist.historyId });
-        auto b { api.matches.back() };
     }
 
     void process_liquidity_deposits(AssetHandle& ah, const std::vector<block_apply::LiquidityDeposit::Internal>& deposits)
