@@ -454,7 +454,7 @@ void MarketDB::insert_block(NonzeroHeight height, BlockHash hash, Timestamp t)
 
 void MarketDB::delete_block_from(NonzeroHeight height)
 {
-    stmtInsertBlock.run(height);
+    stmtDeleteBlockFrom.run(height);
 }
 wrt::optional<BlockHash> MarketDB::select_block(NonzeroHeight height)
 {
