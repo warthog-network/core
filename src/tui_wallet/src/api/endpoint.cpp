@@ -96,10 +96,10 @@ std::string Endpoint::http_post(const std::string& path, std::span<const uint8_t
 std::pair<PinHeight, PinHash> Endpoint::get_pin() const
 {
     auto data(api_get("/chain/head"));
-    std::string h = data["pinHash"].get<std::string>();
+    std::string h = data["chainHead"]["pinHash"].get<std::string>();
     auto pinHash { Hash::parse_throw(h) };
 
-    auto v { data["pinHeight"].get<int32_t>() };
+    auto v { data["chainHead"]["pinHeight"].get<int32_t>() };
     if (auto pinHeight = Height(v).pin_height())
         return make_pair(*pinHeight, PinHash(pinHash));
     throw std::runtime_error(std::format("Invalid pinHeight {}.", v));
@@ -152,9 +152,9 @@ api_types::TokenList Endpoint::token_complete(std::string_view namePrefix, std::
 }
 auto Endpoint::send_transaction(const std::string& txjson) const -> TxHash
 {
-    cerr << "=====DEBUG INFO TRANSACTION JSON=====\n"
-         << txjson << "\n"
-         << "=====================================" << endl;
+    // cerr << "=====DEBUG INFO TRANSACTION JSON=====\n"
+    //      << txjson << "\n"
+    //      << "=====================================" << endl;
 
     std::string url = "/transaction/add";
     auto hex_str(api_post(url, txjson)
