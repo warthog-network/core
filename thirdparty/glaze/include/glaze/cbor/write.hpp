@@ -612,7 +612,7 @@ namespace glz
          if constexpr (std::same_as<V, hidden> || std::same_as<V, skip>) {
             return true;
          }
-         else if constexpr (is_member_function_pointer<V>) {
+         else if constexpr (is_any_function_ptr<V>) {
             return !check_write_function_pointers(Opts);
          }
          else {
@@ -693,6 +693,19 @@ namespace glz
                         ++member_count;
                      }
                   }
+                  else if constexpr (check_skip_default_members(Opts) && has_skippable_default<val_t>) {
+                     decltype(auto) member = [&]() -> decltype(auto) {
+                        if constexpr (reflectable<T>) {
+                           return get_member(value, get<I>(t));
+                        }
+                        else {
+                           return get_member(value, get<I>(reflect<T>::values));
+                        }
+                     }();
+                     if (!is_default_value(member)) {
+                        ++member_count;
+                     }
+                  }
                   else {
                      ++member_count;
                   }
@@ -752,6 +765,20 @@ namespace glz
                   }
                   else if constexpr (Opts.skip_null_members && glaze_value_is_nullable<val_t>()) {
                      if (is_glaze_value_field_null<T, I>(value, t)) {
+                        return;
+                     }
+                  }
+
+                  if constexpr (check_skip_default_members(Opts) && has_skippable_default<val_t>) {
+                     decltype(auto) member_val = [&]() -> decltype(auto) {
+                        if constexpr (reflectable<T>) {
+                           return get_member(value, get<I>(t));
+                        }
+                        else {
+                           return get_member(value, get<I>(reflect<T>::values));
+                        }
+                     }();
+                     if (is_default_value(member_val)) {
                         return;
                      }
                   }
@@ -900,8 +927,7 @@ namespace glz
    };
 
    // Nullable types (std::optional, std::unique_ptr, std::shared_ptr)
-   template <nullable_t T>
-      requires(!std::is_array_v<T> && not is_expected<T>)
+   template <nullable_like T>
    struct to<CBOR, T> final
    {
       template <auto Opts>

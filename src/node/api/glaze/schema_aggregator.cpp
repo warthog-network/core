@@ -38,6 +38,7 @@ HTMLString SchemaAggregator::to_html_list() const
         auto hl = html_escape(name);
         auto val = [&] {
             auto gen_link { [](std::string_view name) { return std::format("<a href=\"#{}\">{}</a>", name, name); } };
+            using schema_ptr = std::shared_ptr<glz::schema>;
             if (schematic.type && std::holds_alternative<std::string_view>(*schematic.type) && std::get<std::string_view>(*schematic.type) == std::string_view("object")) {
                 if (schematic.properties) {
                     std::string table { " <table>" };
@@ -45,26 +46,25 @@ HTMLString SchemaAggregator::to_html_list() const
                         if (val.ref) {
                             auto n { normalize_name(*val.ref) };
                             table += std::format("<tr><td>{}</td><td>{}</td></tr>", key, gen_link(n));
-                        } else if(val.type.has_value() && std::holds_alternative<std::string_view>(val.type.value())){
+                        } else if (val.type.has_value() && std::holds_alternative<std::string_view>(val.type.value())) {
                             auto n { std::get<std::string_view>(val.type.value()) };
                             table += std::format("<tr><td>{}</td><td>{}</td></tr>", key, n);
-                        }
-                        else{
+                        } else {
                             table += std::format("<tr><td>{}</td><td>{}</td></tr>", key, html_escape(glz::write<options>(schematic).value()));
                         }
                     }
                     table += "</table>";
                     return table;
-                }else if (schematic.additionalProperties && std::holds_alternative<glz::schema>(*schematic.additionalProperties)){
-                    auto& item = std::get<glz::schema>(*schematic.additionalProperties);
-                    if (item.ref) {
-                        return std::format("<p>Object with values of type {}</p>", gen_link(normalize_name(item.ref.value())));
+                } else if (schematic.additionalProperties && std::holds_alternative<schema_ptr>(*schematic.additionalProperties)) {
+                    auto& item = std::get<schema_ptr>(*schematic.additionalProperties);
+                    if (item->ref) {
+                        return std::format("<p>Object with values of type {}</p>", gen_link(normalize_name(item->ref.value())));
                     }
                 }
-            } else if (schematic.items && std::holds_alternative<glz::schema>(*schematic.items)) {
-                auto& items = std::get<glz::schema>(*schematic.items);
-                if (items.ref) {
-                    return std::format("<p>Array with items of type {}</p>", gen_link(normalize_name(items.ref.value())));
+            } else if (schematic.items && std::holds_alternative<schema_ptr>(*schematic.items)) {
+                auto& items = std::get<schema_ptr>(*schematic.items);
+                if (items->ref) {
+                    return std::format("<p>Array with items of type {}</p>", gen_link(normalize_name(items->ref.value())));
                 }
             }
             return std::format("<code><pre>{}</pre></code>", html_escape(glz::write<options>(schematic).value()));

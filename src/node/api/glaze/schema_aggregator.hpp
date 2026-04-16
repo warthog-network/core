@@ -6,7 +6,7 @@
 #include <string>
 struct SchemaAggregator {
 private:
-    std::map<std::string_view, glz::detail::schematic, std::less<>> defs;
+    std::map<std::string_view, glz::schema, std::less<>> defs;
 
 public:
     template <typename T>
