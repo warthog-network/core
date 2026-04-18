@@ -45,49 +45,63 @@ struct HTMLAggregator {
     bool add_object(const glz::schema& s)
     {
         if (s.properties) {
+            data << "<p>Objct with properties:</p>";
             data << " <table>";
             for (auto [key, val] : s.properties.value()) {
-                if (val.ref) {
-                    auto n { normalize_name(*val.ref) };
-                    data << std::format("<tr><td>{}</td><td>{}</td></tr>", key, gen_link(n));
-                } else if (val.type.has_value() && std::holds_alternative<std::string_view>(val.type.value())) {
-                    auto n { std::get<std::string_view>(val.type.value()) };
-                    data << std::format("<tr><td>{}</td><td>{}</td></tr>", key, n);
-                } else {
-                    // data<<"<tr><td>" << key <<"</td><td>";
-                    data << std::format("<tr><td>{}</td><td>{}</td></tr>", key, html_escape(glz::write<options>(s).value()));
-                    // add_inner_entry(s);
-                }
+                data << "<tr><td>" << key << "</td><td>";
+                add_inner_entry(val);
+                data << "</td></tr>";
             }
             data << "</table>";
         } else if (s.additionalProperties && std::holds_alternative<schema_ptr>(*s.additionalProperties)) {
             auto& item = std::get<schema_ptr>(*s.additionalProperties);
-            if (!item->ref)
-                return false;
-            data << std::format("<p>Object with values of type {}</p>", gen_link(normalize_name(item->ref.value())));
+            data << "<p>Object with values of type";
+            add_inner_entry(*item);
+        } else {
+            return false;
         }
         return true;
     }
     bool add_array(const glz::schema& s)
     {
-        if (s.items && std::holds_alternative<schema_ptr>(*s.items)) {
+        if (s.items.has_value() && std::holds_alternative<schema_ptr>(*s.items)) {
+            data << "<p>Array with items of type:</p>";
             auto& items = std::get<schema_ptr>(*s.items);
-            if (items->ref) {
-                data << std::format("<p>Array with items of type {}</p>", gen_link(normalize_name(items->ref.value())));
-                return true;
-            }else{
-                add_inner_entry(s);
+            add_inner_entry(*items);
+        } else if (s.prefixItems.has_value()) {
+            data << "<p>Array with exactly these items:</p>";
+            for (auto& e : *s.prefixItems) {
+                add_inner_entry(e);
             }
+        } else {
+            return false;
         }
-        return false;
+        return true;
+    }
+    void add_string(const glz::schema&)
+    {
+        data << "string";
     }
     // dispatches to the above
-    void add_inner_entry(const glz::schema& s){
+    void add_inner_entry(const glz::schema& s)
+    {
         bool handled = false;
-        if (s.type && std::holds_alternative<std::string_view>(*s.type) && std::get<std::string_view>(*s.type) == std::string_view("object")) {
-            handled = add_object(s);
-        } else if (s.items && std::holds_alternative<schema_ptr>(*s.items)) {
-            handled = add_array(s);
+        if (s.ref) {
+            data << gen_link(normalize_name(s.ref));
+            handled = true;
+        } else if (s.type && std::holds_alternative<std::string_view>(*s.type)) {
+            const auto& type = std::get<std::string_view>(*s.type);
+            if (type == "object") {
+                handled = add_object(s);
+            } else if (type == "array") {
+                handled = add_array(s);
+            } else if (type == "string") {
+                add_string(s);
+                handled = true;
+            } else if (type == "boolean") {
+                data << "boolean";
+                handled = true;
+            }
         }
         if (!handled) {
             data << std::format("<code><pre>{}</pre></code>", html_escape(glz::write<options>(s).value()));
