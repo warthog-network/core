@@ -1232,7 +1232,7 @@ namespace glz
       }
 
       // Remove inlined (single-use) entries from $defs
-      inline void prune_inlined_defs(std::map<std::string_view, schema, std::less<>>& defs, const std::map<std::string_view, size_t>& counts, std::string_view prefix){
+      inline void prune_inlined_defs(std::map<std::string_view, schema, std::less<>>& defs, const std::map<std::string_view, size_t>& counts, std::string_view prefix = "#/$defs/"){
          for (auto it = defs.begin(); it != defs.end();) {
             // Build the full $ref path for this def entry
             // Use a local string since string_view concatenation isn't possible
@@ -1252,8 +1252,7 @@ namespace glz
       inline void prune_inlined_defs(schema& s, const std::map<std::string_view, size_t>& counts)
       {
          if (!s.defs) return;
-         static constexpr std::string_view prefix = "#/$defs/";
-         prune_inlined_defs(*s.defs, counts, prefix);
+         prune_inlined_defs(*s.defs, counts);
          if (s.defs->empty()) {
             s.defs.reset();
          }
