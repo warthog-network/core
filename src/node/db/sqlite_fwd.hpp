@@ -1,30 +1,14 @@
 #pragma once
-#include "SQLiteCpp/Column.h"
+#include "SQLiteCpp/Statement.h"
 
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 namespace sqlite {
 
 struct Column;
-template <typename T>
-struct Nullable : public std::optional<T> {
-    using std::optional<T>::optional;
-    Nullable(Column c);
-};
-
-struct Column : public SQLite::Column {
-    template <typename T>
-    operator Nullable<T>() const;
-    template <typename T>
-    operator T() const;
-
-private:
-    template <typename T>
-    T convert() const;
-};
-
 class Statement;
 class RunningStatement;
 

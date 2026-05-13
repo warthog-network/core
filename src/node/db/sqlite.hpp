@@ -1,56 +1,12 @@
 #pragma once
+#include "SQLiteCpp/Column.h"
 #include "SQLiteCpp/SQLiteCpp.h"
 #include "spdlog/spdlog.h"
 #include "sqlite_fwd.hpp"
 #include "type_conv.hpp"
 
 namespace sqlite {
-// class RunningStatement {
-//     friend class Statement;
-//
-// public:
-//     class Sentinel { };
-//     class Iterator {
-//         friend class RunningStatement;
-//
-//     public:
-//         const Row& operator*()
-//         {
-//             return r;
-//         }
-//         bool operator==(const Sentinel&) const
-//         {
-//             return r.has_value();
-//         }
-//         Iterator& operator++()
-//         {
-//             r = s.stmt.next_row();
-//             return *this;
-//         }
-//
-//     private:
-//         Iterator(RunningStatement& s)
-//             : s(s)
-//             , r(s.stmt)
-//         {
-//         }
-//         RunningStatement& s;
-//         Row r;
-//     };
-//     Iterator begin() { return { *this }; };
-//     Sentinel end() { return {}; }
-//
-//     ~RunningStatement()
-//     {
-//         stmt.reset();
-//     }
-//
-// private:
-//     RunningStatement(SQLite::Statement& stmt);
-//     Statement& stmt;
-// };
 
-// inline
 
 template <typename T>
 T Column::convert() const
@@ -64,11 +20,11 @@ T Column::convert() const
 }
 
 template <typename T>
-inline Column::operator Nullable<T>() const
+Column::Opt::operator std::optional<T>() const
 {
-    if (isNull())
+    if (c.isNull())
         return {};
-    return convert<T>();
+    return c.convert<T>();
 }
 
 template <typename T>

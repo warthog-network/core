@@ -1137,7 +1137,7 @@ std::vector<AssetDetail> ChainDB::search_assets(const api::AssetSearchArgs& args
                 .ownerAccountId = o[5],
                 .totalSupply = o[6],
                 .group_id = o[7],
-                .parent_id = o[8],
+                .parent_id = o[8].opt(),
             }
         };
     } };
@@ -1167,7 +1167,7 @@ Result<AssetDetail> ChainDB::lookup_asset(AssetId id) const
                 .ownerAccountId = o[5],
                 .totalSupply = o[6],
                 .group_id = o[7],
-                .parent_id = o[8],
+                .parent_id = o[8].opt(),
             }
         };
     }) };
@@ -1191,7 +1191,7 @@ Result<AssetDetail> ChainDB::lookup_asset(const AssetHash& hash) const
                 .ownerAccountId = o[5],
                 .totalSupply = o[6],
                 .group_id = o[7],
-                .parent_id = o[8],
+                .parent_id = o[8].opt(),
             }
         };
     }) };

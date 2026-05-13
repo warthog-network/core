@@ -10,7 +10,7 @@
 #include "block/id.hpp"
 #include "crypto/address.hpp"
 #include "crypto/hash.hpp"
-#include "db/sqlite_fwd.hpp"
+#include "db/sqlite.hpp"
 #include "defi/token/asset.hpp"
 #include "defi/token/id.hpp"
 #include "defi/uint64/price.hpp"
@@ -20,6 +20,21 @@
 #include <limits>
 
 namespace sqlite {
+struct Column : public SQLite::Column {
+    struct Opt {
+        const Column& c;
+        template <typename T>
+        operator std::optional<T>() const;
+    };
+    friend Opt;
+    Opt opt() const { return { *this }; }
+    template <typename T>
+    operator T() const;
+
+private:
+    template <typename T>
+    T convert() const;
+};
 class ColumnConverter {
     const Column& c;
 
