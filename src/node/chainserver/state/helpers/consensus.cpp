@@ -128,6 +128,8 @@ auto Chainstate::rollback(const RollbackResult& rb) -> HeaderchainRollback
     // inform mempool about balance changes
     update_free_balances(rb.freeBalanceUpdates);
 
+    update_allowed_mempool_transaction_types();
+
     insert_txs(std::move(txsReinsert));
 
     return HeaderchainRollback {
@@ -167,6 +169,8 @@ auto Chainstate::append(AppendMulti ad) -> HeaderchainAppend
     // merge transaction ids
     chainTxIds.merge(std::move(ad.appendResult.newTxIds));
 
+    update_allowed_mempool_transaction_types();
+
     // prune transaction ids
     prune_txids();
 
@@ -198,6 +202,8 @@ auto Chainstate::append(AppendSingle d) -> HeaderchainAppend
 
     // merge transaction ids
     chainTxIds.merge(std::move(d.newTxIds));
+
+    update_allowed_mempool_transaction_types();
 
     // prune transaction ids
     prune_txids();
