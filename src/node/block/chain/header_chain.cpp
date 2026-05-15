@@ -113,6 +113,8 @@ auto Headerchain::hashrate(uint32_t nblocks) const -> Result<api::HashrateInfo>
 
 auto Headerchain::hashrate_at(Height h, uint32_t nblocks) const -> Result<api::HashrateInfo>
 {
+    if (h.is_zero())
+        return Error(EHASHRATEINTERVAL);
     if (h > length())
         return Error(EBADHEIGHT);
     NonzeroHeight lower { h.value() > nblocks ? (h + 1 - nblocks).nonzero_assert() : NonzeroHeight { 1u } };
@@ -228,11 +230,11 @@ api::HashrateTimeChart Headerchain::hashrate_time_chart(uint32_t min, uint32_t m
     auto h1 { bisect_height_before(t1, height1, l) + 1 };
     assert(h1 <= length());
     while (true) {
-        uint64_t hr{0};
-        if (auto hrAt{hashrate_at(h1, windowBlocks)}) {
+        uint64_t hr { 0 };
+        if (auto hrAt { hashrate_at(h1, windowBlocks) }) {
             hr = hrAt.value().estimate;
         }
-        res.chartReversed.push_back({ t1, h1, hr});
+        res.chartReversed.push_back({ t1, h1, hr });
         auto t0 { t1 >= interval ? t1 - interval : 0 };
         if (t0 == 0 || t0 < min)
             return res;

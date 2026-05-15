@@ -411,7 +411,9 @@ struct RichlistInfo {
 struct HashrateInfo {
     size_t nBlocks;
     uint64_t estimate;
+    static const HashrateInfo zero;
 };
+constexpr const HashrateInfo HashrateInfo::zero { 0, 0 };
 
 struct HashrateChartRequest {
     Height begin;
