@@ -95,7 +95,11 @@ public:
     }
     bool validate(std::string_view s)
     {
-        parsed = Funds_uint64::parse(s, prec)->nonzero();
+        if (auto p { Funds_uint64::parse(s, prec) }) {
+            parsed = p->nonzero();
+        } else {
+            parsed.reset();
+        }
         return has_value();
     }
 
