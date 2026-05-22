@@ -323,7 +323,7 @@ bool Downloader::try_final_request(Lead_iter li, RequestSender& sender)
         //
         auto forkRangeLower { pd.fork_range().lower() };
         if (forkRangeLower < s.length + 1) {
-            spdlog::error("forkRangeLowe = {} < {} = s.length + 1", forkRangeLower.value(), s.length.value() + 1);
+            spdlog::error("forkRangeLower = {} < {} = s.length + 1", forkRangeLower.value(), s.length.value() + 1);
             assert(false);
         }
 
