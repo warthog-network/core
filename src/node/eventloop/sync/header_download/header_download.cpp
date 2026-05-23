@@ -320,9 +320,8 @@ bool Downloader::try_final_request(Lead_iter li, RequestSender& sender)
         // same condition as in can_download
         // a leader by definition must have more total work and
         // more total length than the chains we know
-        //
         auto forkRangeLower { pd.fork_range().lower() };
-        if (forkRangeLower < s.length + 1) {
+        if (!(forkRangeLower < s.length + 1)) {
             spdlog::error("forkRangeLower = {} < {} = s.length + 1", forkRangeLower.value(), s.length.value() + 1);
             assert(false);
         }

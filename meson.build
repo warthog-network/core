@@ -1,5 +1,5 @@
 project( 'Warthog', ['c','cpp'],
-  version : '0.8.15',
+  version : '0.8.16',
   default_options : ['warning_level=3', 'cpp_std=c++20'])
 
 libuv_dep = subproject('libuv', default_options : ['warning_level=0', 'werror=false', 'build_tests=false']).get_variable('libuv_dep')
