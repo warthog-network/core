@@ -5,6 +5,14 @@
 #include <cassert>
 #include <cstring>
 #include <stdexcept>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <netdb.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#endif
 
 namespace {
 std::optional<uint16_t> parse_port(const std::string_view& s)
@@ -113,11 +121,43 @@ EndpointAddress::EndpointAddress(Reader& r)
 {
 }
 
+namespace {
+std::optional<IPv4> resolve_hostname(const std::string& hostname)
+{
+    struct addrinfo hints, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET; // IPv4 only
+    hints.ai_socktype = SOCK_STREAM;
+
+    int status = getaddrinfo(hostname.c_str(), nullptr, &hints, &res);
+    if (status != 0) {
+        return {};
+    }
+
+    std::optional<IPv4> result;
+    if (res != nullptr && res->ai_family == AF_INET) {
+        struct sockaddr_in* ipv4_addr = reinterpret_cast<struct sockaddr_in*>(res->ai_addr);
+        result = IPv4(*ipv4_addr);
+    }
+
+    freeaddrinfo(res);
+    return result;
+}
+}
+
 std::optional<EndpointAddress> EndpointAddress::parse(const std::string_view& s)
 {
     size_t d1 = s.find(":");
-    auto ipv4str { s.substr(0, d1) };
-    auto ip = IPv4::parse(ipv4str);
+    auto hoststr { s.substr(0, d1) };
+    
+    // First try to parse as IP address
+    auto ip = IPv4::parse(hoststr);
+    
+    // If not a valid IP, try DNS resolution
+    if (!ip) {
+        ip = resolve_hostname(std::string(hoststr));
+    }
+    
     if (!ip)
         return {};
     if (d1 != std::string::npos) {
