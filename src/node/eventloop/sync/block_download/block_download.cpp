@@ -133,12 +133,11 @@ void Downloader::on_probe_reply(Conref c, const ProbereqMsg& req, const Proberep
     forks.match(c, headers(), req.height, *rep.requested);
 }
 
-std::vector<ChainOffender> Downloader::init(std::tuple<HeaderDownload::LeaderInfo, Headerchain> thc) // OK?
+std::vector<ChainOffender> Downloader::init(std::tuple<HeaderDownload::LeaderInfo, Headerchain, BanList> thc) // OK?
 {
     assert(reachableWork <= headers().total_work());
 
-    std::vector<ChainOffender> out;
-    auto& [li, hc] = thc;
+    auto& [li, hc, out] = thc;
 
     // spdlog::info("Syncing from {}", li.cr->c->peer_endpoint().to_string());
     ForkHeight fh = attorney.set_stage_headers(std::move(hc));
@@ -188,7 +187,7 @@ std::vector<ChainOffender> Downloader::init(std::tuple<HeaderDownload::LeaderInf
 
     focus.fork(fh);
     update_reachable(true);
-    return out;
+    return std::move(out);
 }
 
 void Downloader::insert(Conref c) // OK

@@ -297,7 +297,9 @@ void Eventloop::coordinate_sync()
     auto cons { chains.consensus_state().headers().total_work() };
     auto blk { blockDownload.get_reachable_totalwork() };
     auto max { std::max(cons, blk) };
-    headerDownload.set_min_worksum(max);
+    for (auto& co : headerDownload.set_min_worksum(max)) {
+        close(co);
+    };
     blockDownload.set_min_worksum(cons);
 }
 
@@ -486,7 +488,9 @@ bool Eventloop::insert(Conref c, const InitMsg& data)
     bool doRequests = true;
 
     c->chain.initialize(data, chains);
-    headerDownload.insert(c);
+    for (auto& co : headerDownload.insert(c)) {
+        close(co);
+    };
     blockDownload.insert(c);
     spdlog::info("Connected to {} peers (connected {}, v{})", headerDownload.size(), c->c->peer_address().to_string(), c->c->peer_version().to_string());
     send_ping_await_pong(c);
@@ -751,7 +755,9 @@ void Eventloop::handle_msg(Conref cr, AppendMsg&& m)
     if (config().node.logCommunication)
         spdlog::info("{} handle append", cr.str());
     cr->chain.on_peer_append(m, chains);
-    headerDownload.on_append(cr);
+    for (auto& co : headerDownload.on_append(cr)) {
+        close(co);
+    };
     blockDownload.on_append(cr);
     do_requests();
 }
@@ -762,7 +768,9 @@ void Eventloop::handle_msg(Conref c, SignedPinRollbackMsg&& m)
         spdlog::info("{} handle rollback ", c.str());
     verify_rollback(c, m);
     c->chain.on_peer_shrink(m, chains);
-    headerDownload.on_rollback(c);
+    for (auto& co : headerDownload.on_rollback(c)) {
+        close(co);
+    };
     blockDownload.on_rollback(c);
     do_requests();
 }
@@ -772,7 +780,9 @@ void Eventloop::handle_msg(Conref c, ForkMsg&& m)
     if (config().node.logCommunication)
         spdlog::info("{} handle fork", c.str());
     c->chain.on_peer_fork(m, chains);
-    headerDownload.on_fork(c);
+    for (auto& co : headerDownload.on_fork(c)) {
+        close(co);
+    };
     blockDownload.on_fork(c);
     do_requests();
 }

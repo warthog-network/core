@@ -15,6 +15,18 @@ struct ChainOffender : public ChainError {
     }
     ChainOffender(int32_t e, NonzeroHeight height, uint64_t connectionId)
         : ChainError(e, height)
-        , conId(connectionId) {};
+        , conId(connectionId) { };
     uint64_t conId;
+};
+
+struct BanList : public std::vector<ChainOffender> {
+    using std::vector<ChainOffender>::vector;
+    void insert_unique(ChainOffender o)
+    {
+        auto iter = std::ranges::find_if(*this, [&](const ChainOffender& co) {
+            return co.conId == o.conId;
+        });
+        if (iter == end())
+            push_back(o);
+    }
 };

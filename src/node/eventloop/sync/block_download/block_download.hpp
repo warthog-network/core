@@ -32,7 +32,7 @@ public:
 
     //////////////////////////////
     // Control functions
-    [[nodiscard]] std::vector<ChainOffender> init(std::tuple<HeaderDownload::LeaderInfo, Headerchain>);
+    [[nodiscard]] std::vector<ChainOffender> init(std::tuple<HeaderDownload::LeaderInfo, Headerchain, BanList>);
     void insert(Conref cr);
     [[nodiscard]] bool erase(Conref cr); // if true please get_reachable_totalwork()
     void set_min_worksum(const Worksum& ws);
