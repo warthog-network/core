@@ -1,5 +1,7 @@
 #pragma once
 #include "data/retrieval_context.hpp"
+#include "shutdown.hpp"
+#include "spdlog/spdlog.h"
 #include <chrono>
 #include <condition_variable>
 #include <iostream>
@@ -17,18 +19,22 @@ private:
     std::condition_variable cv;
     void work()
     {
-        while (true) {
-            job_ptr currentJob;
-            {
-                std::unique_lock l(m);
-                active = false;
-                cv.wait(l, [&]() { return shutdown_ || nextJob; });
-                active = true;
-                if (shutdown_)
-                    return;
-                currentJob = std::move(nextJob);
+        try {
+            while (true) {
+                job_ptr currentJob;
+                {
+                    std::unique_lock l(m);
+                    active = false;
+                    cv.wait(l, [&]() { return shutdown_ || nextJob; });
+                    active = true;
+                    if (shutdown_)
+                        return;
+                    currentJob = std::move(nextJob);
+                }
+                (*currentJob)();
             }
-            (*currentJob)();
+        } catch (std::exception& e) {
+            shutdownState.trigger(e.what());
         }
     }
     void shutdown()

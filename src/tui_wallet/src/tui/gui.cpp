@@ -1,5 +1,6 @@
 #include "gui.hpp"
 #include "ftxui/component/screen_interactive.hpp"
+#include "shutdown.hpp"
 #include "tui/tabs.hpp"
 namespace ui {
 Element GUIComponent::render_spinner(int type) const
@@ -27,6 +28,7 @@ GUI::GUI(CreateToken)
     // , spinnerClock(weak_from_this())
     , _root(Make<RootComponent>(*this))
 {
+    shutdownState.add_callback(screen.ExitLoopClosure());
     start_spinner_thread();
 }
 
@@ -40,6 +42,7 @@ void GUI::start_spinner_thread()
     auto work { [&]() {
         auto t { sc::now() + interval };
         std::unique_lock l(m);
+        // std::
         while (true) {
             if (cv.wait_until(l, t, [&]() { return this->stopRequested; }))
                 break;

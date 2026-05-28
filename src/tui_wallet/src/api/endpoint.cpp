@@ -18,7 +18,8 @@ T Endpoint::parse_get(const std::string& path) const
 
 std::string Endpoint::http_get(const std::string& path) const
 {
-    auto ref { log_request("GET " + host + ":" + std::to_string(port) + path) };
+    auto fullPath{ host + ":" + std::to_string(port) + path};
+    auto ref { log_request("GET " + fullPath) };
     httplib::Client cli(host, port);
     cli.set_read_timeout(10);
     auto res = cli.Get(path);
@@ -31,7 +32,7 @@ std::string Endpoint::http_get(const std::string& path) const
     if (res) {
         return { std::move(res->body) };
     }
-    throw std::runtime_error("GET request failed");
+    throw std::runtime_error(std::format("Failed GET request: '{}'", fullPath));
 }
 
 nlohmann::json Endpoint::extract_data(const std::string& json) const
