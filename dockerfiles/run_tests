@@ -1,4 +1,4 @@
-FROM alpine:3.17.2 AS build
+FROM alpine:3.22 AS build
 RUN apk add meson libgcc musl-dev gcc g++ upx
 COPY . /code
 RUN mkdir /build
