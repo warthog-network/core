@@ -560,8 +560,9 @@ int ConfigParams::init(const gengetopt_args_info& ai)
             "89.163.224.253:9186",
         };
         Endpoints testnetEndpoints {
-            "193.218.118.57:9286",
-            "98.71.18.140:9286"
+            "209.127.34.202:9286",
+            "208.124.91.66:9286",
+            "65.87.7.86:9286",
         };
 
         data.chaindb = warthogDir
