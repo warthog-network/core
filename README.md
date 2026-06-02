@@ -131,6 +131,16 @@ To compile from source see below or [here](https://docs.warthog.network/guides/n
 * Run `DOCKER_BUILDKIT=1 docker build . -f dockerfiles/build_macos --output ./build/macos` in the repo.
 * MacOS binaries are located in `./build/macos` directory.
 
+### Justfile recipes
+For development tasks, this project uses a [just](https://github.com/casey/just)file.
+
+#### System Requirements
+* [just](https://github.com/casey/just#installation)
+
+#### Available recipes
+* `just build_debug` - Build debug Docker image
+* `just bump` - Bump patch version in meson.build (e.g., 0.10.4 → 0.10.5)
+
 ## ▶️ USAGE
 * Run the node (use some restarter in case it crashes) <br />
 One line example to run the node: `screen -dmS wart_node bash -c "while true; do ./wart-node-linux ; done"` <br />
