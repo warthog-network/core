@@ -17,6 +17,7 @@
 #include "general/funds.hpp"
 #include "general/timestamp.hpp"
 #include <cstring>
+#include <concepts>
 #include <limits>
 
 namespace sqlite {
@@ -142,10 +143,8 @@ inline auto convert(double f) { return f; }
 inline auto convert(Price_uint64 p) { return p.to_uint32(); }
 inline auto convert(AssetName n) { return n.to_string(); }
 inline auto convert(Wart f) { return (int64_t)f.E8(); }
-inline auto convert(int64_t i) { return i; }
-inline auto convert(int32_t i) { return i; }
-inline auto convert(long long int i) { return i; }
-inline auto convert(uint64_t i) { return (int64_t)i; }
+template<std::integral I>
+inline long long convert(I i) { return i; } // b
 inline auto convert(IsUint64 i) { return (long long)i.value(); }
 inline auto convert(IsUint32 i) { return (long long)i.value(); }
 inline const auto& convert(const std::string& s) { return s; }
