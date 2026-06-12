@@ -36,14 +36,22 @@ jobs:
           run: |
            echo "VERSION=$(grep 'version :' meson.build | cut -d "'" -f 2)" >> $GITHUB_ENV
 
+        - name: Rename artifacts for defi
+          run: |
+            mv ./build/wart-node-windows.exe ./build/wart-node-defi-beta-windows.exe
+            mv ./build/wart-tui-windows.exe ./build/wart-tui-defi-beta-windows.exe
+            mv ./build/wart-node-linux ./build/wart-node-defi-beta-linux
+            mv ./build/wart-tui-linux ./build/wart-tui-defi-beta-linux
+
         - name: Release
           uses: softprops/action-gh-release@v2.2.1
           with:
+            name: "Warthog Defi Beta {{ env.VERSION }}"
             tag_name: ${{ env.VERSION }}
             generate_release_notes: true
             make_latest: true
             files: |
-              ./build/windows/wart-tui-windows.exe
-              ./build/windows/wart-node-windows.exe
-              ./build/wart-node-linux
-              ./build/wart-tui-linux
+              ./build/wart-node-defi-beta-windows.exe
+              ./build/wart-tui-defi-beta-windows.exe
+              ./build/wart-node-defi-beta-linux
+              ./build/wart-tui-defi-beta-linux
