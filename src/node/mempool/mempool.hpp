@@ -38,8 +38,9 @@ public:
 
     [[nodiscard]] Log pop_log()
     {
-        return std::move(log);
+        auto tmp = std::move(log);
         log.clear();
+        return tmp;
     }
     void apply_log(const Log& log);
     int32_t insert_tx(const TransferTxExchangeMessage& pm, TransactionHeight txh, const TxHash& hash, const AddressFunds& e);
