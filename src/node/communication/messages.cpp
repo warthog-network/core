@@ -9,6 +9,7 @@
 #include "general/reader.hpp"
 #include "general/writer.hpp"
 #include "mempool/entry.hpp"
+#include <random>
 #include <tuple>
 
 namespace {
@@ -71,7 +72,7 @@ MessageWriter MsgCode<M>::gen_msg(size_t len)
 }
 
 RandNonce::RandNonce()
-    : WithNonce { uint32_t(rand()) } {}
+    : WithNonce { uint32_t(std::random_device{}()) } {}
 InitMsg::InitMsg(Reader& r)
     : descriptor(r.uint32())
     , sp { r.uint16(), Height(r.uint32()) }
