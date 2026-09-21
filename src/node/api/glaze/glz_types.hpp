@@ -172,6 +172,7 @@ struct AssetDetail {
     uint64_t ownerAccountId;
     FundsDecimal totalSupply;
     uint64_t groupId;
+    double latestPrice;
     std::optional<uint64_t> parentId;
     struct glaze {
         static constexpr const char* name = "AssetDetail";

@@ -9,5 +9,8 @@ struct AssetDetailData {
     TokenId group_id;
     std::optional<TokenId> parent_id;
 };
-struct AssetDetail: public AssetBasic, public AssetDetailData {
+struct AssetPriceData {
+    double latestPrice;
+};
+struct AssetDetail: public AssetBasic, public AssetDetailData, public AssetPriceData {
 };
