@@ -263,8 +263,7 @@ AssetDetail from(const ::AssetDetail& ad)
         .ownerAccountId = ad.ownerAccountId.value(),
         .totalSupply = from(::FundsDecimal(ad.totalSupply, ad.decimals)),
         .groupId = ad.group_id.value(),
-        .latestPrice = ad.latestPrice,
-        .parentId = from(ad.parent_id)
+        .parentId = from(ad.parent_id),
     };
 }
 AssetLookupTrace from(const ::api::AssetLookupTrace& a)

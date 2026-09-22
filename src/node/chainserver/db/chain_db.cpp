@@ -1138,8 +1138,7 @@ std::vector<AssetDetail> ChainDB::search_assets(const api::AssetSearchArgs& args
                 .totalSupply = o[6],
                 .group_id = o[7],
                 .parent_id = o[8].opt(),
-            },
-            { .latestPrice = 0.0 }
+            }
         };
     } };
     auto r { LexicographicByteRange::from_hex(args.hashPrefix) };
@@ -1169,8 +1168,7 @@ Result<AssetDetail> ChainDB::lookup_asset(AssetId id) const
                 .totalSupply = o[6],
                 .group_id = o[7],
                 .parent_id = o[8].opt(),
-            },
-            { .latestPrice = 0.0 }
+            }
         };
     }) };
     if (r)
@@ -1194,8 +1192,7 @@ Result<AssetDetail> ChainDB::lookup_asset(const AssetHash& hash) const
                 .totalSupply = o[6],
                 .group_id = o[7],
                 .parent_id = o[8].opt(),
-            },
-            { .latestPrice = 0.0 }
+            }
         };
     }) };
     if (r)
