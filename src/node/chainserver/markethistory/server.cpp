@@ -66,15 +66,15 @@ void Reader::dispatch(ReaderEventInternal&& event)
 
 void Reader::handle_event(const Asset& a, GetTradesRange&& e)
 {
-    e.callback(db.get_trades_range(a, e.from, e.to));
+    e.callback(db.get_trades_range(a, e.begin, e.end));
 }
 void Reader::handle_event(const Asset& a, GetTradesFrom&& e)
 {
-    e.callback(db.get_trades_from(a, e.from, e.N));
+    e.callback(db.get_trades_from(a, e.begin, e.N));
 }
 void Reader::handle_event(const Asset& a, GetTradesTo&& e)
 {
-    e.callback(db.get_trades_to(a, e.to, e.N));
+    e.callback(db.get_trades_to(a, e.end, e.N));
 }
 void Reader::handle_event(const Asset& a, GetTradesLatest&& e)
 {
@@ -82,15 +82,15 @@ void Reader::handle_event(const Asset& a, GetTradesLatest&& e)
 }
 void Reader::handle_event(const Asset& a, GetCandlesRange&& e)
 {
-    e.callback(db.get_candles_range(a, e.interval, e.from, e.to));
+    e.callback(db.get_candles_range(a, e.interval, e.begin, e.end));
 }
 void Reader::handle_event(const Asset& a, GetCandlesFrom&& e)
 {
-    e.callback(db.get_candles_from(a, e.interval, e.from, e.N));
+    e.callback(db.get_candles_from(a, e.interval, e.begin, e.N));
 }
 void Reader::handle_event(const Asset& a, GetCandlesTo&& e)
 {
-    e.callback(db.get_candles_to(a, e.interval, e.to, e.N));
+    e.callback(db.get_candles_to(a, e.interval, e.end, e.N));
 }
 void Reader::handle_event(const Asset& a, GetCandlesLatest&& e)
 {
@@ -114,22 +114,22 @@ ReaderEventInternal MarketHistoryServer::wrap_event_throw(GetTrades::Object&& o)
         throw Error(ERANGETOOBIG);
 
     auto base { [&] { return GetTradesBase { req.asset(), std::move(o.callback) }; } };
-    if (req.to()) {
-        if (req.from()) {
+    if (req.end()) {
+        if (req.begin()) {
             if (req.N()) // cannot have all 3 args
                 throw Error(EINVARGCOMB);
 
-            if (*req.to() < *req.from())
+            if (*req.end() < *req.begin())
                 throw Error(EINVRANGE);
-            size_t N = req.to()->value() - req.from()->value();
+            size_t N = req.end()->value() - req.begin()->value();
             if (N > MAX_N)
                 throw Error(ERANGETOOBIG);
-            return GetTradesRange { base(), *req.from(), *req.to() };
+            return GetTradesRange { base(), *req.begin(), *req.end() };
         }
-        return GetTradesTo { base(), *req.to(), req.N().value_or(DEFAULT_N) };
+        return GetTradesTo { base(), *req.end(), req.N().value_or(DEFAULT_N) };
     }
-    if (req.from()) {
-        return GetTradesFrom { base(), *req.from(), req.N().value_or(DEFAULT_N) };
+    if (req.begin()) {
+        return GetTradesFrom { base(), *req.begin(), req.N().value_or(DEFAULT_N) };
     }
     return GetTradesLatest { base(), req.N().value_or(DEFAULT_N) };
 }
@@ -144,27 +144,27 @@ ReaderEventInternal MarketHistoryServer::wrap_event_throw(GetCandles::Object&& o
     if (req.N() > MAX_N)
         throw Error(ERANGETOOBIG);
 
-    if (req.to()) {
-        if (req.from()) {
+    if (req.end()) {
+        if (req.begin()) {
             if (req.N()) // cannot have all 3 args
                 throw Error(EINVARGCOMB);
 
-            if (*req.to() < *req.from())
+            if (*req.end() < *req.begin())
                 throw Error(EINVRANGE);
-            size_t N = (req.to()->value() - req.from()->value()) / i->seconds();
+            size_t N = (req.end()->value() - req.begin()->value()) / i->seconds();
             if (N > MAX_N)
                 throw Error(ERANGETOOBIG);
             return GetCandlesRange {
-                base(), *req.from(), *req.to()
+                base(), *req.begin(), *req.end()
             };
         }
         return GetCandlesTo {
-            base(), *req.to(), req.N().value_or(DEFAULT_N)
+            base(), *req.end(), req.N().value_or(DEFAULT_N)
         };
     }
-    if (req.from()) {
+    if (req.begin()) {
         return GetCandlesFrom {
-            base(), *req.from(), req.N().value_or(DEFAULT_N)
+            base(), *req.begin(), req.N().value_or(DEFAULT_N)
         };
     }
     return GetCandlesLatest { base(), req.N().value_or(DEFAULT_N) };

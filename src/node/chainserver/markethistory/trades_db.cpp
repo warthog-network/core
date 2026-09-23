@@ -74,7 +74,7 @@ std::optional<Asset> MarketReaderDB::get_asset(AssetHash hash) const
 template <typename... Args>
 inline std::vector<api::Trade> MarketReaderDB::extract_trades(const Asset& asset, std::string_view condition, Args&&... args) const
 {
-    if (asset.fresh())
+    if (!asset.has_data())
         return {}; // trades tables don't exist, no data
     auto table { trades_table(asset.id) };
     auto query = std::format("SELECT {}.height AS height, timestamp, base, quote FROM {} JOIN Blocks ON {}.height = Blocks.height {}", table, table, table, condition);
@@ -89,31 +89,31 @@ inline std::vector<api::Trade> MarketReaderDB::extract_trades(const Asset& asset
     },
         std::forward<Args>(args)...);
 }
-TradesVector MarketReaderDB::get_trades_range(const Asset& a, NonzeroHeight from, NonzeroHeight to) const
+TradesVector MarketReaderDB::get_trades_range(const Asset& a, NonzeroHeight begin, NonzeroHeight end) const
 {
-    return { .elements = extract_trades(a, "WHERE height >= ? AND height <=? ORDER BY height ASC", from, to), .reverse = false };
+    return { .elements = extract_trades(a, "WHERE height >= ? AND height <? ORDER BY height ASC", begin, end), .reverse = false };
 }
-TradesVector MarketReaderDB::get_trades_from(const Asset& a, NonzeroHeight from, size_t n) const
+TradesVector MarketReaderDB::get_trades_from(const Asset& a, NonzeroHeight begin, size_t n) const
 {
-    return { .elements = extract_trades(a, "WHERE height >= ? ORDER BY height ASC LIMIT ?", from, n), .reverse = false };
+    return { .elements = extract_trades(a, "WHERE height >= ? ORDER BY height ASC LIMIT ?", begin, n), .reverse = false };
 }
-TradesVector MarketReaderDB::get_trades_to(const Asset& a, NonzeroHeight to, size_t n) const
+TradesVector MarketReaderDB::get_trades_to(const Asset& a, NonzeroHeight end, size_t n) const
 {
-    return { .elements = extract_trades(a, "WHERE height <= ? ORDER BY height DESC LIMIT ?", to, n), .reverse = true };
+    return { .elements = extract_trades(a, "WHERE height < ? ORDER BY height DESC LIMIT ?", end, n), .reverse = true };
 }
 TradesVector MarketReaderDB::get_trades_latest(const Asset& a, size_t n) const
 {
     return { .elements = extract_trades(a, "ORDER BY height DESC LIMIT ?", n), .reverse = true };
 }
 
-template <typename... Args>
-inline std::vector<Candle> MarketReaderDB::extract_candles(const Asset& asset, Interval interval, std::string_view condition, Args&&... args) const
-{
-    if (asset.fresh())
-        return {}; // candles tables don't exist, no data
-    auto query = std::format("SELECT timestamp, height, open, high, low, close, base, quote FROM {} {}", candles_table(asset.id, interval), condition);
-    Statement stmt(db, query);
-    return stmt.all([](const sqlite::Row& row) {
+namespace {
+struct CandleParser {
+    static auto create_query(const Asset& asset, Interval interval, std::string_view condition)
+    {
+        return std::format("SELECT timestamp, height, open, high, low, close, base, quote FROM {} {}", candles_table(asset.id, interval), condition);
+    }
+    static Candle candle(const sqlite::Row& row)
+    {
         return Candle {
             .timestamp = row[0],
             .height = row[1],
@@ -124,21 +124,69 @@ inline std::vector<Candle> MarketReaderDB::extract_candles(const Asset& asset, I
             .base = row[6],
             .quote = row[7],
         };
-    },
-        std::forward<Args>(args)...);
+    }
+};
 }
 
-CandlesVector MarketReaderDB::get_candles_range(const Asset& a, Interval interval, Timestamp from, Timestamp to) const
+template <typename... Args>
+inline std::vector<Candle> MarketReaderDB::extract_candles(const Asset& asset, Interval interval, std::string_view condition, Args&&... args) const
 {
-    return { .elements = extract_candles(a, interval, "WHERE timestamp >= ? AND timestamp <=? ORDER BY timestamp ASC", from, to), .reverse = false };
+    if (!asset.has_data())
+        return {}; // candles tables don't exist, no data
+    Statement stmt(db, CandleParser::create_query(asset, interval, condition));
+    return stmt.all(CandleParser::candle, std::forward<Args>(args)...);
 }
-CandlesVector MarketReaderDB::get_candles_from(const Asset& a, Interval interval, Timestamp from, size_t n) const
+
+CandlesVector MarketReaderDB::get_candles_range(const Asset& asset, Interval interval, Timestamp begin, Timestamp end) const
 {
-    return { .elements = extract_candles(a, interval, "WHERE timestamp >= ? ORDER BY timestamp ASC LIMIT ?", from, n), .reverse = false };
+    // We use special logic in this function compared to the other get_candles_* methods
+    // because we want to allow clients to fill candle gaps using Last Observation 
+    // Carried Forward (LOCF). Therefore, if there is no data at the beginning of the 
+    // desired interval but there exists data before that time, we carry the previous candle
+    // forward (with zero volume and OHLC values equal to the last price (close value) 
+    // from the previous candle. 
+    const auto seconds { interval.seconds() };
+    auto fbegin { begin.ceil(seconds) };
+    auto fend { end.floor(seconds) };
+    if (!asset.has_data() // candles tables don't exist, no data
+        || fbegin >= fend) // empty interval because end is always excluded
+        return {};
+    const auto N { (fend.value() - fbegin.value()) / seconds + 1 };
+    auto condition { "WHERE timestamp < ? ORDER BY timestamp DESC LIMIT ?" };
+
+    Statement stmt(db, CandleParser::create_query(asset, interval, condition));
+
+    std::vector<Candle> candles;
+    stmt.for_each_while([&](const sqlite::Row& row) {
+        auto c { CandleParser::candle(row) };
+        if (c.timestamp < fbegin.value()) {
+            // We now entered the first candle before the desired range.
+            // Now we construct the gap filling candle based on previous candle's price data.
+            candles.push_back({
+                .timestamp = fbegin.value(),
+                .height = c.height + 1,
+                .open = c.close,
+                .high = c.close,
+                .low = c.close,
+                .close = c.close,
+                .base = 0.0,
+                .quote = 0.0,
+            });
+            return false; // Stop iteration on statement.
+        }
+        candles.push_back(std::move(c));
+        return true; // Continue iteration on statement.
+    },
+        fend, N);
+    return { .elements = std::move(candles), .reverse = true };
 }
-CandlesVector MarketReaderDB::get_candles_to(const Asset& a, Interval interval, Timestamp to, size_t n) const
+CandlesVector MarketReaderDB::get_candles_from(const Asset& a, Interval interval, Timestamp begin, size_t n) const
 {
-    return { .elements = extract_candles(a, interval, "WHERE timestamp <= ? ORDER BY timestamp DESC LIMIT ?", to, n), .reverse = true };
+    return { .elements = extract_candles(a, interval, "WHERE timestamp >= ? ORDER BY timestamp ASC LIMIT ?", begin, n), .reverse = false };
+}
+CandlesVector MarketReaderDB::get_candles_to(const Asset& a, Interval interval, Timestamp end, size_t n) const
+{
+    return { .elements = extract_candles(a, interval, "WHERE timestamp < ? ORDER BY timestamp DESC LIMIT ?", end, n), .reverse = true };
 }
 CandlesVector MarketReaderDB::get_candles_latest(const Asset& a, Interval interval, size_t n) const
 {
@@ -199,7 +247,7 @@ void MarketDB::append_block(const BlockInfo& blockInfo)
 
 void MarketDB::insert_trade(const Asset& asset, const Trade& tr, Timestamp ts)
 {
-    if (asset.fresh())
+    if (!asset.has_data())
         create_tables(asset.id);
     auto table { trades_table(asset.id) };
     Statement stmt(db, std::format("INSERT INTO {} (height, base, quote) VALUES (?, ?, ?)", table));

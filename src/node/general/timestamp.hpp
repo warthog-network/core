@@ -3,7 +3,6 @@
 #include "general/with_uint64.hpp"
 #include <chrono>
 
-
 template <uint32_t seconds>
 class RoundedTimestamp;
 class Timestamp : public IsUint32 {
@@ -33,26 +32,30 @@ public:
         using namespace std::chrono;
         return operator+(duration_cast<seconds>(d).count());
     }
-    static Timestamp now()
+    [[nodiscard]] static Timestamp now()
     {
         using namespace std::chrono;
         return Timestamp(duration_cast<seconds>(system_clock::now().time_since_epoch()).count());
     }
-    static Timestamp from_time_point(std::chrono::steady_clock::time_point tp)
+    [[nodiscard]] static Timestamp from_time_point(std::chrono::steady_clock::time_point tp)
     {
         using namespace std::chrono;
         return duration_cast<seconds>((system_clock::now() + (tp - steady_clock::now())).time_since_epoch()).count();
     }
-    Timestamp floor(uint32_t seconds) const{
+    [[nodiscard]] constexpr Timestamp floor(uint32_t seconds) const
+    {
         return { (value() / seconds) * seconds };
     }
+    [[nodiscard]] constexpr Timestamp ceil(uint32_t seconds) const
+    {
+        return { ((value() + seconds - 1) / seconds) * seconds };
+    }
+
     template <uint32_t seconds>
-    RoundedTimestamp<seconds> floor() const;
-
-
+    constexpr RoundedTimestamp<seconds> floor() const;
 
     template <uint32_t seconds>
-    RoundedTimestamp<seconds> ceil() const;
+    constexpr RoundedTimestamp<seconds> ceil() const;
 
     std::chrono::steady_clock::time_point steady_clock_time_point() const
     {
@@ -95,14 +98,14 @@ public:
 };
 
 template <uint32_t seconds>
-RoundedTimestamp<seconds> Timestamp::floor() const
+constexpr RoundedTimestamp<seconds> Timestamp::floor() const
 {
     return { floor(seconds).value() };
 }
 template <uint32_t seconds>
-RoundedTimestamp<seconds> Timestamp::ceil() const
+constexpr RoundedTimestamp<seconds> Timestamp::ceil() const
 {
-    return { ((value() + seconds - 1) / seconds) * seconds };
+    return { ceil(seconds).value()};
 }
 
 struct Timepoint : public std::chrono::steady_clock::time_point {

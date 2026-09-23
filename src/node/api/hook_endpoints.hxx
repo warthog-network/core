@@ -517,8 +517,8 @@ public:
         // GET_PRIV<t,"/peers/connect_timers">( inspect_eventloop, jsonmsg::connect_timers);
 
         SECTION("Chart Endpoints");
-        GET_PUB<"/chart/candles/:asset/:interval?from=...&to=...&n=...">(api_call<GetCandles>);
-        GET_PUB<"/chart/trades/:asset?from=...&to=...&n=...">(api_call<GetTrades>);
+        GET_PUB<"/chart/candles/:asset/:interval?begin=...&end=...&n=...">(api_call<GetCandles>);
+        GET_PUB<"/chart/trades/:asset?begin=...&end=...&n=...">(api_call<GetTrades>);
         GET_PRIV<"/chart/hashrate/block/:from/:to/:window">(get_hashrate_block_chart);
         GET_PRIV<"/chart/hashrate/time/:from/:to/:interval">(get_hashrate_time_chart);
 

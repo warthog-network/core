@@ -16,7 +16,7 @@ struct Asset {
     AssetId id;
     AssetHash hash;
     Height latestHeight;
-    bool fresh() const { return latestHeight.is_zero(); }
+    bool has_data() const { return !latestHeight.is_zero(); }
 };
 
 // class TradeAmount {
