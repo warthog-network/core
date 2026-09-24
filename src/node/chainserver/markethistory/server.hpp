@@ -17,11 +17,11 @@ using CandlesCallback = std::function<void(Result<api::CandlesVector>)>;
 using TradesCallback = std::function<void(Result<api::TradesVector>)>;
 #define LIST_API_TYPES(XX)                                        \
     XX(GetCandles, api::CandlesVector, api::AssetIdOrHash, asset, \
-        std::string, interval, OptParam<Timestamp>, begin,         \
-        OptParam<Timestamp>, end, OptParam<size_t>, N)             \
+        std::string, interval, OptParam<Timestamp>, from,         \
+        OptParam<Timestamp>, to, OptParam<size_t>, N)             \
     XX(GetTrades, api::TradesVector, api::AssetIdOrHash, asset,   \
-        OptParam<NonzeroHeight>, begin, OptParam<NonzeroHeight>,   \
-        end, OptParam<size_t>, N)
+        OptParam<NonzeroHeight>, from, OptParam<NonzeroHeight>,   \
+        to, OptParam<size_t>, N)
 
 DEFINE_TYPE_COLLECTION(APIReadTypes, LIST_API_TYPES);
 #undef LIST_API_TYPES
@@ -42,16 +42,16 @@ struct GetTradesBase : HasAsset {
 };
 
 struct GetTradesFrom : GetTradesBase {
-    NonzeroHeight begin;
+    NonzeroHeight from;
     size_t N;
 };
 struct GetTradesTo : GetTradesBase {
-    NonzeroHeight end;
+    NonzeroHeight to;
     size_t N;
 };
 struct GetTradesRange : GetTradesBase {
-    NonzeroHeight begin;
-    NonzeroHeight end;
+    NonzeroHeight from;
+    NonzeroHeight to;
 };
 struct GetTradesLatest : GetTradesBase {
     size_t N;
@@ -68,16 +68,16 @@ struct GetCandlesBase : HasAsset {
     }
 };
 struct GetCandlesFrom : public GetCandlesBase {
-    Timestamp begin;
+    Timestamp from;
     size_t N;
 };
 struct GetCandlesTo : public GetCandlesBase {
-    Timestamp end;
+    Timestamp to;
     size_t N;
 };
 struct GetCandlesRange : public GetCandlesBase {
-    Timestamp begin;
-    Timestamp end;
+    Timestamp from;
+    Timestamp to;
 };
 struct GetCandlesLatest : public GetCandlesBase {
     size_t N;
