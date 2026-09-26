@@ -1,7 +1,7 @@
 #pragma once
-
 #include <charconv>
 #include <concepts>
+#include <optional>
 #include <string_view>
 
 template <typename T>
