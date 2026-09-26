@@ -123,17 +123,17 @@ private:
 };
 }
 
-wrt::expected<ConfigParams, int> ConfigParams::from_args(int argc, char** argv)
+std::expected<ConfigParams, int> ConfigParams::from_args(int argc, char** argv)
 {
     auto p { CmdlineParsed::parse(argc, argv) };
     if (!p)
-        return tl::make_unexpected(-1);
+        return std::unexpected(-1);
 
     ConfigParams c;
     if (auto i { c.init(p->value()) }; i < 1) {
-        return tl::make_unexpected(i);
+        return std::unexpected(i);
     }
-    return wrt::expected<ConfigParams, int>(c);
+    return std::expected<ConfigParams, int>(c);
 }
 
 #ifndef DISABLE_LIBUV

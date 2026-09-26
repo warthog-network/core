@@ -3,7 +3,6 @@ subdir('./sqlitecpp')
 subdir('./tomlplusplus')
 subdir('./trezor-crypto')
 subdir('./cpp-httplib')
-subdir('./tl')
 subdir('./glaze')
 
 if not get_option('emscripten')

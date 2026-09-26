@@ -110,7 +110,7 @@ src= [
 
 
 deps = [json_dep, libdatachannel_dep, sqlite3_dep, spdlog_dep]
-include_common = [include_glaze, include_trezorcrypto,include_wh,include_secp256k1,include_sqlitecpp, include_tl]
+include_common = [include_glaze, include_trezorcrypto,include_wh,include_secp256k1,include_sqlitecpp]
 if get_option('emscripten')
   src = [src, src_browser]
   include_thirdparty=[include_common, include_tomlplusplus]

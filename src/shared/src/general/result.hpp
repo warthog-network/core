@@ -1,6 +1,6 @@
 #pragma once
 #include "general/errors.hpp"
-#include "wrt/expected.hpp"
+#include <expected>
 #include <optional>
 
 template <typename T>
@@ -11,20 +11,20 @@ template <typename T>
 struct GetResultT;
 
 template <typename T>
-struct GetResultT<wrt::expected<T, Error>> {
+struct GetResultT<std::expected<T, Error>> {
     using type = Result<T>;
 };
 
 template <typename T>
-GetResultT<T>::type make(wrt::expected<T, Error>&& e)
+GetResultT<T>::type make(std::expected<T, Error>&& e)
 {
     return std::move(e);
 }
 
 }
 template <typename T>
-struct Result : public wrt::expected<T, Error> {
-    using parent = wrt::expected<T, Error>;
+struct Result : public std::expected<T, Error> {
+    using parent = std::expected<T, Error>;
     Result(parent t)
         : parent(std::move(t))
     {
@@ -59,31 +59,31 @@ struct Result : public wrt::expected<T, Error> {
     }
 
     Result(T t)
-        : wrt::expected<T, Error>(std::move(t))
+        : std::expected<T, Error>(std::move(t))
     {
     }
     Result(Error e)
-        : wrt::expected<T, Error>(tl::make_unexpected(e))
+        : std::expected<T, Error>(std::unexpected(e))
     {
     }
 };
 
 template <>
-struct Result<void> : public wrt::expected<void, Error> {
+struct Result<void> : public std::expected<void, Error> {
     Result(const std::optional<Error>& t)
-        : Result(t ? Result(wrt::make_unexpected(*t)) : Result())
+        : Result(t ? Result(std::unexpected(*t)) : Result())
     {
     }
-    Result(wrt::expected<void, Error> t)
-        : wrt::expected<void, Error>(std::move(t))
+    Result(std::expected<void, Error> t)
+        : std::expected<void, Error>(std::move(t))
     {
     }
     Result() // for Result<void> default constructor
-        : wrt::expected<void, Error>({})
+        : std::expected<void, Error>()
     {
     }
     Result(Error e)
-        : wrt::expected<void, Error>(tl::make_unexpected(e))
+        : std::expected<void, Error>(std::unexpected(e))
     {
     }
 };

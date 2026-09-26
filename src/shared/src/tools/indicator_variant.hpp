@@ -1,7 +1,7 @@
-#include "wrt/expected.hpp"
 #include "general/reader.hpp"
 #include "general/writer.hpp"
 #include "wrt/variant.hpp"
+#include <expected>
 namespace wrt {
 template <typename parse_exception_generator_t, typename... Ts>
 struct indicator_variant : public wrt::variant<Ts...> {
@@ -16,7 +16,7 @@ private:
         }
     }
 
-    using expected_t = wrt::expected<indicator_variant, uint8_t>;
+    using expected_t = std::expected<indicator_variant, uint8_t>;
 
     [[nodiscard]] static expected_t try_parse_expected(Reader& r)
     {
@@ -30,7 +30,7 @@ private:
                 return false;
             }() || ...))
             return *o;
-        return tl::make_unexpected(i);
+        return std::unexpected(i);
     }
 
 public:

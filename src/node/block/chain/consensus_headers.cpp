@@ -59,14 +59,14 @@ HeaderVerifier::HeaderVerifier(const SharedBatch& b)
     }
 }
 
-wrt::expected<HeaderVerifier, ChainError> HeaderVerifier::copy_apply(const std::optional<SignedSnapshot>& sp, const HeaderSpan& hrange) const
+std::expected<HeaderVerifier, ChainError> HeaderVerifier::copy_apply(const std::optional<SignedSnapshot>& sp, const HeaderSpan& hrange) const
 {
     HeaderVerifier res { *this };
     assert(hrange.begin_height() == length + 1);
     for (auto h : hrange) {
         auto e { res.prepare_append(sp, h) };
         if (!e.has_value()) {
-            return tl::make_unexpected(ChainError(e.error(), h.height));
+            return std::unexpected(ChainError(e.error(), h.height));
         }
         res.append(h.height, e.value());
     }

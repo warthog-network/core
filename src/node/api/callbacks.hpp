@@ -2,13 +2,9 @@
 #include "api/types/all_fwd.hpp"
 #include "communication/rxtx_server/api_types.hpp"
 #include "general/result.hpp"
-#include "wrt/expected.hpp"
 
-#include <cstdint>
 #include <functional>
 #include <nlohmann/json_fwd.hpp>
-#include <string>
-#include <variant>
 #include <vector>
 
 // forward declarations

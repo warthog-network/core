@@ -10,7 +10,7 @@ executable('wart-wallet', vcs_dep,
     './main.cpp', 
     src_wh, 
 ],
-include_directories : [include_secp256k1,include_wh, include_httplib, include_tl],
+include_directories : [include_secp256k1,include_wh, include_httplib],
 link_with: libsecp256k1, 
 dependencies: deps,
 install : true)

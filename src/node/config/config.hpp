@@ -7,7 +7,6 @@
 #include "transport/helpers/tcp_sockaddr.hpp"
 #include "transport/helpers/transport_types.hpp"
 #include "types.hpp"
-#include "wrt/expected.hpp"
 #include <atomic>
 #include <filesystem>
 struct gengetopt_args_info;
@@ -95,7 +94,7 @@ struct ConfigParams {
     bool localDebug { false };
     static std::filesystem::path get_default_session_dir();
     std::string dump();
-    [[nodiscard]] static wrt::expected<ConfigParams, int> from_args(int argc, char** argv);
+    [[nodiscard]] static std::expected<ConfigParams, int> from_args(int argc, char** argv);
 
 private:
     ConfigParams() { };

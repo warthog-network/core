@@ -1206,7 +1206,7 @@ void Eventloop::handle_msg(Conref c, InitMsgV1&& m)
     if (!c.protocol().v1() && !c.protocol().v2()) // must have at least version 3 for this message type
         throw Error(EINITV1);
     c->chain.initialize(m, chains);
-    if (auto co { headerDownload.insert(c)}) {
+    if (auto co { headerDownload.insert(c) }) {
         close(*co);
         return;
     };
@@ -1885,7 +1885,7 @@ Result<Conref> Eventloop::try_insert_connection(OnHandshakeCompleted&& m)
 
     if (m.convar.is_rtc()) {
         if (config().node.enableWebRTC)
-            tl::make_unexpected(ERTCDISABLED);
+            return Error(ERTCDISABLED);
         auto& c { m.convar.get_rtc() };
         auto& conId { c->verification_con_id() };
         if (conId != 0) { // conId id verified in this RTC connection
