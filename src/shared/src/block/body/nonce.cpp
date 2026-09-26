@@ -3,7 +3,7 @@
 #include "crypto/hasher_sha256.hpp"
 #include "general/reader.hpp"
 #include "general/writer.hpp"
-#include "wrt/try_parse.hpp"
+#include "general/try_parse.hpp"
 #include <algorithm>
 #include <climits>
 #include <random>
