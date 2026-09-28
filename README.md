@@ -21,7 +21,7 @@ Copyright (c) 2023-2026 Pumbaa, Rafiki & CoinFuMasterShifu
 This is the **defi branch** of the Warthog reference implementation. It is currently in **testnet** phase and adds the following on top of the mainnet `master` branch:
 
 - Native DeFi: token creation, limit orders, liquidity pools, automatic WART pools per asset
-- Fair Batch Matching (FBM) — the sandwich-proof DEX matching algorithm
+- Fair Batch Matching (FBM) — the MEV-proof DEX matching algorithm
 - New implicit transactions: `reward`, `match`
 - TUI wallet (replaces the master-branch CLI wallet)
 
