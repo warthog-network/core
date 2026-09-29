@@ -56,7 +56,7 @@ Available dockerfiles in `dockerfiles/`:
 - `build_linux` — ✅ Works
 - `build_windows` — ✅ Works
 - `run_debug` — ✅ Works
-- `run_tests` — ✅ Works
+- `run_tests` — ⚠️ Untested
 - `build_macos` — ❌ Broken (fmt dependency issue during cross-compilation)
 - `build_emscripten` — ❌ Broken (Emscripten libc++ missing C++23 std::move_only_function)
 - `build_linux_arm64` — 🔒 Disabled (all steps commented out)
@@ -80,7 +80,7 @@ The defi branch has the following GitHub Actions workflows (in `.github/workflow
 
 ## Versioning
 
-- Current version: **v0.10.16** (read from `meson.build` line `version : '...'`)
+- Current version: **v0.10.30** (read from `meson.build` line `version : '...'`)
 - Versions follow semantic versioning: `MAJOR.MINOR.PATCH`
 - `just bump` automatically increments the patch version in `meson.build`
 - Docker images are tagged with the version from `meson.build`
@@ -95,7 +95,7 @@ The defi branch has the following GitHub Actions workflows (in `.github/workflow
 - `src/shared/src/communication/create_transaction.cpp` — Transaction creation logic
 - `src/shared/src/defi/uint64/matcher.hpp` — Fair Batch Matching engine
 - `src/shared/src/block/body/elements.hpp` — Block body transaction types
-- `src/node/api/server.hpp` — Main API server
+- `src/node/chainserver/server.hpp` — Main API server (the `chainserver::ChainServer` class)
 - `src/node/api/hook_endpoints.hxx` — All REST/WebSocket endpoint definitions (look here for `GET_PRIV`/`GET_PUB`)
 - `src/node/api/http/endpoint.cpp` — HTTP endpoint including public/private logic
 - `src/tui_wallet/` — TUI wallet source
