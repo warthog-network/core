@@ -1,6 +1,6 @@
 #pragma once
-#include "prod.hpp"
 #include "general/try_parse.hpp"
+#include "prod.hpp"
 
 #include <bit>
 #include <cassert>
@@ -50,11 +50,11 @@ public:
     uint16_t mantissa_16bit() const { return _m; }
 
 private:
-    // base 2 exponent if mantissa would denote a number between 0 and 1
+    // base 2 exponent if mantissa would denote a number between 0 and 1, value in {-63,...,64}
     int exponent_base2() const { return _e - 63; }
 
 public:
-    // real exponent for mantissa as integer
+    // real exponent for mantissa as integer, value in {-79,...48}
     int mantissa_exponent2() const { return exponent_base2() - 16; }
 
     // compute double price based on uint64 quotient
@@ -292,21 +292,33 @@ inline std::optional<uint64_t> multiply_ceil(uint64_t a, Price_uint64 p)
     return Prod128(p.mantissa_16bit(), a).pow2_64(p.mantissa_exponent2(), true);
 }
 inline std::strong_ordering compare_fraction(Ratio128 ratio, Price_uint64 p)
-{ // compares ratio with p
+{ // compares ratio (seen as a/b) with p
     auto a { ratio.numerator };
     auto b { ratio.denominator };
-    auto z { -p.mantissa_exponent2() };
-    auto pb { b * p.mantissa_16bit() };
-    auto za { a.countl_zero() };
-    auto zb { pb.countl_zero() };
-    z -= za;
-    z += zb - 64;
-    if (z < 0)
+
+    // To compare a/b with p we compare a with b*p (multiply both sides with b)
+    // This even works for b == 0.
+
+    // First ignore the exponent of p to deal with integers (will acount for it below)
+    auto pb { b * p.mantissa_16bit() }; // pb is the 192 bit mantissa of p*b
+
+    // Now compare leading zeros of a and the product pb seen as 192 bit numbers
+    int za = a.countl_zero() + 64; // seen as 192 bits, a has 64 more leading zeros
+    int zb = pb.countl_zero(); // counts leading zeros of product of p's mantissa and b
+    int z = zb - za; // difference of leading zeros of the two 192 bit numbers
+
+    // Now account for the previously ignored base 2 exponent of p,
+    z -= p.mantissa_exponent2(); // we are counting zeros, so base 2 exponent can be directly subtracted
+
+    if (z < 0) // p*b has less leading zeros so a<p*b, which implies ratio = a/b < p
         return std::strong_ordering::less;
-    if (z > 0)
+    if (z > 0) // p*b has more leading zeros so a>p*b, which implies ratio = a/b > p
         return std::strong_ordering::greater;
+
+    // Both sides have the same number of leading zeros so compare them bitwise.
+    // First shift them to the left-most position.
     a <<= za;
     pb <<= zb;
     Prod192 pa { a, 0ull };
-    return pa <=> pb;
+    return pa <=> pb; // do bitwise comparison
 }

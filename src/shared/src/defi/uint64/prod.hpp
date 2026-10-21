@@ -203,6 +203,7 @@ struct Ratio128 {
 
 class Prod192 : protected Prod128 {
 public:
+    // bitwise default comparison corresponds to interpretation (high order bits are in base class and added variable is `lowest`)
     auto operator<=>(const Prod192&) const = default;
     auto operator<<=(unsigned int i)
     {
