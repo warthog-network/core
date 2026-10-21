@@ -1257,9 +1257,10 @@ private:
                 hist.historyId });
         }
     }
-    [[nodiscard]] std::pair<LimitSwapsInternal, HistoryId> generate_new_orders(const AssetHandle& asset, const std::vector<block_apply::Order::Internal>& orders)
+    [[nodiscard]] std::tuple<LimitSwapsInternal, HistoryId, size_t> generate_new_orders(const AssetHandle& asset, const std::vector<block_apply::Order::Internal>& orders)
     {
         LimitSwapsInternal res;
+        auto apiLimitSwapsOffset { api.limitSwaps.size() };
         const auto beginOrdersHistoryId { history.get_next_history_id() };
         for (auto& o : orders) {
             auto verified { o.verify(txVerifier, asset.hash()) };
@@ -1285,13 +1286,13 @@ private:
                     .filled { Funds_uint64::zero() },
                     .limit { o.limit() } });
         }
-        return { res, beginOrdersHistoryId };
+        return { res, beginOrdersHistoryId, apiLimitSwapsOffset };
     }
     void process_orders(const AssetHandle& ah, const std::vector<block_apply::Order::Internal>& orders)
     {
         if (orders.empty())
             return;
-        auto [newOrders, beginOrdersHistoryId] { generate_new_orders(ah, orders) };
+        auto [newOrders, beginOrdersHistoryId, apiLimitSwapsOffset] { generate_new_orders(ah, orders) };
 
         auto& pool { ah.get_pool(db) };
 
@@ -1310,7 +1311,7 @@ private:
                 auto historyId { o.newFillState.id };
                 if (historyId >= beginOrdersHistoryId) { // this is a new order from this block
                     // we must update the filled amount.
-                    auto index { historyId - beginOrdersHistoryId };
+                    auto index { apiLimitSwapsOffset + (historyId - beginOrdersHistoryId)};
                     assert(api.limitSwaps.size() > index);
                     auto& apiOrder { api.limitSwaps[index] };
                     assert(apiOrder.historyId == historyId);
