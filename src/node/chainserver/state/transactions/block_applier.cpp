@@ -214,49 +214,53 @@ struct AggregatorMatch {
 template <typename OnDelete, typename OnUpdate, typename OnBuySwap, typename OnSellSwap>
 struct MatchProcessor {
 
-    // block_apply::OrderInsert
-
     [[nodiscard]] bool match(defi::PoolLiquidity_uint64& pool) const
     {
         bool matched { false }; // whether there is any effect
         AggregatorMatch am { db, unsortedOrderbook, assetId, pool, ignoreOrderIds };
         const auto& m { am.m };
         Funds_uint64 fromPool { 0 };
-        defi::BaseQuote_uint64 returned { m.filled };
-        if (m.toPool) {
-            auto pa { m.toPool->amount() };
-            if (m.toPool->is_quote()) {
-                returned.quote.subtract_assert(pa);
-                fromPool = pool.buy(pa, 50);
-                if (!fromPool.is_zero()) {
-                    returned.base.add_assert(fromPool);
-                    matched = true;
+
+        const auto exchangeBetweenOrders {
+            [&] { // interact with pool
+                defi::BaseQuote_uint64 returned { m.filled };
+                if (m.toPool) {
+                    auto pa { m.toPool->amount() };
+                    if (m.toPool->is_quote()) {
+                        returned.quote.subtract_assert(pa);
+                        fromPool = pool.buy(pa, 50);
+                        if (!fromPool.is_zero()) {
+                            returned.base.add_assert(fromPool);
+                            matched = true;
+                        }
+                    } else {
+                        returned.base.subtract_assert(pa);
+                        fromPool = pool.sell(pa, 50);
+                        if (!fromPool.is_zero()) {
+                            returned.quote.add_assert(fromPool);
+                            matched = true;
+                        }
+                    }
                 }
-            } else {
-                returned.base.subtract_assert(pa);
-                fromPool = pool.sell(pa, 50);
-                if (!fromPool.is_zero()) {
-                    returned.quote.add_assert(fromPool);
-                    matched = true;
-                }
-            }
-        }
+                return returned;
+            }()
+        };
 
         if (m.filled.base != 0) { // seller match
             matched = true;
             Nonzero_uint64 filledBase { m.filled.base.value() };
             Funds_uint64 quoteDistributed { 0 };
-            auto remaining { m.filled.base };
+            auto remainingInBase { m.filled.base };
             for (const auto& o : am.sellAscAggregator.loaded_orders()) {
-                if (remaining == 0)
+                if (remainingInBase == 0)
                     break;
                 auto orderFilled { o.filled };
-                auto b { std::min(remaining, o.remaining()) };
+                auto b { std::min(remainingInBase, o.remaining()) };
                 orderFilled.add_assert(b);
-                remaining.subtract_assert(b);
+                remainingInBase.subtract_assert(b);
 
                 // compute return of that order
-                auto q { Prod128(b, returned.quote).divide_floor(filledBase) };
+                auto q { Prod128(b, exchangeBetweenOrders.quote).divide_floor(filledBase) };
                 assert(q.has_value());
                 quoteDistributed.add_assert(*q);
 
@@ -273,30 +277,32 @@ struct MatchProcessor {
                         .limit = o.order.limit,
                     }));
                 } else {
-                    assert(remaining == 0);
+                    assert(remainingInBase == 0);
                     on_order_update(block_apply::OrderUpdate {
                         .newFillState { .id { o.id }, .filled { orderFilled }, .buy = false }, .originalFilled { o.filled } });
                 }
                 on_sell_swap(SwapInternal { .oId { o.id }, .txid { o.txid }, .base { b }, .quote { Wart::from_funds(*q) } });
             }
-            assert(remaining == 0);
-            returned.quote.subtract_assert(quoteDistributed);
+            assert(remainingInBase == 0);
+
+            // add remaining dust from floored rounding to pool
+            pool.quote.add_assert(diff_assert(exchangeBetweenOrders.quote, quoteDistributed));
         }
         if (m.filled.quote != 0) { // buyer match
             matched = true;
             Nonzero_uint64 filledQuote { m.filled.quote.value() };
             Funds_uint64 baseDistributed { 0 };
-            auto remaining { m.filled.quote };
+            auto remainingInQuote { m.filled.quote };
             for (const auto& o : am.buyDescAggregator.loaded_orders()) {
-                if (remaining == 0)
+                if (remainingInQuote == 0)
                     break;
                 auto orderFilled { o.filled };
-                auto q { std::min(remaining, o.remaining()) };
+                auto q { std::min(remainingInQuote, o.remaining()) };
                 orderFilled.add_assert(q);
-                remaining.subtract_assert(q);
+                remainingInQuote.subtract_assert(q);
 
                 // compute return of that order
-                auto b { Prod128(q, returned.base).divide_floor(filledQuote) };
+                auto b { Prod128(q, exchangeBetweenOrders.base).divide_floor(filledQuote) };
                 assert(b.has_value());
                 baseDistributed.add_assert(*b);
 
@@ -313,14 +319,16 @@ struct MatchProcessor {
                         .limit = o.order.limit,
                     }));
                 } else {
-                    assert(remaining == 0);
+                    assert(remainingInQuote == 0);
                     on_order_update(block_apply::OrderUpdate {
                         .newFillState { .id { o.id }, .filled { orderFilled }, .buy = true }, .originalFilled { o.filled } });
                 }
                 on_buy_swap(SwapInternal { .oId { o.id }, .txid { o.txid }, .base { *b }, .quote { Wart::from_funds(q) } });
             }
-            assert(remaining == 0);
-            returned.base.subtract_assert(baseDistributed);
+            assert(remainingInQuote == 0);
+
+            // add remaining dust from floored rounding to pool
+            pool.base.add_assert(diff_assert(exchangeBetweenOrders.base, baseDistributed));
         }
         return matched;
     }
