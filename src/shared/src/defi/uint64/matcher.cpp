@@ -5,6 +5,9 @@
 namespace defi {
 std::optional<NonzeroDelta_uint64> FilledAndPool::balance_pool_interaction() const
 {
+    if (pool.quote.is_zero() || pool.base.is_zero())
+        return {}; // don't use pool if pool is degenerated
+
     struct ret_t {
         std::strong_ordering rel;
         using PoolRatio128 = Ratio128;

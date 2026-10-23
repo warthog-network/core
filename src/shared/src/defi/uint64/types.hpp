@@ -28,9 +28,12 @@ struct BaseQuote_uint64 : public BaseQuote64 {
     Delta_uint64 excess(Price_uint64 p) const
     {
         auto q { multiply_ceil(base.value(), p) };
-        if (q.has_value() && *q <= quote) // too much quote
+        if (q.has_value() && *q <= quote) {
+            // ceil(base*p) <= quote implies base*p <= quote because quote is an integer
+            // => We have too much quote
             return { true, diff_assert(quote, Funds_uint64::from_value_throw(*q)) };
-        // Here we know ceil(p * base) > quote but `quote` is an integer, so base * p > quote.
+        }
+        // Here we know ceil(base * p) > quote but `quote` is an integer, so base * p > quote.
         // This implies so p != 0 and quote / p < base.
 
         auto b { divide_ceil(quote.value(), p) };

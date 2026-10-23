@@ -1,11 +1,11 @@
 #pragma once
 
-#include "matcher.hpp"
 #include "orderbook.hpp"
 #include "pool.hpp"
 
 namespace defi {
 
+// lazy matching i.e. buy and sell orders are loaded on demand
 [[nodiscard]] inline MatchResult_uint64 match_lazy(auto& loaderSellAsc, auto& loaderBuyDesc, const PoolLiquidity_uint64& poolBeforeMatch)
 {
     std::optional<Price_uint64> pr { loaderBuyDesc.next_price() };

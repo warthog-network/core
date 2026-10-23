@@ -115,7 +115,7 @@ public:
 
     static std::optional<Price_uint64> from_double_adjusted(double d, TokenDecimals basePrec, bool ceil = false)
     {
-        return from_double(d * std::pow(10.0, 8 - int(basePrec.value())), ceil);
+        return from_double(d * std::pow(10.0, int(TokenDecimals::WART.value()) - int(basePrec.value())), ceil);
     }
 
     static std::optional<Price_uint64> from_double(double d, bool ceil = false)
@@ -141,10 +141,10 @@ public:
         return try_parse<double>(s)
             .and_then([&](double d) { return from_double(d, ceil); });
     }
-    static std::optional<Price_uint64> from_string_adjusted(std::string_view s, TokenDecimals prec, bool ceil = false)
+    static std::optional<Price_uint64> from_string_adjusted(std::string_view s, TokenDecimals basePrec, bool ceil = false)
     {
         return try_parse<double>(s)
-            .and_then([&](double d) { return from_double_adjusted(d, prec, ceil); });
+            .and_then([&](double d) { return from_double_adjusted(d, basePrec, ceil); });
     }
 
 private:
@@ -184,6 +184,8 @@ struct PriceRelative_uint64 { // gives details relative to price grid
         }
         return rel;
     }
+
+    // returns no value if and only if denominator == 0
     [[nodiscard]] static std::optional<PriceRelative_uint64> from_fraction(uint64_t numerator,
         uint64_t denominator)
     { // OK
@@ -296,15 +298,23 @@ inline std::strong_ordering compare_fraction(Ratio128 ratio, Price_uint64 p)
     auto a { ratio.numerator };
     auto b { ratio.denominator };
 
-    // To compare a/b with p we compare a with b*p (multiply both sides with b)
-    // This even works for b == 0.
+    // Now check for zero in a and b (p is never zero by design)
+    if (a.is_zero()) {
+        if (b.is_zero())
+            return std::strong_ordering::equal; // as a convention we return equal, it biseciton_step is designed that the algorithm works with it
+        return std::strong_ordering::less;
+    } else if (b.is_zero()) {
+        return std::strong_ordering::greater;
+    }
 
+    // To compare a/b with p we compare a with b*p (multiply both sides with b)
     // First ignore the exponent of p to deal with integers (will acount for it below)
     auto pb { b * p.mantissa_16bit() }; // pb is the 192 bit mantissa of p*b
 
     // Now compare leading zeros of a and the product pb seen as 192 bit numbers
     int za = a.countl_zero() + 64; // seen as 192 bits, a has 64 more leading zeros
     int zb = pb.countl_zero(); // counts leading zeros of product of p's mantissa and b
+
     int z = zb - za; // difference of leading zeros of the two 192 bit numbers
 
     // Now account for the previously ignored base 2 exponent of p,
