@@ -1,4 +1,4 @@
-executable('wart-wallet', vcs_dep, 
+executable('wart-wallet', 
   [
     './api_call.cpp', 
     './cmdline/cmdline.cpp', 

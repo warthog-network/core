@@ -1,5 +1,8 @@
 
-include_wh=[include_trezorcrypto,include_directories('./src')]
+# The generated headers live in the build directory of this subproject:
+# version_def.hpp and commit_info.hpp. They are included by name, so the
+# build directory has to be on the include path.
+include_wh=[include_trezorcrypto,include_directories('./src'),include_directories('.')]
 src_wh=[
     src_trezorcrypto,
   files(
@@ -41,8 +44,18 @@ configure_file(input : './src/version.hpp.in',
                configuration : conf_version)
 
 
-vcs_dep=vcs_tag(command : 
-  ['git', 'rev-parse', '--short', 'HEAD'],
-  input:'./src/commit_info.hpp.in',
-  output:'commit_info.hpp',
-  replace_string:'@GIT_COMMIT_INFO@')
+# The commit the build was made from.
+#
+# It comes from the environment, because the build runs in a container
+# that has no git and no repository to ask. The host computes it and
+# passes it in with --build-arg. Without it the build says so, rather
+# than repeating the version and pretending it is a commit.
+commit = run_command(
+  'sh', '-c', 'printf %s "${WARTHOG_COMMIT:-}"',
+  check : false).stdout().strip()
+
+conf_commit = configuration_data()
+conf_commit.set('GIT_COMMIT_INFO', commit == '' ? 'unknown' : commit)
+configure_file(input : './src/commit_info.hpp.in',
+               output : 'commit_info.hpp',
+               configuration : conf_commit)

@@ -13,6 +13,10 @@ COPY . /code
 RUN mkdir /build
 WORKDIR /code
 
+# The commit the build was made from. The host computes it and passes
+# it in, because this image has no git to ask.
+ARG WARTHOG_COMMIT=unknown
+ENV WARTHOG_COMMIT=${WARTHOG_COMMIT}
 RUN meson setup /build-macos --cross-file crosscompile/aarch64-macOS.txt --default-library static --buildtype=release
 RUN meson compile -C /build-macos
 RUN mkdir /install

@@ -66,7 +66,7 @@ src= [
 
 include_thirdparty=[include_trezorcrypto,include_wh,include_secp256k1,include_sqlitecpp,include_usockets,include_uwebsockets,include_json,include_tomlplusplus, include_tl]
 lib_thirdparty=[libsecp256k1, libusockets]
-executable('wart-node', vcs_dep, [src,'./main.cpp'],
+executable('wart-node', [src,'./main.cpp'],
   include_directories:['./' ,include_thirdparty],
   link_with: lib_thirdparty,
   dependencies: [sqlite3_dep,libuv_dep,uvw_dep,spdlog_dep],
