@@ -50,7 +50,7 @@ static std::filesystem::path get_default_datadir()
 std::filesystem::path ConfigParams::get_default_session_dir()
 {
     return get_default_datadir() / "defi"
-        / (is_testnet() ? "testnet/" : "mainnet/");
+        / (is_testnet() ? "testnet_24_10_2026/" : "mainnet/");
 }
 
 #else

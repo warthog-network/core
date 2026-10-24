@@ -13,7 +13,7 @@ constexpr uint32_t MAXBUFFER = 3 * 1000 * 1000; // 3 MB send buffer size bound (
 /////////////
 // Genesis Block
 /////////////
-constexpr const char GENESISSEED[] = "The New York Times International Edition 29/06/2023: 'Water troubles: A preview'"; // use SHA256(GENESISSEED) to seed genensis block prev hash
+constexpr const char GENESISSEED[] = "DeFi Testnet restart 24/10/26"; // use SHA256(GENESISSEED) to seed genensis block prev hash
 constexpr uint8_t GENESISDIFFICULTYEXPONENT = (DEBUG_PARAMS ? 18 : 32); // 2^(<this number>) is the expected number of tries to mine the first block
 constexpr uint64_t GENESISBLOCKREWARD = 3 * COINUNIT; // total reward mined in every block before halving occurs
 
