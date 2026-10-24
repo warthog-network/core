@@ -3,6 +3,10 @@ RUN apk add meson libgcc musl-dev gcc g++ mingw-w64-gcc pkgconf fmt
 COPY . /code
 RUN mkdir /build-mingw
 WORKDIR /code
+# The commit the build was made from. The host computes it and passes
+# it in, because this image has no git to ask.
+ARG WARTHOG_COMMIT=unknown
+ENV WARTHOG_COMMIT=${WARTHOG_COMMIT}
 RUN --mount=type=cache,target=/build-mingw LDFLAGS='-static -lstdc++exp' meson setup /build-mingw --cross-file crosscompile/x86_64-w64-mingw32.txt  --default-library static --buildtype=release --wipe
 # TODO: Remove -lstdc++exp when MinGW GCC version includes std::print terminal support by default
 

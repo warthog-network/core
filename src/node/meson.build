@@ -138,7 +138,7 @@ foreach file : files('./api/wasm/api.js')
     link_args +=[  '--js-library='+ file.full_path()]
 endforeach
 
-executable('wart-node', vcs_dep, [src,'./main.cpp'],
+executable('wart-node', [src,'./main.cpp'],
   include_directories:['./' ,include_thirdparty],
   link_with: lib_thirdparty,
   dependencies: deps,
@@ -160,7 +160,7 @@ websocket = executable('websocket', 'websocket.cpp',
   name_suffix: 'html',
   install : true)
 else
-# executable('client', vcs_dep, [src,'./rtc_client.cpp', src_spdlog,
+# executable('client', [src,'./rtc_client.cpp', src_spdlog,
 #   ],
 #   include_directories:['./' ,include_thirdparty,
 #     ],
@@ -168,7 +168,7 @@ else
 #   dependencies: deps,
 #   install : true)
 
-executable('wart-node', vcs_dep, [src,'./main.cpp'],
+executable('wart-node', [src,'./main.cpp'],
   include_directories:['./' ,include_thirdparty],
   link_with: lib_thirdparty,
   cpp_args: [rtcstatic,],

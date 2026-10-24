@@ -1,10 +1,10 @@
 # build linux
 build-linux:
-    docker build . -f dockerfiles/build_linux --output build
+    docker build . -f dockerfiles/build_linux --build-arg WARTHOG_COMMIT=$(shell git rev-parse --short HEAD) --output build
 
 # build windows
 build-windows:
-    docker build . -f dockerfiles/build_windows --output build
+    docker build . -f dockerfiles/build_windows --build-arg WARTHOG_COMMIT=$(shell git rev-parse --short HEAD) --output build
 
 # bumps version
 bump:
@@ -50,7 +50,7 @@ valgrind *args:
         esac
     done
 
-    img=$(docker build . -f dockerfiles/run_debug -q)
+    img=$(docker build . -f dockerfiles/run_debug --build-arg WARTHOG_COMMIT=$(shell git rev-parse --short HEAD) -q)
 
     vg_args=()
     if [ -n "$chain_db_dir" ]; then

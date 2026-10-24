@@ -2,6 +2,10 @@ FROM emscripten/emsdk:5.0.7 AS build
 RUN pip install --break-system-packages meson ninja && apt-get update && apt-get install -y pkg-config
 COPY . /code
 WORKDIR /code
+# The commit the build was made from. The host computes it and passes
+# it in, because this image has no git to ask.
+ARG WARTHOG_COMMIT=unknown
+ENV WARTHOG_COMMIT=${WARTHOG_COMMIT}
 RUN --mount=type=cache,target=/build_emscripten2 meson setup /build_emscripten2 --cross-file=crosscompile/emscripten.txt --default-library static --buildtype=release
 WORKDIR /build_emscripten2
 RUN  --mount=type=cache,target=/build_emscripten2 ninja

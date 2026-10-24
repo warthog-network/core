@@ -3,7 +3,7 @@ if not get_option('emscripten')
 deps = [deps, libuv_dep]
 endif
 
-executable('wart-wallet', vcs_dep, 
+executable('wart-wallet', 
   [
     './api_call.cpp', 
     './cmdline/cmdline.cpp', 

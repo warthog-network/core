@@ -82,7 +82,7 @@ if host_machine.system() == 'windows'
   deps += [meson.get_compiler('cpp').find_library('ws2_32')]
 endif
 
-exe = executable('wart-tui', [vcs_dep ,
+exe = executable('wart-tui', [
 './src/api/endpoint.cpp',
 './src/cmdline/cmdline.cpp', 
 './src/global.cpp',

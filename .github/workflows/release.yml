@@ -12,6 +12,9 @@ jobs:
         - name: Checkout
           uses: actions/checkout@v3
 
+        - name: Get commit
+          run: echo "WARTHOG_COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
         - name: Set up Docker Buildx
           uses: docker/setup-buildx-action@v1
 
@@ -19,14 +22,14 @@ jobs:
           run : DOCKER_BUILDKIT=1 docker build . --file dockerfiles/run_tests --progress plain
     
         - name: Docker Build
-          run: DOCKER_BUILDKIT=1 docker build . -f dockerfiles/build_linux --output build
+          run: DOCKER_BUILDKIT=1 docker build . -f dockerfiles/build_linux --build-arg WARTHOG_COMMIT=${{ env.WARTHOG_COMMIT }} --output build
     
         - name: Docker Build Windows
-          run: DOCKER_BUILDKIT=1 docker build . -f dockerfiles/build_windows --output ./build/windows
+          run: DOCKER_BUILDKIT=1 docker build . -f dockerfiles/build_windows --build-arg WARTHOG_COMMIT=${{ env.WARTHOG_COMMIT }} --output ./build/windows
     
         - name : Docker Build MacOS
           continue-on-error: true
-          run : DOCKER_BUILDKIT=1 docker build . -f dockerfiles/build_macos --output ./build/aarch64-macos
+          run : DOCKER_BUILDKIT=1 docker build . -f dockerfiles/build_macos --build-arg WARTHOG_COMMIT=${{ env.WARTHOG_COMMIT }} --output ./build/aarch64-macos
 
         - name: Call Docker
           uses: peter-evans/repository-dispatch@v3

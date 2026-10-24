@@ -12,6 +12,10 @@ RUN echo "=== Creating build directory ===" && \
 
 WORKDIR /code
 
+# The commit the build was made from. The host computes it and passes
+# it in, because this image has no git to ask.
+ARG WARTHOG_COMMIT=unknown
+ENV WARTHOG_COMMIT=${WARTHOG_COMMIT}
 RUN echo "=== Configuring project with meson ===" && \
     LDFLAGS='-static' meson /build/code --default-library static && \
     echo "=== Meson configuration complete ==="

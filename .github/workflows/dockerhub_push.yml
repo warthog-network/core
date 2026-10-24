@@ -12,6 +12,10 @@ jobs:
       -
         name: Check out repository
         uses: actions/checkout@v2
+
+      -
+        name: Get commit
+        run: echo "WARTHOG_COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -34,6 +38,8 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           file: ./dockerfiles/Dockerfile
+          build-args: |
+            WARTHOG_COMMIT=${{ env.WARTHOG_COMMIT }}
           push: true
           tags: |
             zzjulien/warthog_node:latest
