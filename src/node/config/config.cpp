@@ -556,10 +556,11 @@ int ConfigParams::init(const gengetopt_args_info& ai)
             "89.163.224.253:9186",
         };
         Endpoints testnetEndpoints {
-            "209.127.34.202:9286", // monsternonce but not permanent, remove later
+            "64.44.90.170:9286", // monsternonce's new IP,
             "104.251.219.14:9286", // kernelpanic
             "85.56.145.106:9263", // sphex
-            "65.87.7.86:9286",
+            "51.222.245.30:19286",
+            "208.124.90.195:9286",
         };
 
         hidden.chaindb = data.temporary ? "" : (data.session / "chain.db3").string();
