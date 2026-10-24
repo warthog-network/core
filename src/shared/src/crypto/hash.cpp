@@ -1,5 +1,6 @@
 #include "hash.hpp"
 #include "general/hex.hpp"
+#include "general/is_testnet.hpp"
 #include "general/params.hpp"
 #include "hasher_sha256.hpp"
 
@@ -26,6 +27,9 @@ Hash Hash::parse_throw(std::string_view s)
 
 BlockHash BlockHash::genesis()
 {
-    return BlockHash(hashSHA256(reinterpret_cast<const uint8_t*>(GENESISSEED),
-        strlen(GENESISSEED)));
+    auto makeBlockHash([](const char* seed) {
+        return BlockHash(hashSHA256(reinterpret_cast<const uint8_t*>(seed),
+            strlen(seed)));
+    });
+    return makeBlockHash(is_testnet() ? GENESISSEED_TESTNET : GENESISSEED);
 };
