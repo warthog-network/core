@@ -10,6 +10,7 @@
 #define RTC_MESSAGE_H
 
 #include "common.hpp"
+#include "frameinfo.hpp"
 #include "reliability.hpp"
 
 #include <functional>
@@ -32,6 +33,7 @@ struct RTC_CPP_EXPORT Message : binary {
 	unsigned int stream = 0; // Stream id (SCTP stream or SSRC)
 	unsigned int dscp = 0;   // Differentiated Services Code Point
 	shared_ptr<Reliability> reliability;
+	shared_ptr<FrameInfo> frameInfo;
 };
 
 using message_ptr = shared_ptr<Message>;
@@ -51,6 +53,23 @@ message_ptr make_message(Iterator begin, Iterator end, Message::Type type = Mess
 	return message;
 }
 
+template <typename Iterator>
+message_ptr make_message(Iterator begin, Iterator end, shared_ptr<FrameInfo> frameInfo) {
+	auto message = std::make_shared<Message>(begin, end);
+	message->frameInfo = frameInfo;
+	return message;
+}
+
+// For backward compatibiity, do not use
+template <typename Iterator>
+[[deprecated]] message_ptr make_message(Iterator begin, Iterator end, Message::Type type,
+                         unsigned int stream, shared_ptr<FrameInfo> frameInfo) {
+	auto message = std::make_shared<Message>(begin, end, type);
+	message->stream = stream;
+	message->frameInfo = frameInfo;
+	return message;
+}
+
 RTC_CPP_EXPORT message_ptr make_message(size_t size, Message::Type type = Message::Binary,
                                         unsigned int stream = 0,
                                         shared_ptr<Reliability> reliability = nullptr);
@@ -58,6 +77,8 @@ RTC_CPP_EXPORT message_ptr make_message(size_t size, Message::Type type = Messag
 RTC_CPP_EXPORT message_ptr make_message(binary &&data, Message::Type type = Message::Binary,
                                         unsigned int stream = 0,
                                         shared_ptr<Reliability> reliability = nullptr);
+
+RTC_CPP_EXPORT message_ptr make_message(binary &&data, shared_ptr<FrameInfo> frameInfo);
 
 RTC_CPP_EXPORT message_ptr make_message(size_t size, message_ptr orig);
 

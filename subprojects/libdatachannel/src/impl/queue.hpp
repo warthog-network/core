@@ -23,7 +23,8 @@ template <typename T> class Queue {
 public:
 	using amount_function = std::function<size_t(const T &element)>;
 
-	Queue(size_t limit = 0, amount_function func = nullptr);
+	Queue(size_t limit = 0, // elements (0 means no limit)
+	      amount_function func = nullptr);
 	~Queue();
 
 	void stop();
@@ -33,6 +34,7 @@ public:
 	size_t size() const;   // elements
 	size_t amount() const; // amount
 	void push(T element);
+	bool tryPush(T element);
 	optional<T> pop();
 	optional<T> peek();
 	optional<T> exchange(T element);
@@ -50,10 +52,7 @@ private:
 
 template <typename T>
 Queue<T>::Queue(size_t limit, amount_function func) : mLimit(limit), mAmount(0) {
-	mAmountFunction = func ? func : [](const T &element) -> size_t {
-		static_cast<void>(element);
-		return 1;
-	};
+	mAmountFunction = func ? func : []([[maybe_unused]] const T &element) -> size_t { return 1; };
 }
 
 template <typename T> Queue<T>::~Queue() { stop(); }
@@ -76,7 +75,7 @@ template <typename T> bool Queue<T>::empty() const {
 
 template <typename T> bool Queue<T>::full() const {
 	std::lock_guard lock(mMutex);
-	return mQueue.size() >= mLimit;
+	return mLimit > 0 && mQueue.size() >= mLimit;
 }
 
 template <typename T> size_t Queue<T>::size() const {
@@ -91,12 +90,22 @@ template <typename T> size_t Queue<T>::amount() const {
 
 template <typename T> void Queue<T>::push(T element) {
 	std::unique_lock lock(mMutex);
-	mPushCondition.wait(lock, [this]() { return !mLimit || mQueue.size() < mLimit || mStopping; });
+	mPushCondition.wait(lock, [this]() { return mLimit == 0 || mQueue.size() < mLimit || mStopping; });
 	if (mStopping)
 		return;
 
 	mAmount += mAmountFunction(element);
 	mQueue.emplace(std::move(element));
+}
+
+template <typename T> bool Queue<T>::tryPush(T element) {
+	std::unique_lock lock(mMutex);
+	if ((mLimit > 0 && mQueue.size() >= mLimit) || mStopping)
+		return false;
+
+	mAmount += mAmountFunction(element);
+	mQueue.emplace(std::move(element));
+	return true;
 }
 
 template <typename T> optional<T> Queue<T>::pop() {
@@ -107,6 +116,7 @@ template <typename T> optional<T> Queue<T>::pop() {
 	mAmount -= mAmountFunction(mQueue.front());
 	optional<T> element{std::move(mQueue.front())};
 	mQueue.pop();
+	mPushCondition.notify_one();
 	return element;
 }
 

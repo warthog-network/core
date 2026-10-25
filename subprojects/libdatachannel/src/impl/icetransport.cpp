@@ -13,6 +13,7 @@
 #include "utils.hpp"
 
 #include <algorithm>
+#include <future>
 #include <iostream>
 #include <random>
 #include <sstream>
@@ -90,10 +91,6 @@ IceTransport::IceTransport(const Configuration &config, candidate_callback candi
 	jconfig.cb_recv = IceTransport::RecvCallback;
 	jconfig.user_ptr = this;
 
-	if (config.enableIceTcp) {
-		PLOG_WARNING << "ICE-TCP is not supported with libjuice";
-	}
-
 	if (config.enableIceUdpMux) {
 		PLOG_DEBUG << "Enabling ICE UDP mux";
 		jconfig.concurrency_mode = JUICE_CONCURRENCY_MODE_MUX;
@@ -117,27 +114,6 @@ IceTransport::IceTransport(const Configuration &config, candidate_callback candi
 		}
 	}
 
-	juice_turn_server_t turn_servers[MAX_TURN_SERVERS_COUNT];
-	std::memset(turn_servers, 0, sizeof(turn_servers));
-
-	// Add TURN servers
-	int k = 0;
-	for (auto &server : servers) {
-		if (!server.hostname.empty() && server.type == IceServer::Type::Turn) {
-			if (server.port == 0)
-				server.port = 3478; // TURN UDP port
-			PLOG_INFO << "Using TURN server \"" << server.hostname << ":" << server.port << "\"";
-			turn_servers[k].host = server.hostname.c_str();
-			turn_servers[k].username = server.username.c_str();
-			turn_servers[k].password = server.password.c_str();
-			turn_servers[k].port = server.port;
-			if (++k >= MAX_TURN_SERVERS_COUNT)
-				break;
-		}
-	}
-	jconfig.turn_servers = k > 0 ? turn_servers : nullptr;
-	jconfig.turn_servers_count = k;
-
 	// Bind address
 	if (config.bindAddress) {
 		jconfig.bind_address = config.bindAddress->c_str();
@@ -154,6 +130,54 @@ IceTransport::IceTransport(const Configuration &config, candidate_callback candi
 	mAgent = decltype(mAgent)(juice_create(&jconfig), juice_destroy);
 	if (!mAgent)
 		throw std::runtime_error("Failed to create the ICE agent");
+
+	// ICE-TCP
+	juice_set_ice_tcp_mode(mAgent.get(), config.enableIceTcp ? JUICE_ICE_TCP_MODE_ACTIVE
+	                                                         : JUICE_ICE_TCP_MODE_NONE);
+
+	// Add TURN servers
+	for (const auto &server : servers)
+		if (!server.hostname.empty() && server.type != IceServer::Type::Stun)
+			addIceServer(server);
+}
+
+void IceTransport::setIceAttributes(string uFrag, string pwd) {
+	if (juice_set_local_ice_attributes(mAgent.get(), uFrag.c_str(), pwd.c_str()) < 0) {
+		throw std::invalid_argument("Invalid ICE attributes");
+	}
+}
+
+void IceTransport::addIceServer(IceServer server) {
+	if (server.hostname.empty())
+		return;
+
+	if (server.type != IceServer::Type::Turn) {
+		PLOG_WARNING << "Only TURN servers are supported as additional ICE servers";
+		return;
+	}
+
+	if (server.relayType != IceServer::RelayType::TurnUdp) {
+		PLOG_WARNING << "TURN transports TCP and TLS are not supported with libjuice";
+		return;
+	}
+
+	if (mTurnServersAdded >= MAX_TURN_SERVERS_COUNT)
+		return;
+
+	if (server.port == 0)
+		server.port = 3478; // TURN UDP port
+
+	PLOG_INFO << "Using TURN server \"" << server.hostname << ":" << server.port << "\"";
+	juice_turn_server_t turn_server = {};
+	turn_server.host = server.hostname.c_str();
+	turn_server.username = server.username.c_str();
+	turn_server.password = server.password.c_str();
+	turn_server.port = server.port;
+
+	if (juice_add_turn_server(mAgent.get(), &turn_server) != 0)
+		throw std::runtime_error("Failed to add TURN server");
+
+	++mTurnServersAdded;
 }
 
 IceTransport::~IceTransport() {
@@ -210,8 +234,12 @@ bool IceTransport::addRemoteCandidate(const Candidate &candidate) {
 	return juice_add_remote_candidate(mAgent.get(), string(candidate).c_str()) >= 0;
 }
 
-void IceTransport::gatherLocalCandidates(string mid) {
+void IceTransport::gatherLocalCandidates(string mid, std::vector<IceServer> additionalIceServers) {
 	mMid = std::move(mid);
+
+	std::shuffle(additionalIceServers.begin(), additionalIceServers.end(), utils::random_engine());
+	for (const auto &server : additionalIceServers)
+		addIceServer(server);
 
 	// Change state now as candidates calls can be synchronous
 	changeGatheringState(GatheringState::InProgress);
@@ -365,8 +393,22 @@ void IceTransport::LogCallback(juice_log_level_t level, const char *message) {
 
 #else // USE_NICE == 1
 
-unique_ptr<GMainLoop, void (*)(GMainLoop *)> IceTransport::MainLoop(nullptr, nullptr);
-std::thread IceTransport::MainLoopThread;
+IceTransport::MainLoopWrapper *IceTransport::MainLoop = nullptr;
+
+IceTransport::MainLoopWrapper::MainLoopWrapper()
+    : mMainLoop(g_main_loop_new(nullptr, FALSE), g_main_loop_unref) {
+	if (!mMainLoop)
+		throw std::runtime_error("Failed to create the glib main loop");
+
+	mThread = std::thread(g_main_loop_run, mMainLoop.get());
+}
+
+IceTransport::MainLoopWrapper::~MainLoopWrapper() {
+	g_main_loop_quit(mMainLoop.get());
+	mThread.join();
+}
+
+GMainLoop *IceTransport::MainLoopWrapper::get() const { return mMainLoop.get(); }
 
 void IceTransport::Init() {
 	g_log_set_handler("libnice", G_LOG_LEVEL_MASK, LogCallback, nullptr);
@@ -375,17 +417,12 @@ void IceTransport::Init() {
 		nice_debug_enable(false); // do not output STUN debug messages
 	}
 
-	MainLoop = decltype(MainLoop)(g_main_loop_new(nullptr, FALSE), g_main_loop_unref);
-	if (!MainLoop)
-		throw std::runtime_error("Failed to create the main loop");
-
-	MainLoopThread = std::thread(g_main_loop_run, MainLoop.get());
+	MainLoop = new MainLoopWrapper;
 }
 
 void IceTransport::Cleanup() {
-	g_main_loop_quit(MainLoop.get());
-	MainLoopThread.join();
-	MainLoop.reset();
+	delete MainLoop;
+	MainLoop = nullptr;
 }
 
 static void closeNiceAgentCallback(GObject *niceAgent, GAsyncResult *, gpointer) {
@@ -415,12 +452,13 @@ IceTransport::IceTransport(const Configuration &config, candidate_callback candi
 	// has been deprecated in this specification.
 	// libnice defaults to aggressive nomation therefore we change to regular nomination.
 	// See https://gitlab.freedesktop.org/libnice/libnice/-/merge_requests/125
-	NiceAgentOption flags = NICE_AGENT_OPTION_REGULAR_NOMINATION;
+	// Enable RFC 7675 ICE consent freshness support (requires libnice 0.1.19)
+	NiceAgentOption flags = static_cast<NiceAgentOption>(NICE_AGENT_OPTION_REGULAR_NOMINATION | NICE_AGENT_OPTION_CONSENT_FRESHNESS);
 
 	// Create agent
 	mNiceAgent = decltype(mNiceAgent)(
 	    nice_agent_new_full(
-	        g_main_loop_get_context(MainLoop.get()),
+	        g_main_loop_get_context(MainLoop->get()),
 	        NICE_COMPATIBILITY_RFC5245, // RFC 5245 was obsoleted by RFC 8445 but this should be OK
 	        flags),
 	    closeNiceAgent);
@@ -445,6 +483,7 @@ IceTransport::IceTransport(const Configuration &config, candidate_callback candi
 	// the characteristics of the associated data.
 	g_object_set(G_OBJECT(mNiceAgent.get()), "stun-pacing-timer", 25, nullptr);
 
+	g_object_set(G_OBJECT(mNiceAgent.get()), "keepalive-conncheck", TRUE, nullptr);
 	g_object_set(G_OBJECT(mNiceAgent.get()), "upnp", FALSE, nullptr);
 	g_object_set(G_OBJECT(mNiceAgent.get()), "upnp-timeout", 200, nullptr);
 
@@ -534,59 +573,9 @@ IceTransport::IceTransport(const Configuration &config, candidate_callback candi
 	}
 
 	// Add TURN servers
-	for (auto &server : servers) {
-		if (server.hostname.empty())
-			continue;
-		if (server.type != IceServer::Type::Turn)
-			continue;
-		if (server.port == 0)
-			server.port = server.relayType == IceServer::RelayType::TurnTls ? 5349 : 3478;
-
-		struct addrinfo hints = {};
-		hints.ai_family = AF_UNSPEC;
-		hints.ai_socktype =
-		    server.relayType == IceServer::RelayType::TurnUdp ? SOCK_DGRAM : SOCK_STREAM;
-		hints.ai_protocol =
-		    server.relayType == IceServer::RelayType::TurnUdp ? IPPROTO_UDP : IPPROTO_TCP;
-		hints.ai_flags = AI_ADDRCONFIG;
-		struct addrinfo *result = nullptr;
-		if (getaddrinfo(server.hostname.c_str(), std::to_string(server.port).c_str(), &hints,
-		                &result) != 0) {
-			PLOG_WARNING << "Unable to resolve TURN server address: " << server.hostname << ':'
-			             << server.port;
-			continue;
-		}
-
-		for (auto p = result; p; p = p->ai_next) {
-			if (p->ai_family == AF_INET || p->ai_family == AF_INET6) {
-				char nodebuffer[MAX_NUMERICNODE_LEN];
-				char servbuffer[MAX_NUMERICSERV_LEN];
-				if (getnameinfo(p->ai_addr, p->ai_addrlen, nodebuffer, MAX_NUMERICNODE_LEN,
-				                servbuffer, MAX_NUMERICSERV_LEN,
-				                NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
-					PLOG_INFO << "Using TURN server \"" << server.hostname << ":" << server.port
-					          << "\"";
-					NiceRelayType niceRelayType;
-					switch (server.relayType) {
-					case IceServer::RelayType::TurnTcp:
-						niceRelayType = NICE_RELAY_TYPE_TURN_TCP;
-						break;
-					case IceServer::RelayType::TurnTls:
-						niceRelayType = NICE_RELAY_TYPE_TURN_TLS;
-						break;
-					default:
-						niceRelayType = NICE_RELAY_TYPE_TURN_UDP;
-						break;
-					}
-					nice_agent_set_relay_info(mNiceAgent.get(), mStreamId, 1, nodebuffer,
-					                          std::stoul(servbuffer), server.username.c_str(),
-					                          server.password.c_str(), niceRelayType);
-				}
-			}
-		}
-
-		freeaddrinfo(result);
-	}
+	for (const auto &server : servers)
+		if (!server.hostname.empty() && server.type != IceServer::Type::Stun)
+			addIceServer(server);
 
 	g_signal_connect(G_OBJECT(mNiceAgent.get()), "component-state-changed",
 	                 G_CALLBACK(StateChangeCallback), this);
@@ -599,21 +588,115 @@ IceTransport::IceTransport(const Configuration &config, candidate_callback candi
 	nice_agent_set_port_range(mNiceAgent.get(), mStreamId, 1, config.portRangeBegin,
 	                          config.portRangeEnd);
 
-	nice_agent_attach_recv(mNiceAgent.get(), mStreamId, 1, g_main_loop_get_context(MainLoop.get()),
+	nice_agent_attach_recv(mNiceAgent.get(), mStreamId, 1, g_main_loop_get_context(MainLoop->get()),
 	                       RecvCallback, this);
 }
 
-IceTransport::~IceTransport() {
-	if (mTimeoutId) {
-		g_source_remove(mTimeoutId);
-		mTimeoutId = 0;
+void IceTransport::setIceAttributes([[maybe_unused]] string uFrag, [[maybe_unused]] string pwd) {
+	PLOG_WARNING
+	    << "Setting custom ICE attributes is not supported with libnice, please use libjuice";
+}
+
+void IceTransport::addIceServer(IceServer server) {
+	if (server.hostname.empty())
+		return;
+
+	if (server.type != IceServer::Type::Turn) {
+		PLOG_WARNING << "Only TURN servers are supported as additional ICE servers";
+		return;
 	}
 
+	if (server.port == 0)
+		server.port = server.relayType == IceServer::RelayType::TurnTls ? 5349 : 3478;
+
+	struct addrinfo hints = {};
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype =
+	    server.relayType == IceServer::RelayType::TurnUdp ? SOCK_DGRAM : SOCK_STREAM;
+	hints.ai_protocol =
+	    server.relayType == IceServer::RelayType::TurnUdp ? IPPROTO_UDP : IPPROTO_TCP;
+	hints.ai_flags = AI_ADDRCONFIG;
+	struct addrinfo *result = nullptr;
+	if (getaddrinfo(server.hostname.c_str(), std::to_string(server.port).c_str(), &hints,
+	                &result) != 0) {
+		PLOG_WARNING << "Unable to resolve TURN server address: " << server.hostname << ':'
+		             << server.port;
+		return;
+	}
+
+	for (auto p = result; p; p = p->ai_next) {
+		if (p->ai_family == AF_INET || p->ai_family == AF_INET6) {
+			char nodebuffer[MAX_NUMERICNODE_LEN];
+			char servbuffer[MAX_NUMERICSERV_LEN];
+			if (getnameinfo(p->ai_addr, p->ai_addrlen, nodebuffer, MAX_NUMERICNODE_LEN, servbuffer,
+			                MAX_NUMERICSERV_LEN, NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
+				PLOG_INFO << "Using TURN server \"" << server.hostname << ":" << server.port
+				          << "\"";
+				NiceRelayType niceRelayType;
+				switch (server.relayType) {
+				case IceServer::RelayType::TurnTcp:
+					niceRelayType = NICE_RELAY_TYPE_TURN_TCP;
+					break;
+				case IceServer::RelayType::TurnTls:
+					niceRelayType = NICE_RELAY_TYPE_TURN_TLS;
+					break;
+				default:
+					niceRelayType = NICE_RELAY_TYPE_TURN_UDP;
+					break;
+				}
+				nice_agent_set_relay_info(mNiceAgent.get(), mStreamId, 1, nodebuffer,
+				                          std::stoul(servbuffer), server.username.c_str(),
+				                          server.password.c_str(), niceRelayType);
+			}
+		}
+	}
+
+	freeaddrinfo(result);
+}
+
+IceTransport::~IceTransport() {
 	PLOG_DEBUG << "Destroying ICE transport";
-	nice_agent_attach_recv(mNiceAgent.get(), mStreamId, 1, g_main_loop_get_context(MainLoop.get()),
+
+	g_signal_handlers_disconnect_by_func(G_OBJECT(mNiceAgent.get()),
+	                 (gpointer)StateChangeCallback, this);
+	g_signal_handlers_disconnect_by_func(G_OBJECT(mNiceAgent.get()),
+	                 (gpointer)CandidateCallback, this);
+	g_signal_handlers_disconnect_by_func(G_OBJECT(mNiceAgent.get()),
+	                 (gpointer)GatheringDoneCallback, this);
+
+	nice_agent_attach_recv(mNiceAgent.get(), mStreamId, 1, g_main_loop_get_context(MainLoop->get()),
 	                       NULL, NULL);
-	nice_agent_remove_stream(mNiceAgent.get(), mStreamId);
+
+	// Remove the stream on the main loop thread. The attach_recv above only
+	// clears the io callback: the socket sources stay attached, and libnice's
+	// component_io_cb dereferences its component before taking the agent lock,
+	// so removing the stream from here would free it under a live dispatch.
+	// GLib dispatches serially on that thread, so the removal cannot overlap
+	// one; waiting for it also ensures no callback still uses `this` or the
+	// stream's rx buffer.
+	{
+		struct RemoveStreamData {
+			NiceAgent *agent;
+			guint streamId;
+			std::promise<void> done;
+		} data{mNiceAgent.get(), mStreamId, {}};
+		auto future = data.done.get_future();
+		g_main_context_invoke_full(
+		    g_main_loop_get_context(MainLoop->get()), G_PRIORITY_HIGH,
+		    [](gpointer ptr) -> gboolean {
+			    auto *data = static_cast<RemoveStreamData *>(ptr);
+			    nice_agent_remove_stream(data->agent, data->streamId);
+			    data->done.set_value();
+			    return G_SOURCE_REMOVE;
+		    },
+		    &data, NULL);
+		future.wait();
+	}
+
 	mNiceAgent.reset();
+
+	if (mTimeoutId)
+		g_source_remove(mTimeoutId);
 }
 
 Description::Role IceTransport::role() const { return mRole; }
@@ -686,8 +769,12 @@ bool IceTransport::addRemoteCandidate(const Candidate &candidate) {
 	return ret > 0;
 }
 
-void IceTransport::gatherLocalCandidates(string mid) {
+void IceTransport::gatherLocalCandidates(string mid, std::vector<IceServer> additionalIceServers) {
 	mMid = std::move(mid);
+
+	std::shuffle(additionalIceServers.begin(), additionalIceServers.end(), utils::random_engine());
+	for (const auto &server : additionalIceServers)
+		addIceServer(server);
 
 	// Change state now as candidates calls can be synchronous
 	changeGatheringState(GatheringState::InProgress);

@@ -40,7 +40,6 @@ typedef struct conn_impl {
 	tcp_ice_read_context_t tcp_ice_read_context;
 	addr_record_t tcp_dst;
 	tcp_state_t tcp_state;
-	uint16_t ice_tcp_len;
 	mutex_t send_mutex;
 	int send_ds;
 	timestamp_t next_timestamp;
@@ -262,7 +261,10 @@ void conn_poll_process_udp(juice_agent_t *agent, struct pollfd *pfd) {
 		if (conn_impl->state == CONN_STATE_FINISHED)
 			return;
 
-		if (ret == -SEAGAIN || ret == -SEWOULDBLOCK) {
+		if (ret > 0) {
+			// There are more datagrams but we need to give other sockets a turn
+			JLOG_VERBOSE("Fairness limit reached, will continue on next poll");
+		} else if (ret == -SEAGAIN || ret == -SEWOULDBLOCK) {
 			JLOG_VERBOSE("No more datagrams to receive");
 		} else {
 			agent_conn_fail(agent);
@@ -355,7 +357,7 @@ void conn_poll_process_tcp(juice_agent_t *agent, struct pollfd *pfd) {
 		int left = 1000; // limit for fairness between sockets
 		while (left--) {
 			tcp_ice_read_context_t *context = &conn_impl->tcp_ice_read_context;
-			if ((ret = tcp_ice_read(conn_impl->tcp_sock, context)) < 0) {
+			if ((ret = tcp_ice_read(conn_impl->tcp_sock, context)) <= 0) {
 				break;
 			}
 
@@ -369,9 +371,12 @@ void conn_poll_process_tcp(juice_agent_t *agent, struct pollfd *pfd) {
 		if (conn_impl->state == CONN_STATE_FINISHED)
 			return;
 
-		if (ret == -SEAGAIN || ret == -SEWOULDBLOCK) {
+		if (ret > 0) {
+			// There are more datagrams but we need to give other sockets a turn
+			JLOG_VERBOSE("Fairness limit reached, will continue on next poll");
+		} else if (ret == -SEAGAIN || ret == -SEWOULDBLOCK) {
 			JLOG_VERBOSE("No more ICE-TCP datagrams to receive");
-		} else if (ret <= 0) {
+		} else {
 			if (ret == 0) JLOG_DEBUG("TCP connection closed");
 			else JLOG_DEBUG("TCP connection failed");
 			conn_poll_change_tcp_fail(agent);
@@ -475,6 +480,9 @@ int conn_poll_process(conn_registry_t *registry, pfds_record_t *pfds) {
 
 		if (conn_impl->tcp_sock == INVALID_SOCKET)
 			continue;
+
+		if (i >= pfds->size)
+			break;
 
 		struct pollfd *tcp_pfd = pfds->pfds + i;
 		if (tcp_pfd->fd != conn_impl->tcp_sock)

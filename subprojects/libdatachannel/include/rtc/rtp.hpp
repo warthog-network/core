@@ -38,8 +38,12 @@ struct RTC_CPP_EXPORT RtpExtensionHeader {
 	void setHeaderLength(uint16_t headerLength);
 
 	void clearBody();
-	void writeCurrentVideoOrientation(size_t offset, uint8_t id, uint8_t value);
-	void writeOneByteHeader(size_t offset, uint8_t id, const byte *value, size_t size);
+	size_t writeCurrentVideoOrientation(bool twoByteHeader, size_t offset, uint8_t id,
+	                                    uint8_t value);
+	size_t writeOneByteHeader(size_t offset, uint8_t id, const byte *value, size_t size);
+	size_t writeTwoByteHeader(size_t offset, uint8_t id, const byte *value, size_t size);
+	size_t writeHeader(bool twoByteHeader, size_t offset, uint8_t id, const byte *value,
+	                   size_t size);
 };
 
 struct RTC_CPP_EXPORT RtpHeader {
@@ -94,11 +98,11 @@ struct RTC_CPP_EXPORT RtcpReportBlock {
 	[[nodiscard]] uint32_t delaySinceSR() const;
 
 	[[nodiscard]] SSRC getSSRC() const;
-	[[nodiscard]] uint32_t getNTPOfSR() const;
+	[[nodiscard]] uint64_t getNTPOfSR() const;
 	[[nodiscard]] uint8_t getFractionLost() const;
 	[[nodiscard]] unsigned int getPacketsLostCount() const;
 
-	void preparePacket(SSRC in_ssrc, unsigned int packetsLost, unsigned int totalPackets,
+	void preparePacket(SSRC in_ssrc, uint8_t fraction, unsigned int totalPacketsLost,
 	                   uint16_t highestSeqNo, uint16_t seqNoCycles, uint32_t jitter,
 	                   uint64_t lastSR_NTP, uint64_t lastSR_DELAY);
 	void setSSRC(SSRC in_ssrc);
@@ -165,8 +169,8 @@ struct RTC_CPP_EXPORT RtcpSr {
 	[[nodiscard]] uint32_t octetCount() const;
 	[[nodiscard]] uint32_t senderSSRC() const;
 
-	[[nodiscard]] const RtcpReportBlock *getReportBlock(int num) const;
-	[[nodiscard]] RtcpReportBlock *getReportBlock(int num);
+	[[nodiscard]] const RtcpReportBlock *getReportBlock(int num) const; // nullptr if out-of-bounds
+	[[nodiscard]] RtcpReportBlock *getReportBlock(int num); // nullptr if out-of-bounds
 	[[nodiscard]] unsigned int size(unsigned int reportCount);
 	[[nodiscard]] size_t getSize() const;
 
@@ -250,8 +254,8 @@ struct RTC_CPP_EXPORT RtcpRr {
 	bool isSenderReport();
 	bool isReceiverReport();
 
-	[[nodiscard]] RtcpReportBlock *getReportBlock(int num);
-	[[nodiscard]] const RtcpReportBlock *getReportBlock(int num) const;
+	[[nodiscard]] RtcpReportBlock *getReportBlock(int num); // nullptr if out-of-bounds
+	[[nodiscard]] const RtcpReportBlock *getReportBlock(int num) const; // nullptr if out-of-bounds
 	[[nodiscard]] size_t getSize() const;
 
 	void preparePacket(SSRC senderSSRC, uint8_t reportCount);
@@ -265,7 +269,7 @@ struct RTC_CPP_EXPORT RtcpRemb {
 
 	char _id[4];       // Unique identifier ('R' 'E' 'M' 'B')
 	uint32_t _bitrate; // Num SSRC, Br Exp, Br Mantissa (bit mask)
-	SSRC _ssrc[1];
+	SSRC _ssrcs[1];
 
 	[[nodiscard]] static size_t SizeWithSSRCs(int count);
 
@@ -273,7 +277,17 @@ struct RTC_CPP_EXPORT RtcpRemb {
 
 	void preparePacket(SSRC senderSSRC, unsigned int numSSRC, unsigned int in_bitrate);
 	void setBitrate(unsigned int numSSRC, unsigned int in_bitrate);
-	void setSsrc(int iterator, SSRC newSssrc);
+	SSRC getSSRC(int num) const;
+	void setSSRC(int num, SSRC newSsrc);
+	bool hasValidId() const;
+	int getSSRCCount() const;
+	unsigned int getBitrate() const;
+
+	// Deprecated
+	[[deprecated("use setSSRC")]] void setSsrc(int num, SSRC newSssrc);
+	[[deprecated("use getSSRCCount")]] unsigned int getNumSSRC() const;
+	[[deprecated("use getSSRCCount")]] unsigned int getNumSSRC();
+	unsigned int getBitrate();
 };
 
 struct RTC_CPP_EXPORT RtcpPli {
@@ -353,25 +367,6 @@ struct RTC_CPP_EXPORT RtpRtx {
 
 	size_t copyTo(RtpHeader *dest, size_t totalSize, uint8_t originalPayloadType);
 };
-
-// For backward compatibility, do not use
-using RTP_ExtensionHeader [[deprecated]] = RtpExtensionHeader;
-using RTP [[deprecated]] = RtpHeader;
-using RTCP_ReportBlock [[deprecated]] = RtcpReportBlock;
-using RTCP_HEADER [[deprecated]] = RtcpHeader;
-using RTCP_FB_HEADER [[deprecated]] = RtcpFbHeader;
-using RTCP_SR [[deprecated]] = RtcpSr;
-using RTCP_SDES_ITEM [[deprecated]] = RtcpSdesItem;
-using RTCP_SDES_CHUNK [[deprecated]] = RtcpSdesChunk;
-using RTCP_SDES [[deprecated]] = RtcpSdes;
-using RTCP_RR [[deprecated]] = RtcpRr;
-using RTCP_REMB [[deprecated]] = RtcpRemb;
-using RTCP_PLI [[deprecated]] = RtcpPli;
-using RTCP_FIR_PART [[deprecated]] = RtcpFirPart;
-using RTCP_FIR [[deprecated]] = RtcpFir;
-using RTCP_NACK_PART [[deprecated]] = RtcpNackPart;
-using RTCP_NACK [[deprecated]] = RtcpNack;
-using RTP_RTX [[deprecated]] = RtpRtx;
 
 #pragma pack(pop)
 

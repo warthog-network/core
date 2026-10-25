@@ -101,7 +101,7 @@ bool check(int ret, const string &message) {
 	if (ret < 0) {
 		if (ret == MBEDTLS_ERR_SSL_WANT_READ || ret == MBEDTLS_ERR_SSL_WANT_WRITE ||
 		    ret == MBEDTLS_ERR_SSL_ASYNC_IN_PROGRESS || ret == MBEDTLS_ERR_SSL_CRYPTO_IN_PROGRESS ||
-		    ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY)
+		    ret == MBEDTLS_ERR_SSL_PEER_CLOSE_NOTIFY || ret == MBEDTLS_ERR_SSL_RECEIVED_NEW_SESSION_TICKET)
 			return false;
 
 		const size_t bufferSize = 1024;
@@ -158,7 +158,11 @@ void init() {
 
 	std::lock_guard lock(mutex);
 	if (!std::exchange(done, true)) {
-		OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS | OPENSSL_INIT_LOAD_CRYPTO_STRINGS, nullptr);
+		uint64_t ssl_opts = OPENSSL_INIT_LOAD_SSL_STRINGS | OPENSSL_INIT_LOAD_CRYPTO_STRINGS;
+#ifdef OPENSSL_INIT_NO_ATEXIT
+		ssl_opts |= OPENSSL_INIT_NO_ATEXIT;
+#endif
+		OPENSSL_init_ssl(ssl_opts, nullptr);
 		OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CRYPTO_STRINGS, nullptr);
 	}
 }

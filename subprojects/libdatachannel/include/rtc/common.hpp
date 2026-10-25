@@ -60,7 +60,6 @@ using std::byte;
 using std::nullopt;
 using std::optional;
 using std::shared_ptr;
-using std::atomic;
 using std::string;
 using std::string_view;
 using std::unique_ptr;
@@ -68,7 +67,6 @@ using std::variant;
 using std::weak_ptr;
 
 using binary = std::vector<byte>;
-using binary_ptr = shared_ptr<binary>;
 using message_variant = variant<binary, string>;
 
 using std::int16_t;

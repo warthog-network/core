@@ -53,7 +53,7 @@ struct PeerConnection : std::enable_shared_from_this<PeerConnection> {
 
 	void endLocalCandidates();
 	void rollbackLocalDescription();
-	bool checkFingerprint(const std::string &fingerprint) const;
+	bool checkFingerprint(const std::string &fingerprint);
 	void forwardMessage(message_ptr message);
 	void forwardMedia(message_ptr message);
 	void forwardBufferedAmount(uint16_t stream, size_t amount);
@@ -70,18 +70,22 @@ struct PeerConnection : std::enable_shared_from_this<PeerConnection> {
 
 	shared_ptr<Track> emplaceTrack(Description::Media description);
 	void iterateTracks(std::function<void(shared_ptr<Track> track)> func);
+	void iterateRemoteTracks(std::function<void(shared_ptr<Track> track)> func);
 	void openTracks();
 	void closeTracks();
 
 	void validateRemoteDescription(const Description &description);
+	void populateLocalDescription(Description &description) const;
 	void processLocalDescription(Description description);
 	void processLocalCandidate(Candidate candidate);
 	void processRemoteDescription(Description description);
 	void processRemoteCandidate(Candidate candidate);
 	string localBundleMid() const;
 
+	bool negotiationNeeded() const;
+
 	void setMediaHandler(shared_ptr<MediaHandler> handler);
-	shared_ptr<MediaHandler> getMediaHandler();
+	shared_ptr<MediaHandler> getMediaHandler() const;
 
 	void triggerDataChannel(weak_ptr<DataChannel> weakDataChannel);
 	void triggerTrack(weak_ptr<Track> weakTrack);
@@ -99,6 +103,8 @@ struct PeerConnection : std::enable_shared_from_this<PeerConnection> {
 
 	void resetCallbacks();
 
+	CertificateFingerprint remoteFingerprint();
+
 	// Helper method for asynchronous callback invocation
 	template <typename... Args> void trigger(synchronized_callback<Args...> *cb, Args... args) {
 		try {
@@ -113,7 +119,6 @@ struct PeerConnection : std::enable_shared_from_this<PeerConnection> {
 	std::atomic<IceState> iceState = IceState::New;
 	std::atomic<GatheringState> gatheringState = GatheringState::New;
 	std::atomic<SignalingState> signalingState = SignalingState::Stable;
-	std::atomic<bool> negotiationNeeded = false;
 	std::atomic<bool> closing = false;
 	std::mutex signalingMutex;
 
@@ -131,29 +136,34 @@ private:
 	void updateTrackSsrcCache(const Description &description);
 
 	const init_token mInitToken = Init::Instance().token();
-	const future_certificate_ptr mCertificate;
+	future_certificate_ptr mCertificate;
 
 	Processor mProcessor;
-	optional<Description> mLocalDescription, mRemoteDescription;
+	optional<Description> mLocalDescription;
 	optional<Description> mCurrentLocalDescription;
-	mutable std::mutex mLocalDescriptionMutex, mRemoteDescriptionMutex;
+	mutable std::mutex mLocalDescriptionMutex;
+
+	optional<Description> mRemoteDescription;
+	CertificateFingerprint::Algorithm mRemoteFingerprintAlgorithm = CertificateFingerprint::Algorithm::Sha256;
+	optional<string> mRemoteFingerprint;
+	mutable std::mutex mRemoteDescriptionMutex;
 
 	shared_ptr<MediaHandler> mMediaHandler;
-
 	mutable std::shared_mutex mMediaHandlerMutex;
 
-	atomic<shared_ptr<IceTransport>> mIceTransport;
-	atomic<shared_ptr<DtlsTransport>> mDtlsTransport;
-	atomic<shared_ptr<SctpTransport>> mSctpTransport;
+	shared_ptr<IceTransport> mIceTransport;
+	shared_ptr<DtlsTransport> mDtlsTransport;
+	std::mutex mDtlsTransportInitMutex;
+	shared_ptr<SctpTransport> mSctpTransport;
 
 	std::unordered_map<uint16_t, weak_ptr<DataChannel>> mDataChannels; // by stream ID
 	std::vector<weak_ptr<DataChannel>> mUnassignedDataChannels;
-	std::shared_mutex mDataChannelsMutex;
+	mutable std::shared_mutex mDataChannelsMutex;
 
 	std::unordered_map<string, weak_ptr<Track>> mTracks;         // by mid
 	std::unordered_map<uint32_t, weak_ptr<Track>> mTracksBySsrc; // by SSRC
 	std::vector<weak_ptr<Track>> mTrackLines;                    // by SDP order
-	std::shared_mutex mTracksMutex;
+	mutable std::shared_mutex mTracksMutex;
 
 	Queue<shared_ptr<DataChannel>> mPendingDataChannels;
 	Queue<shared_ptr<Track>> mPendingTracks;

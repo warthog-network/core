@@ -89,7 +89,7 @@ void Candidate::parse(string candidate) {
 
 	PLOG_VERBOSE << "Parsing candidate: " << candidate;
 
-	// See RFC 8445 for format
+	// See RFC 8839 for format
 	std::istringstream iss(candidate);
 	string typ_;
 	if (!(iss >> mFoundation >> mComponent >> mTransportString >> mPriority &&
@@ -145,7 +145,7 @@ void Candidate::changeAddress(string addr, string service) {
 	mPort = 0;
 
 	if (!resolve(ResolveMode::Simple))
-		throw std::invalid_argument("Invalid candidate address \"" + addr + ":" + service + "\"");
+		throw std::invalid_argument("Invalid candidate address \"" + mNode + ":" + mService + "\"");
 }
 
 bool Candidate::resolve(ResolveMode mode) {

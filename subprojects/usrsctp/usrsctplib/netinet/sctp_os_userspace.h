@@ -419,7 +419,7 @@ struct sx {int dummy;};
 /* #include <sys/param.h>  in FreeBSD defines MSIZE */
 /* #include <sys/ktr.h> */
 /* #include <sys/systm.h> */
-#if __has_include (<sys/queue.h>)
+#if defined(HAVE_SYS_QUEUE_H)
 #include <sys/queue.h>
 #else
 #include <user_queue.h>
@@ -467,7 +467,7 @@ struct sx {int dummy;};
 #include <netinet/in_systm.h>
 #include <netinet/ip.h>
 #endif
-#if __has_include (<netinet/ip_icmp.h>)
+#if defined(HAVE_NETINET_IP_ICMP_H)
 #include <netinet/ip_icmp.h>
 #else
 #include <user_ip_icmp.h>
@@ -1144,6 +1144,13 @@ sctp_get_mbuf_for_msg(unsigned int space_needed, int want_header, int how, int a
 #endif
 
 #define SCTP_IS_LISTENING(inp) ((inp->sctp_flags & SCTP_PCB_FLAGS_ACCEPTING) != 0)
+
+static inline bool
+in_broadcast(struct in_addr in)
+{
+	return (in.s_addr == htonl(INADDR_BROADCAST) ||
+	        in.s_addr == htonl(INADDR_ANY));
+}
 
 #if defined(__APPLE__) || defined(__DragonFly__) || defined(__linux__) || defined(__native_client__) || defined(__NetBSD__) || defined(_WIN32) || defined(__Fuchsia__) || defined(__EMSCRIPTEN__)
 int

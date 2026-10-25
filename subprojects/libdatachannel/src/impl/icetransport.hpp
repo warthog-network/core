@@ -50,7 +50,8 @@ public:
 	Description getLocalDescription(Description::Type type) const;
 	void setRemoteDescription(const Description &description);
 	bool addRemoteCandidate(const Candidate &candidate);
-	void gatherLocalCandidates(string mid);
+	void gatherLocalCandidates(string mid, std::vector<IceServer> additionalIceServers = {});
+	void setIceAttributes(string uFrag, string pwd);
 
 	optional<string> getLocalAddress() const;
 	optional<string> getRemoteAddress() const;
@@ -69,6 +70,8 @@ private:
 	void processGatheringDone();
 	void processTimeout();
 
+	void addIceServer(IceServer server);
+
 	Description::Role mRole;
 	string mMid;
 	std::chrono::milliseconds mTrickleTimeout;
@@ -79,6 +82,7 @@ private:
 
 #if !USE_NICE
 	unique_ptr<juice_agent_t, void (*)(juice_agent_t *)> mAgent;
+	int mTurnServersAdded = 0;
 
 	static void StateChangeCallback(juice_agent_t *agent, juice_state_t state, void *user_ptr);
 	static void CandidateCallback(juice_agent_t *agent, const char *sdp, void *user_ptr);
@@ -86,8 +90,17 @@ private:
 	static void RecvCallback(juice_agent_t *agent, const char *data, size_t size, void *user_ptr);
 	static void LogCallback(juice_log_level_t level, const char *message);
 #else
-	static unique_ptr<GMainLoop, void (*)(GMainLoop *)> MainLoop;
-	static std::thread MainLoopThread;
+	class MainLoopWrapper {
+	public:
+		MainLoopWrapper();
+		~MainLoopWrapper();
+		GMainLoop *get() const;
+
+	private:
+		unique_ptr<GMainLoop, void (*)(GMainLoop *)> mMainLoop;
+		std::thread mThread;
+	};
+	static MainLoopWrapper *MainLoop;
 
 	unique_ptr<NiceAgent, void (*)(NiceAgent *)> mNiceAgent;
 	uint32_t mStreamId = 0;

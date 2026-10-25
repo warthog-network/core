@@ -2021,7 +2021,7 @@ sctp_timeout_handler(void *t)
 			 type, inp, stcb, net));
 		SCTP_STAT_INCR(sctps_timosecret);
 		(void)SCTP_GETTIME_TIMEVAL(&tv);
-		inp->sctp_ep.time_of_secret_change = (unsigned int)tv.tv_sec;
+		inp->sctp_ep.time_of_secret_change = tv.tv_sec;
 		inp->sctp_ep.last_secret_number =
 		    inp->sctp_ep.current_secret_number;
 		inp->sctp_ep.current_secret_number++;
@@ -2393,19 +2393,19 @@ sctp_timer_start(int t_type, struct sctp_inpcb *inp, struct sctp_tcb *stcb,
 		} else {
 			to_ticks = net->RTO;
 		}
-		rndval = sctp_select_initial_TSN(&inp->sctp_ep);
-		jitter = rndval % to_ticks;
-		if (to_ticks > 1) {
-			to_ticks >>= 1;
-		}
-		if (jitter < (UINT32_MAX - to_ticks)) {
-			to_ticks += jitter;
-		} else {
-			to_ticks = UINT32_MAX;
-		}
 		if (!((net->dest_state & SCTP_ADDR_UNCONFIRMED) &&
 		      (net->dest_state & SCTP_ADDR_REACHABLE)) &&
 		    ((net->dest_state & SCTP_ADDR_PF) == 0)) {
+			if (to_ticks > 1) {
+				rndval = sctp_select_initial_TSN(&inp->sctp_ep);
+				jitter = rndval % to_ticks;
+				to_ticks >>= 1;
+				if (jitter < (UINT32_MAX - to_ticks)) {
+					to_ticks += jitter;
+				} else {
+					to_ticks = UINT32_MAX;
+				}
+			}
 			if (net->heart_beat_delay < (UINT32_MAX - to_ticks)) {
 				to_ticks += net->heart_beat_delay;
 			} else {
@@ -6268,7 +6268,9 @@ sctp_sorecvmsg(struct socket *so,
 				}
 				so->so_state &= ~(SS_ISCONNECTING |
 						  SS_ISDISCONNECTING |
+#if !(defined(__FreeBSD__) && !defined(__Userspace__))
 						  SS_ISCONFIRMING |
+#endif
 						  SS_ISCONNECTED);
 				if (error == 0) {
 					if ((inp->sctp_flags & SCTP_PCB_FLAGS_WAS_CONNECTED) == 0) {
@@ -7486,8 +7488,7 @@ sctp_connectx_helper_add(struct sctp_tcb *stcb, struct sockaddr *addr,
 		case AF_INET:
 			incr = sizeof(struct sockaddr_in);
 			sin = (struct sockaddr_in *)sa;
-			if ((sin->sin_addr.s_addr == INADDR_ANY) ||
-			    (sin->sin_addr.s_addr == INADDR_BROADCAST) ||
+			if (in_broadcast(sin->sin_addr) ||
 			    IN_MULTICAST(ntohl(sin->sin_addr.s_addr))) {
 				SCTP_LTRACE_ERR_RET(NULL, stcb, NULL, SCTP_FROM_SCTPUTIL, EINVAL);
 				(void)sctp_free_assoc(inp, stcb, SCTP_NORMAL_PROC,

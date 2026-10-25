@@ -1,6 +1,6 @@
 project('libjuice',
     'c',
-    version : '1.3.4',
+    version : '1.7.4',
     license : 'Mozilla Public License Version 2.0',
 )
 

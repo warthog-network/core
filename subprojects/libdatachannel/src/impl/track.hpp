@@ -38,6 +38,10 @@ public:
 	optional<message_variant> receive() override;
 	optional<message_variant> peek() override;
 	size_t availableAmount() const override;
+	void flushPendingMessages() override;
+	message_variant trackMessageToVariant(message_ptr message);
+
+	void sendFrame(binary data, const FrameInfo &frame);
 
 	bool isOpen() const;
 	bool isClosed() const;
@@ -57,6 +61,8 @@ public:
 
 	bool transportSend(message_ptr message);
 
+	synchronized_callback<binary, FrameInfo> frameCallback;
+
 private:
 	const weak_ptr<PeerConnection> mPeerConnection;
 #if RTC_ENABLE_MEDIA
@@ -71,6 +77,7 @@ private:
 	std::atomic<bool> mIsClosed = false;
 
 	Queue<message_ptr> mRecvQueue;
+
 };
 
 } // namespace rtc::impl

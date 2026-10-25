@@ -157,11 +157,13 @@ Description::Description(const string &sdp, Type type, Role role)
 				// RFC 8839: The "ice-options" attribute is a session-level and media-level
 				// attribute.
 				if (mIceOptions.empty())
-					mIceOptions = utils::explode(string(value), ',');
+					mIceOptions = utils::explode(string(value), ' ');
 			} else if (key == "candidate") {
 				addCandidate(Candidate(attr, bundleMid()));
 			} else if (key == "end-of-candidates") {
 				mEnded = true;
+			} else if (key == "group") {
+				// Ignore, it will be generated automatically
 			} else if (current) {
 				current->parseSdpLine(std::move(line));
 			} else {
@@ -216,15 +218,6 @@ void Description::hintType(Type type) {
 		mType = type;
 }
 
-void Description::setFingerprint(CertificateFingerprint f) {
-	if (!f.isValid())
-		throw std::invalid_argument("Invalid " + CertificateFingerprint::AlgorithmIdentifier(f.algorithm) + " fingerprint \"" + f.value + "\"");
-
-	std::transform(f.value.begin(), f.value.end(), f.value.begin(),
-	               [](char c) { return char(std::toupper(c)); });
-	mFingerprint = std::move(f);
-}
-
 void Description::addIceOption(string option) {
 	if (std::find(mIceOptions.begin(), mIceOptions.end(), option) == mIceOptions.end())
 		mIceOptions.emplace_back(std::move(option));
@@ -233,6 +226,22 @@ void Description::addIceOption(string option) {
 void Description::removeIceOption(const string &option) {
 	mIceOptions.erase(std::remove(mIceOptions.begin(), mIceOptions.end(), option),
 	                  mIceOptions.end());
+}
+
+void Description::setIceAttribute(string ufrag, string pwd) {
+	mIceUfrag = std::move(ufrag);
+	mIcePwd = std::move(pwd);
+}
+
+void Description::setFingerprint(CertificateFingerprint f) {
+	if (!f.isValid())
+		throw std::invalid_argument("Invalid " +
+		                            CertificateFingerprint::AlgorithmIdentifier(f.algorithm) +
+		                            " fingerprint \"" + f.value + "\"");
+
+	std::transform(f.value.begin(), f.value.end(), f.value.begin(),
+	               [](char c) { return char(std::toupper(c)); });
+	mFingerprint = std::move(f);
 }
 
 std::vector<string> Description::Entry::attributes() const { return mAttributes; }
@@ -308,14 +317,8 @@ string Description::generateSdp(string_view eol) const {
 
 	// Session-level attributes
 	sdp << "a=msid-semantic:WMS *" << eol;
-	sdp << "a=setup:" << mRole << eol;
-
-	if (mIceUfrag)
-		sdp << "a=ice-ufrag:" << *mIceUfrag << eol;
-	if (mIcePwd)
-		sdp << "a=ice-pwd:" << *mIcePwd << eol;
 	if (!mIceOptions.empty())
-		sdp << "a=ice-options:" << utils::implode(mIceOptions, ',') << eol;
+		sdp << "a=ice-options:" << utils::implode(mIceOptions, ' ') << eol;
 	if (mFingerprint)
 		sdp << "a=fingerprint:"
 		    << CertificateFingerprint::AlgorithmIdentifier(mFingerprint->algorithm) << " "
@@ -336,6 +339,14 @@ string Description::generateSdp(string_view eol) const {
 	bool first = true;
 	for (const auto &entry : mEntries) {
 		sdp << entry->generateSdp(eol, addr, port);
+
+		// RFC 8829: Attributes that SDP permits to be at either the session level or the media level
+		// SHOULD generally be at the media level even if they are identical.
+		sdp << "a=setup:" << mRole << eol;
+		if (mIceUfrag)
+			sdp << "a=ice-ufrag:" << *mIceUfrag << eol;
+		if (mIcePwd)
+			sdp << "a=ice-pwd:" << *mIcePwd << eol;
 
 		if (!entry->isRemoved() && std::exchange(first, false)) {
 			// Candidates
@@ -367,27 +378,28 @@ string Description::generateApplicationSdp(string_view eol) const {
 	const uint16_t port =
 	    cand && cand->isResolved() ? *cand->port() : 9; // Port 9 is the discard protocol
 
+	// Session-level attributes
+	sdp << "a=msid-semantic:WMS *" << eol;
+	if (!mIceOptions.empty())
+		sdp << "a=ice-options:" << utils::implode(mIceOptions, ' ') << eol;
+
+	for (const auto &attr : mAttributes)
+		sdp << "a=" << attr << eol;
+
 	// Application
 	auto app = mApplication ? mApplication : std::make_shared<Application>();
 	sdp << app->generateSdp(eol, addr, port);
 
-	// Session-level attributes
-	sdp << "a=msid-semantic:WMS *" << eol;
+	// Media-level attributes
 	sdp << "a=setup:" << mRole << eol;
-
 	if (mIceUfrag)
 		sdp << "a=ice-ufrag:" << *mIceUfrag << eol;
 	if (mIcePwd)
 		sdp << "a=ice-pwd:" << *mIcePwd << eol;
-	if (!mIceOptions.empty())
-		sdp << "a=ice-options:" << utils::implode(mIceOptions, ',') << eol;
 	if (mFingerprint)
 		sdp << "a=fingerprint:"
 		    << CertificateFingerprint::AlgorithmIdentifier(mFingerprint->algorithm) << " "
 		    << mFingerprint->value << eol;
-
-	for (const auto &attr : mAttributes)
-		sdp << "a=" << attr << eol;
 
 	// Candidates
 	for (const auto &candidate : mCandidates)
@@ -488,8 +500,8 @@ void Description::clearMedia() {
 	mApplication.reset();
 }
 
-variant<Description::Media *, Description::Application *> Description::media(unsigned int index) {
-	if (index >= mEntries.size())
+variant<Description::Media *, Description::Application *> Description::media(int index) {
+	if (index < 0 || index >= int(mEntries.size()))
 		throw std::out_of_range("Media index out of range");
 
 	const auto &entry = mEntries[index];
@@ -509,9 +521,8 @@ variant<Description::Media *, Description::Application *> Description::media(uns
 	}
 }
 
-variant<const Description::Media *, const Description::Application *>
-Description::media(unsigned int index) const {
-	if (index >= mEntries.size())
+variant<const Description::Media *, const Description::Application *> Description::media(int index) const {
+	if (index < 0 || index >= int(mEntries.size()))
 		throw std::out_of_range("Media index out of range");
 
 	const auto &entry = mEntries[index];
@@ -531,7 +542,9 @@ Description::media(unsigned int index) const {
 	}
 }
 
-unsigned int Description::mediaCount() const { return unsigned(mEntries.size()); }
+int Description::mediaCount() const { return int(mEntries.size()); }
+
+string Description::sessionId() const { return mSessionId; }
 
 Description::Entry::Entry(const string &mline, string mid, Direction dir)
     : mMid(std::move(mid)), mDirection(dir) {
@@ -540,9 +553,11 @@ Description::Entry::Entry(const string &mline, string mid, Direction dir)
 	std::istringstream ss(match_prefix(mline, "m=") ? mline.substr(2) : mline);
 	ss >> mType;
 	ss >> port;
-	ss >> mDescription;
+	ss >> mProtocol;
+	ss >> std::ws;
+	std::getline(ss, mDescription);
 
-	if (mType.empty() || mDescription.empty())
+	if (mType.empty() || mProtocol.empty())
 		throw std::invalid_argument("Invalid media description line");
 
 	// RFC 3264: Existing media streams are removed by creating a new SDP with the port number for
@@ -554,6 +569,8 @@ Description::Entry::Entry(const string &mline, string mid, Direction dir)
 }
 
 string Description::Entry::type() const { return mType; }
+
+string Description::Entry::protocol() const { return mProtocol; }
 
 string Description::Entry::description() const { return mDescription; }
 
@@ -621,7 +638,8 @@ string Description::Entry::generateSdp(string_view eol, string_view addr, uint16
 	// RFC 3264: Existing media streams are removed by creating a new SDP with the port number for
 	// that stream set to zero. [...] A stream that is offered with a port of zero MUST be marked
 	// with port zero in the answer.
-	sdp << "m=" << type() << ' ' << (mIsRemoved ? 0 : port) << ' ' << description() << eol;
+	sdp << "m=" << type() << ' ' << (mIsRemoved ? 0 : port) << ' ' << protocol() << ' '
+	    << description() << eol;
 	sdp << "c=IN " << addr << eol;
 	sdp << generateSdpLines(eol);
 
@@ -649,7 +667,15 @@ string Description::Entry::generateSdpLines(string_view eol) const {
 	if (mDirection != Direction::Unknown)
 		sdp << "a=" << mDirection << eol;
 
+	// Do not reciprocate unknown transport attributes
+	const std::array ignoredPrefixes{"ice-", "dtls-", "sctp-"};
+
 	for (const auto &attr : mAttributes) {
+		if (std::any_of(ignoredPrefixes.begin(), ignoredPrefixes.end(),
+		                [&](string_view prefix) { return match_prefix(attr, prefix); })) {
+			continue;
+		}
+
 		if (mRids.size() != 0 && match_prefix(attr, "ssrc:")) {
 			continue;
 		}
@@ -825,14 +851,11 @@ optional<string> Description::Media::getCNameForSsrc(uint32_t ssrc) const {
 }
 
 Description::Application::Application(string mid)
-    : Entry("application 9 UDP/DTLS/SCTP", std::move(mid), Direction::SendRecv) {}
+    : Entry("application 9 UDP/DTLS/SCTP webrtc-datachannel", std::move(mid), Direction::SendRecv) {
+}
 
 Description::Application::Application(const string &mline, string mid)
     : Entry(mline, std::move(mid), Direction::SendRecv) {}
-
-string Description::Application::description() const {
-	return Entry::description() + " webrtc-datachannel";
-}
 
 Description::Application Description::Application::reciprocate() const {
 	Application reciprocated(*this);
@@ -882,7 +905,15 @@ void Description::Application::parseSdpLine(string_view line) {
 	}
 }
 
-Description::Media::Media(const string &sdp) : Entry(get_first_line(sdp), "", Direction::Unknown) {
+Description::Media::Media(const string &mline, string mid, Direction dir)
+    : Entry(mline, std::move(mid), dir) {
+	std::istringstream ss(Entry::description());
+	int payloadType;
+	while (ss >> payloadType)
+		mOrderedPayloadTypes.push_back(payloadType);
+}
+
+Description::Media::Media(const string &sdp) : Media(get_first_line(sdp), "", Direction::Unknown) {
 	string line;
 	std::istringstream ss(sdp);
 	std::getline(ss, line); // discard first line
@@ -899,16 +930,16 @@ Description::Media::Media(const string &sdp) : Entry(get_first_line(sdp), "", Di
 		throw std::invalid_argument("Missing mid in media description");
 }
 
-Description::Media::Media(const string &mline, string mid, Direction dir)
-    : Entry(mline, std::move(mid), dir) {}
-
 string Description::Media::description() const {
-	std::ostringstream desc;
-	desc << Entry::description();
-	for (auto it = mRtpMaps.begin(); it != mRtpMaps.end(); ++it)
-		desc << ' ' << it->first;
+	std::ostringstream ss;
+	for (auto it = mOrderedPayloadTypes.begin(); it != mOrderedPayloadTypes.end(); ++it) {
+		if (it != mOrderedPayloadTypes.begin())
+			ss << ' ';
 
-	return desc.str();
+		ss << *it;
+	}
+
+	return ss.str();
 }
 
 Description::Media Description::Media::reciprocate() const {
@@ -961,14 +992,7 @@ bool Description::Media::hasPayloadType(int payloadType) const {
 	return mRtpMaps.find(payloadType) != mRtpMaps.end();
 }
 
-std::vector<int> Description::Media::payloadTypes() const {
-	std::vector<int> result;
-	result.reserve(mRtpMaps.size());
-	for (auto it = mRtpMaps.begin(); it != mRtpMaps.end(); ++it)
-		result.push_back(it->first);
-
-	return result;
-}
+std::vector<int> Description::Media::payloadTypes() const { return mOrderedPayloadTypes; }
 
 Description::Media::RtpMap *Description::Media::rtpMap(int payloadType) {
 	auto it = mRtpMaps.find(payloadType);
@@ -987,12 +1011,19 @@ const Description::Media::RtpMap *Description::Media::rtpMap(int payloadType) co
 }
 
 void Description::Media::addRtpMap(RtpMap map) {
-	auto payloadType = map.payloadType;
+	int payloadType = map.payloadType;
+	if (std::find(mOrderedPayloadTypes.begin(), mOrderedPayloadTypes.end(), payloadType) ==
+	    mOrderedPayloadTypes.end())
+		mOrderedPayloadTypes.push_back(payloadType);
+
 	mRtpMaps.emplace(payloadType, std::move(map));
 }
 
 void Description::Media::removeRtpMap(int payloadType) {
 	// Remove the actual format
+	mOrderedPayloadTypes.erase(
+	    std::remove(mOrderedPayloadTypes.begin(), mOrderedPayloadTypes.end(), payloadType),
+	    mOrderedPayloadTypes.end());
 	mRtpMaps.erase(payloadType);
 
 	// Remove any other rtpmaps that depend on the format we just removed
@@ -1000,10 +1031,14 @@ void Description::Media::removeRtpMap(int payloadType) {
 	while (it != mRtpMaps.end()) {
 		const auto &fmtps = it->second.fmtps;
 		if (std::find(fmtps.begin(), fmtps.end(), "apt=" + std::to_string(payloadType)) !=
-		    fmtps.end())
+		    fmtps.end()) {
+			mOrderedPayloadTypes.erase(
+			    std::remove(mOrderedPayloadTypes.begin(), mOrderedPayloadTypes.end(), it->first),
+			    mOrderedPayloadTypes.end());
 			it = mRtpMaps.erase(it);
-		else
+		} else {
 			++it;
+		}
 	}
 }
 
@@ -1178,7 +1213,7 @@ Description::Audio::Audio(string mid, Direction dir)
 
 void Description::Audio::addAudioCodec(int payloadType, string codec, optional<string> profile) {
 	if (codec.find('/') == string::npos) {
-		if (codec == "PCMA" || codec == "PCMU")
+		if (codec == "PCMA" || codec == "PCMU" || codec == "G722")
 			codec += "/8000/1";
 		else
 			codec += "/48000/2";
@@ -1202,6 +1237,10 @@ void Description::Audio::addPCMACodec(int payloadType, optional<string> profile)
 
 void Description::Audio::addPCMUCodec(int payloadType, optional<string> profile) {
 	addAudioCodec(payloadType, "PCMU", profile);
+}
+
+void Description::Audio::addG722Codec(int payloadType, optional<string> profile) {
+	addAudioCodec(payloadType, "G722", profile);
 }
 
 void Description::Audio::addAACCodec(int payloadType, optional<string> profile) {
@@ -1306,8 +1345,8 @@ CertificateFingerprint::AlgorithmSize(CertificateFingerprint::Algorithm fingerpr
 		return 48;
 	case CertificateFingerprint::Algorithm::Sha512:
 		return 64;
-    default:
-        return 0;
+	default:
+		return 0;
 	}
 }
 
@@ -1321,11 +1360,11 @@ std::string CertificateFingerprint::AlgorithmIdentifier(
 	case CertificateFingerprint::Algorithm::Sha256:
 		return "sha-256";
 	case CertificateFingerprint::Algorithm::Sha384:
-		return "sha-256";
+		return "sha-384";
 	case CertificateFingerprint::Algorithm::Sha512:
 		return "sha-512";
 	default:
-	    return "unknown";
+		return "unknown";
 	}
 }
 

@@ -50,7 +50,7 @@ public:
 	void outgoingChain(message_vector &messages, const message_callback &send);
 
 private:
-	atomic<shared_ptr<MediaHandler>> mNext;
+	shared_ptr<MediaHandler> mNext;
 };
 
 } // namespace rtc

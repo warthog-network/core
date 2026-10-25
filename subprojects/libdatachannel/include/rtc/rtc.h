@@ -132,6 +132,7 @@ typedef enum {
 	RTC_CODEC_PCMU = 129,
 	RTC_CODEC_PCMA = 130,
 	RTC_CODEC_AAC = 131,
+	RTC_CODEC_G722 = 132,
 } rtcCodec;
 
 typedef enum {
@@ -170,6 +171,7 @@ typedef void *(RTC_API *rtcInterceptorCallbackFunc)(int pc, const char *message,
 typedef void(RTC_API *rtcBufferedAmountLowCallbackFunc)(int id, void *ptr);
 typedef void(RTC_API *rtcAvailableCallbackFunc)(int id, void *ptr);
 typedef void(RTC_API *rtcPliHandlerCallbackFunc)(int tr, void *ptr);
+typedef void(RTC_API *rtcRembHandlerCallbackFunc)(int tr, unsigned int bitrate, void *ptr);
 
 // Log
 
@@ -189,7 +191,7 @@ typedef struct {
 	const char *bindAddress; // libjuice only, NULL means any
 	rtcCertificateType certificateType;
 	rtcTransportPolicy iceTransportPolicy;
-	bool enableIceTcp;    // libnice only
+	bool enableIceTcp;
 	bool enableIceUdpMux; // libjuice only
 	bool disableAutoNegotiation;
 	bool forceMediaTransport;
@@ -210,7 +212,7 @@ RTC_C_EXPORT int rtcSetIceStateChangeCallback(int pc, rtcIceStateChangeCallbackF
 RTC_C_EXPORT int rtcSetGatheringStateChangeCallback(int pc, rtcGatheringStateCallbackFunc cb);
 RTC_C_EXPORT int rtcSetSignalingStateChangeCallback(int pc, rtcSignalingStateCallbackFunc cb);
 
-RTC_C_EXPORT int rtcSetLocalDescription(int pc, const char *type);
+RTC_C_EXPORT int rtcSetLocalDescription(int pc, const char *type); // type may be NULL
 RTC_C_EXPORT int rtcSetRemoteDescription(int pc, const char *sdp, const char *type);
 RTC_C_EXPORT int rtcAddRemoteCandidate(int pc, const char *cand, const char *mid);
 
@@ -220,11 +222,17 @@ RTC_C_EXPORT int rtcGetRemoteDescription(int pc, char *buffer, int size);
 RTC_C_EXPORT int rtcGetLocalDescriptionType(int pc, char *buffer, int size);
 RTC_C_EXPORT int rtcGetRemoteDescriptionType(int pc, char *buffer, int size);
 
+// For specific use cases only
+RTC_C_EXPORT int rtcCreateOffer(int pc, char *buffer, int size);
+RTC_C_EXPORT int rtcCreateAnswer(int pc, char *buffer, int size);
+
 RTC_C_EXPORT int rtcGetLocalAddress(int pc, char *buffer, int size);
 RTC_C_EXPORT int rtcGetRemoteAddress(int pc, char *buffer, int size);
 
 RTC_C_EXPORT int rtcGetSelectedCandidatePair(int pc, char *local, int localSize, char *remote,
                                              int remoteSize);
+
+RTC_C_EXPORT bool rtcIsNegotiationNeeded(int pc);
 
 RTC_C_EXPORT int rtcGetMaxDataChannelStream(int pc);
 RTC_C_EXPORT int rtcGetRemoteMaxMessageSize(int pc);
@@ -341,6 +349,17 @@ typedef struct {
 	// AV1 only
 	rtcObuPacketization obuPacketization; // OBU paketization for AV1 samples
 
+	uint8_t playoutDelayId;
+	uint16_t playoutDelayMin;
+	uint16_t playoutDelayMax;
+
+	uint8_t colorSpaceId;
+	uint8_t colorChromaSitingHorz;
+	uint8_t colorChromaSitingVert;
+	uint8_t colorRange;
+	uint8_t colorPrimaries;
+	uint8_t colorTransfer;
+	uint8_t colorMatrix;
 } rtcPacketizerInit;
 
 // Deprecated, do not use
@@ -371,6 +390,9 @@ RTC_C_EXPORT int rtcSetH265Packetizer(int tr, const rtcPacketizerInit *init);
 RTC_C_EXPORT int rtcSetAV1Packetizer(int tr, const rtcPacketizerInit *init);
 RTC_C_EXPORT int rtcSetOpusPacketizer(int tr, const rtcPacketizerInit *init);
 RTC_C_EXPORT int rtcSetAACPacketizer(int tr, const rtcPacketizerInit *init);
+RTC_C_EXPORT int rtcSetPCMUPacketizer(int tr, const rtcPacketizerInit *init);
+RTC_C_EXPORT int rtcSetPCMAPacketizer(int tr, const rtcPacketizerInit *init);
+RTC_C_EXPORT int rtcSetG722Packetizer(int tr, const rtcPacketizerInit *init);
 
 // Deprecated, do not use
 RTC_DEPRECATED static inline int
@@ -406,6 +428,9 @@ RTC_C_EXPORT int rtcChainRtcpNackResponder(int tr, unsigned int maxStoredPackets
 // Chain PliHandler on track
 RTC_C_EXPORT int rtcChainPliHandler(int tr, rtcPliHandlerCallbackFunc cb);
 
+// Chain RembHandler on track
+RTC_C_EXPORT int rtcChainRembHandler(int tr, rtcRembHandlerCallbackFunc cb);
+
 // Transform seconds to timestamp using track's clock rate, result is written to timestamp
 RTC_C_EXPORT int rtcTransformSecondsToTimestamp(int id, double seconds, uint32_t *timestamp);
 
@@ -421,25 +446,25 @@ RTC_C_EXPORT int rtcSetTrackRtpTimestamp(int id, uint32_t timestamp);
 // Get timestamp of last RTCP SR, result is written to timestamp
 RTC_C_EXPORT int rtcGetLastTrackSenderReportTimestamp(int id, uint32_t *timestamp);
 
-// Set NeedsToReport flag in RtcpSrReporter handler identified by given track id
-RTC_C_EXPORT int rtcSetNeedsToSendRtcpSr(int id);
-
 // Get all available payload types for given codec and stores them in buffer, does nothing if
 // buffer is NULL
-int rtcGetTrackPayloadTypesForCodec(int tr, const char *ccodec, int *buffer, int size);
+RTC_C_EXPORT int rtcGetTrackPayloadTypesForCodec(int tr, const char *ccodec, int *buffer, int size);
 
 // Get all SSRCs for given track
-int rtcGetSsrcsForTrack(int tr, uint32_t *buffer, int count);
+RTC_C_EXPORT int rtcGetSsrcsForTrack(int tr, uint32_t *buffer, int count);
 
 // Get CName for SSRC
-int rtcGetCNameForSsrc(int tr, uint32_t ssrc, char *cname, int cnameSize);
+RTC_C_EXPORT int rtcGetCNameForSsrc(int tr, uint32_t ssrc, char *cname, int cnameSize);
 
 // Get all SSRCs for given media type in given SDP
-int rtcGetSsrcsForType(const char *mediaType, const char *sdp, uint32_t *buffer, int bufferSize);
+RTC_C_EXPORT int rtcGetSsrcsForType(const char *mediaType, const char *sdp, uint32_t *buffer, int bufferSize);
 
 // Set SSRC for given media type in given SDP
-int rtcSetSsrcForType(const char *mediaType, const char *sdp, char *buffer, const int bufferSize,
-                      rtcSsrcForTypeInit *init);
+RTC_C_EXPORT int rtcSetSsrcForType(const char *mediaType, const char *sdp, char *buffer, const int bufferSize,
+                                   rtcSsrcForTypeInit *init);
+
+// For backward compatibility, do not use
+RTC_C_EXPORT RTC_DEPRECATED int rtcSetNeedsToSendRtcpSr(int id);
 
 #endif // RTC_ENABLE_MEDIA
 
@@ -488,12 +513,10 @@ RTC_C_EXPORT int rtcGetWebSocketServerPort(int wsserver);
 
 #endif
 
-// Optional global preload and cleanup
+// Global settings
 
-RTC_C_EXPORT void rtcPreload(void);
-RTC_C_EXPORT void rtcCleanup(void);
-
-// SCTP global settings
+// Note: Applied when threads are spawned
+RTC_C_EXPORT int rtcSetThreadPoolSize(unsigned int count);
 
 typedef struct {
 	int recvBufferSize;          // in bytes, <= 0 means optimized default
@@ -512,6 +535,10 @@ typedef struct {
 
 // Note: SCTP settings apply to newly-created PeerConnections only
 RTC_C_EXPORT int rtcSetSctpSettings(const rtcSctpSettings *settings);
+
+// Optional global preload and cleanup
+RTC_C_EXPORT void rtcPreload(void);
+RTC_C_EXPORT void rtcCleanup(void);
 
 #ifdef __cplusplus
 } // extern "C"

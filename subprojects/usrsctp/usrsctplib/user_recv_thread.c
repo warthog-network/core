@@ -48,15 +48,15 @@
 #if 0
 #if defined(__linux__)
 #include <linux/netlink.h>
-#ifdef __has_include (<linux/if_addr.h>)
+#ifdef HAVE_LINUX_IF_ADDR_H
 #include <linux/if_addr.h>
 #endif
-#ifdef __has_include (<linux/rtnetlink.h>)
+#ifdef HAVE_LINUX_RTNETLINK_H
 #include <linux/rtnetlink.h>
 #endif
 #endif
 #endif
-#if __has_include (<net/route.h>)
+#if defined(HAVE_NET_ROUTE_H)
 # include <net/route.h>
 #elif defined(__APPLE__)
 /* Apple SDKs for iOS, tvOS, watchOS, etc. don't ship this header */
@@ -135,8 +135,7 @@ sctp_handle_ifamsg(unsigned char type, unsigned short index, struct sockaddr *sa
 		                           1);
 	} else {
 		sctp_del_addr_from_vrf(SCTP_DEFAULT_VRFID, ifa->ifa_addr,
-		                       if_nametoindex(ifa->ifa_name),
-		                       ifa->ifa_name);
+		                       NULL, if_nametoindex(ifa->ifa_name));
 	}
 	freeifaddrs(ifas);
 }

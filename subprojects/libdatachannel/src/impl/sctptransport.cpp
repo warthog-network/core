@@ -82,7 +82,7 @@ private:
 	std::shared_mutex mMutex;
 };
 
-SctpTransport::InstancesSet *SctpTransport::Instances = new InstancesSet;
+SctpTransport::InstancesSet* SctpTransport::Instances = nullptr;
 
 void SctpTransport::Init() {
 	usrsctp_init(0, SctpTransport::WriteCallback, SctpTransport::DebugCallback);
@@ -94,6 +94,8 @@ void SctpTransport::Init() {
 #ifdef SCTP_DEBUG
 	usrsctp_sysctl_set_sctp_debug_on(SCTP_DEBUG_ALL);
 #endif
+
+	Instances = new InstancesSet;
 }
 
 void SctpTransport::SetSettings(const SctpSettings &s) {
@@ -148,6 +150,9 @@ void SctpTransport::SetSettings(const SctpSettings &s) {
 void SctpTransport::Cleanup() {
 	while (usrsctp_finish())
 		std::this_thread::sleep_for(100ms);
+
+	delete Instances;
+	Instances = nullptr;
 }
 
 SctpTransport::SctpTransport(shared_ptr<Transport> lower, const Configuration &config, Ports ports,
@@ -723,21 +728,18 @@ void SctpTransport::sendReset(uint16_t streamId) {
 
 	using srs_t = struct sctp_reset_streams;
 	const size_t len = sizeof(srs_t) + sizeof(uint16_t);
-	byte buffer[len] = {};
+	alignas(alignof(srs_t)) byte buffer[len] = {};
 	srs_t &srs = *reinterpret_cast<srs_t *>(buffer);
 	srs.srs_flags = SCTP_STREAM_RESET_OUTGOING;
 	srs.srs_number_streams = 1;
 	srs.srs_stream_list[0] = streamId;
 
-	mWritten = false;
-	if (usrsctp_setsockopt(mSock, IPPROTO_SCTP, SCTP_RESET_STREAMS, &srs, len) == 0) {
-		std::unique_lock lock(mWriteMutex); // locking before setsockopt might deadlock usrsctp...
-		mWrittenCondition.wait_for(lock, 1000ms,
-		                           [&]() { return mWritten || state() != State::Connected; });
-	} else if (errno == EINVAL) {
-		PLOG_DEBUG << "SCTP stream " << streamId << " already reset";
-	} else {
-		PLOG_WARNING << "SCTP reset stream " << streamId << " failed, errno=" << errno;
+	if (usrsctp_setsockopt(mSock, IPPROTO_SCTP, SCTP_RESET_STREAMS, &srs, len)) {
+		if (errno == EINVAL) {
+			PLOG_DEBUG << "SCTP stream " << streamId << " already reset";
+		} else {
+			PLOG_WARNING << "SCTP reset stream " << streamId << " failed, errno=" << errno;
+		}
 	}
 }
 

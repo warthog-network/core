@@ -65,7 +65,6 @@ system = host_machine.system()
 if system in ['linux', 'android']
     add_project_arguments([
         '-D_GNU_SOURCE',
-        '-Wno-address-of-packed-member',
     ], language: 'c')
 elif system == 'freebsd'
     add_project_arguments(compiler.get_supported_arguments([
@@ -219,4 +218,3 @@ pkg.generate(usrsctp,
     description: 'A portable SCTP userland stack',
     url: 'https://github.com/sctplab/usrsctp',
     extra_cflags: compile_args)
-

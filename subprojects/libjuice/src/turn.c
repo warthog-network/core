@@ -156,14 +156,15 @@ static void delete_entry(turn_map_t *map, turn_entry_t *entry) {
 */
 static turn_entry_t *find_entry(turn_map_t *map, const addr_record_t *record,
                                 turn_entry_type_t type, bool allow_deleted) {
-	// RFC 5766: only addresses are compared and port numbers are not considered.
-	unsigned long key = (addr_record_hash(record, false /*no port*/) + (int)type) % map->map_size;
+	// RFC 5766: (For permissions) only addresses are compared and port numbers are not considered
+	bool with_port = (type != TURN_ENTRY_TYPE_PERMISSION);
+	unsigned long key = addr_record_hash(record, with_port) % map->map_size;
 	unsigned long pos = key;
 	while (true) {
 		turn_entry_t *entry = map->map + pos;
 		if (entry->type == TURN_ENTRY_TYPE_EMPTY ||
 		    (entry->type == type &&
-		     addr_record_is_equal(&entry->record, record, false /*no port*/)))
+		     addr_record_is_equal(&entry->record, record, with_port)))
 			break;
 
 		if (allow_deleted && entry->type == TURN_ENTRY_TYPE_DELETED)

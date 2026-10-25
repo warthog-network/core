@@ -66,9 +66,10 @@ public:
 	bool ended() const;
 
 	void hintType(Type type);
-	void setFingerprint(CertificateFingerprint f);
 	void addIceOption(string option);
 	void removeIceOption(const string &option);
+	void setIceAttribute(string ufrag, string pwd);
+	void setFingerprint(CertificateFingerprint f);
 
 	std::vector<string> attributes() const;
 	void addAttribute(string attr);
@@ -90,6 +91,7 @@ public:
 		virtual ~Entry() = default;
 
 		virtual string type() const;
+		virtual string protocol() const;
 		virtual string description() const;
 		virtual string mid() const;
 
@@ -140,6 +142,7 @@ public:
 
 	private:
 		string mType;
+		string mProtocol;
 		string mDescription;
 		string mMid;
 		std::vector<string> mRids;
@@ -153,7 +156,6 @@ public:
 		Application(const string &mline, string mid);
 		virtual ~Application() = default;
 
-		string description() const override;
 		Application reciprocate() const;
 
 		void setSctpPort(uint16_t port);
@@ -175,8 +177,8 @@ public:
 	// Media (non-data)
 	class RTC_CPP_EXPORT Media : public Entry {
 	public:
-		Media(const string &sdp);
 		Media(const string &mline, string mid, Direction dir = Direction::SendOnly);
+		Media(const string &sdp);
 		virtual ~Media() = default;
 
 		string description() const override;
@@ -234,6 +236,7 @@ public:
 
 		int mBas = -1;
 
+		std::vector<int> mOrderedPayloadTypes;
 		std::map<int, RtpMap> mRtpMaps;
 		std::vector<uint32_t> mSsrcs;
 		std::map<uint32_t, string> mCNameMap;
@@ -248,6 +251,7 @@ public:
 		void addPCMACodec(int payloadType, optional<string> profile = std::nullopt);
 		void addPCMUCodec(int payloadType, optional<string> profile = std::nullopt);
 		void addAACCodec(int payloadType, optional<string> profile = std::nullopt);
+		void addG722Codec(int payloadType, optional<string> profile = std::nullopt);
 
 		[[deprecated("Use addAACCodec")]] inline void
 		addAacCodec(int payloadType, optional<string> profile = std::nullopt) {
@@ -279,15 +283,17 @@ public:
 	int addAudio(string mid = "audio", Direction dir = Direction::SendOnly);
 	void clearMedia();
 
-	variant<Media *, Application *> media(unsigned int index);
-	variant<const Media *, const Application *> media(unsigned int index) const;
-	unsigned int mediaCount() const;
+	variant<Media *, Application *> media(int index);
+	variant<const Media *, const Application *> media(int index) const;
+	int mediaCount() const;
 
 	const Application *application() const;
 	Application *application();
 
 	static Type stringToType(const string &typeString);
 	static string typeToString(Type type);
+
+	string sessionId() const;
 
 private:
 	optional<Candidate> defaultCandidate() const;

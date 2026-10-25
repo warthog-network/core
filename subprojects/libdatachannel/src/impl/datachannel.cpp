@@ -108,9 +108,8 @@ void DataChannel::close() {
 			transport->closeStream(mStream.value());
 
 		triggerClosed();
-	}
-
-	resetCallbacks();
+		resetCallbacks();
+	}	
 }
 
 void DataChannel::remoteClose() { close(); }
@@ -185,8 +184,11 @@ bool DataChannel::outgoing(message_ptr message) {
 		std::shared_lock lock(mMutex);
 		transport = mSctpTransport.lock();
 
-		if (!transport || mIsClosed)
+		if (mIsClosed)
 			throw std::runtime_error("DataChannel is closed");
+
+		if (!transport)
+			throw std::runtime_error("DataChannel not open");
 
 		if (!mStream.has_value())
 			throw std::logic_error("DataChannel has no stream assigned");
