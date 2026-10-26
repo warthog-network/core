@@ -11168,7 +11168,7 @@ sctp_send_sack(struct sctp_tcb *stcb, int so_locked)
 	int mergeable = 0;
 	int offset;
 	caddr_t limit;
-	uint32_t *dup;
+	uint8_t *dup;
 	int limit_reached = 0;
 	unsigned int i, siz, j;
 	unsigned int num_gap_blocks = 0, num_nr_gap_blocks = 0, space;
@@ -11490,10 +11490,18 @@ sctp_send_sack(struct sctp_tcb *stcb, int so_locked)
 	}
 	/* now we must add any dups we are going to report. */
 	if ((limit_reached == 0) && (asoc->numduptsns)) {
-		dup = (uint32_t *) gap_descriptor;
+		/*
+		 * The duplicate TSNs follow the gap ack blocks inside a byte
+		 * packed chunk, so they may not be suitably aligned for a
+		 * uint32_t. Write them byte-wise.
+		 */
+		dup = (uint8_t *) gap_descriptor;
 		for (i = 0; i < asoc->numduptsns; i++) {
-			*dup = htonl(asoc->dup_tsns[i]);
-			dup++;
+			uint32_t tsn;
+
+			tsn = htonl(asoc->dup_tsns[i]);
+			memcpy(dup, &tsn, sizeof(tsn));
+			dup += sizeof(uint32_t);
 			num_dups++;
 			if (((caddr_t)dup + sizeof(uint32_t)) > limit) {
 				/* no more room */
@@ -11741,7 +11749,12 @@ sctp_send_resp_msg(struct sockaddr *src, struct sockaddr *dst,
 	struct sctphdr *shout;
 	struct sctp_chunkhdr *ch;
 #if defined(INET) || defined(INET6)
-	struct udphdr *udp;
+	/*
+	 * The UDP header is written into a byte packed buffer right in front
+	 * of the SCTP header, so use the packed mirror of struct udphdr to
+	 * avoid creating a pointer with a stricter alignment than the buffer.
+	 */
+	struct sctp_udphdr *udp;
 #endif
 	int ret, len, cause_len, padding_len;
 #ifdef INET
@@ -11917,7 +11930,7 @@ sctp_send_resp_msg(struct sockaddr *src, struct sockaddr *dst,
 			sctp_m_freem(mout);
 			return;
 		}
-		udp = (struct udphdr *)shout;
+		udp = (struct sctp_udphdr *)shout;
 		udp->uh_sport = htons(SCTP_BASE_SYSCTL(sctp_udp_tunneling_port));
 		udp->uh_dport = port;
 		udp->uh_sum = 0;

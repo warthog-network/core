@@ -4114,7 +4114,7 @@ sctp_notify_stream_reset_tsn(struct sctp_tcb *stcb, int flag, int so_locked)
 
 static void
 sctp_notify_stream_reset(struct sctp_tcb *stcb,
-                         int number_entries, uint16_t *list, int flag, int so_locked)
+                         int number_entries, void *list, int flag, int so_locked)
 {
 	struct mbuf *m_notify;
 	struct sctp_queued_to_read *control;
@@ -4151,7 +4151,7 @@ sctp_notify_stream_reset(struct sctp_tcb *stcb,
 		int i;
 
 		for (i = 0; i < number_entries; i++) {
-			strreset->strreset_stream_list[i] = ntohs(list[i]);
+			strreset->strreset_stream_list[i] = ntohs(sctp_stream_id_at(list, i));
 		}
 	}
 	SCTP_BUF_LEN(m_notify) = len;
@@ -4385,25 +4385,25 @@ sctp_ulp_notify(uint32_t notification, struct sctp_tcb *stcb,
 		}
 		break;
 	case SCTP_NOTIFY_STR_RESET_SEND:
-		sctp_notify_stream_reset(stcb, error, ((uint16_t *) data), SCTP_STREAM_RESET_OUTGOING_SSN, so_locked);
+		sctp_notify_stream_reset(stcb, error, data, SCTP_STREAM_RESET_OUTGOING_SSN, so_locked);
 		break;
 	case SCTP_NOTIFY_STR_RESET_RECV:
-		sctp_notify_stream_reset(stcb, error, ((uint16_t *) data), SCTP_STREAM_RESET_INCOMING, so_locked);
+		sctp_notify_stream_reset(stcb, error, data, SCTP_STREAM_RESET_INCOMING, so_locked);
 		break;
 	case SCTP_NOTIFY_STR_RESET_FAILED_OUT:
-		sctp_notify_stream_reset(stcb, error, ((uint16_t *) data),
+		sctp_notify_stream_reset(stcb, error, data,
 		                         (SCTP_STREAM_RESET_OUTGOING_SSN|SCTP_STREAM_RESET_FAILED), so_locked);
 		break;
 	case SCTP_NOTIFY_STR_RESET_DENIED_OUT:
-		sctp_notify_stream_reset(stcb, error, ((uint16_t *) data),
+		sctp_notify_stream_reset(stcb, error, data,
 		                         (SCTP_STREAM_RESET_OUTGOING_SSN|SCTP_STREAM_RESET_DENIED), so_locked);
 		break;
 	case SCTP_NOTIFY_STR_RESET_FAILED_IN:
-		sctp_notify_stream_reset(stcb, error, ((uint16_t *) data),
+		sctp_notify_stream_reset(stcb, error, data,
 		                         (SCTP_STREAM_RESET_INCOMING|SCTP_STREAM_RESET_FAILED), so_locked);
 		break;
 	case SCTP_NOTIFY_STR_RESET_DENIED_IN:
-		sctp_notify_stream_reset(stcb, error, ((uint16_t *) data),
+		sctp_notify_stream_reset(stcb, error, data,
 		                         (SCTP_STREAM_RESET_INCOMING|SCTP_STREAM_RESET_DENIED), so_locked);
 		break;
 	case SCTP_NOTIFY_STR_RESET_ADD:

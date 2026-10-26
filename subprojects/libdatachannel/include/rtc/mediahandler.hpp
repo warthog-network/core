@@ -14,6 +14,8 @@
 #include "description.hpp"
 #include "message.hpp"
 
+#include <atomic>
+
 namespace rtc {
 
 class RTC_CPP_EXPORT MediaHandler : public std::enable_shared_from_this<MediaHandler> {
@@ -50,7 +52,7 @@ public:
 	void outgoingChain(message_vector &messages, const message_callback &send);
 
 private:
-	shared_ptr<MediaHandler> mNext;
+	std::atomic<shared_ptr<MediaHandler>> mNext;
 };
 
 } // namespace rtc

@@ -3690,7 +3690,7 @@ process_chunk_drop(struct sctp_tcb *stcb, struct sctp_chunk_desc *desc,
 }
 
 void
-sctp_reset_in_stream(struct sctp_tcb *stcb, uint32_t number_entries, uint16_t *list)
+sctp_reset_in_stream(struct sctp_tcb *stcb, uint32_t number_entries, void *list)
 {
 	uint32_t i;
 	uint16_t temp;
@@ -3702,7 +3702,7 @@ sctp_reset_in_stream(struct sctp_tcb *stcb, uint32_t number_entries, uint16_t *l
 
 	if (number_entries) {
 		for (i = 0; i < number_entries; i++) {
-			temp = ntohs(list[i]);
+			temp = ntohs(sctp_stream_id_at(list, i));
 			if (temp >= stcb->asoc.streamincnt) {
 				continue;
 			}
@@ -3718,14 +3718,14 @@ sctp_reset_in_stream(struct sctp_tcb *stcb, uint32_t number_entries, uint16_t *l
 }
 
 static void
-sctp_reset_out_streams(struct sctp_tcb *stcb, uint32_t number_entries, uint16_t *list)
+sctp_reset_out_streams(struct sctp_tcb *stcb, uint32_t number_entries, void *list)
 {
 	uint32_t i;
 	uint16_t temp;
 
 	if (number_entries > 0) {
 		for (i = 0; i < number_entries; i++) {
-			temp = ntohs(list[i]);
+			temp = ntohs(sctp_stream_id_at(list, i));
 			if (temp >= stcb->asoc.streamoutcnt) {
 				/* no such stream */
 				continue;
@@ -3743,14 +3743,14 @@ sctp_reset_out_streams(struct sctp_tcb *stcb, uint32_t number_entries, uint16_t 
 }
 
 static void
-sctp_reset_clear_pending(struct sctp_tcb *stcb, uint32_t number_entries, uint16_t *list)
+sctp_reset_clear_pending(struct sctp_tcb *stcb, uint32_t number_entries, void *list)
 {
 	uint32_t i;
 	uint16_t temp;
 
 	if (number_entries > 0) {
 		for (i = 0; i < number_entries; i++) {
-			temp = ntohs(list[i]);
+			temp = ntohs(sctp_stream_id_at(list, i));
 			if (temp >= stcb->asoc.streamoutcnt) {
 				/* no such stream */
 				continue;

@@ -20,6 +20,7 @@
 
 #include "rtc/peerconnection.hpp"
 
+#include <atomic>
 #include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
@@ -151,10 +152,10 @@ private:
 	shared_ptr<MediaHandler> mMediaHandler;
 	mutable std::shared_mutex mMediaHandlerMutex;
 
-	shared_ptr<IceTransport> mIceTransport;
-	shared_ptr<DtlsTransport> mDtlsTransport;
+	std::atomic<shared_ptr<IceTransport>> mIceTransport;
+	std::atomic<shared_ptr<DtlsTransport>> mDtlsTransport;
 	std::mutex mDtlsTransportInitMutex;
-	shared_ptr<SctpTransport> mSctpTransport;
+	std::atomic<shared_ptr<SctpTransport>> mSctpTransport;
 
 	std::unordered_map<uint16_t, weak_ptr<DataChannel>> mDataChannels; // by stream ID
 	std::vector<weak_ptr<DataChannel>> mUnassignedDataChannels;

@@ -87,7 +87,7 @@ PeerConnection::~PeerConnection() {
 void PeerConnection::close() {
 	if (!closing.exchange(true)) {
 		PLOG_VERBOSE << "Closing PeerConnection";
-		if (auto transport = std::atomic_load(&mSctpTransport))
+		if (auto transport = mSctpTransport.load())
 			transport->stop();
 		else
 			remoteClose();
@@ -134,17 +134,18 @@ size_t PeerConnection::remoteMaxMessageSize() const {
 
 // Helper for PeerConnection::initXTransport methods: start and emplace the transport
 template <typename T>
-shared_ptr<T> emplaceTransport(PeerConnection *pc, shared_ptr<T> *member, shared_ptr<T> transport) {
-	std::atomic_store(member, transport);
+shared_ptr<T> emplaceTransport(PeerConnection *pc, std::atomic<shared_ptr<T>> *member,
+                               shared_ptr<T> transport) {
+	member->store(transport);
 	try {
 		transport->start();
 	} catch (...) {
-		std::atomic_store(member, decltype(transport)(nullptr));
+		member->store(nullptr);
 		throw;
 	}
 
 	if (pc->closing.load() || pc->state.load() == PeerConnection::State::Closed) {
-		std::atomic_store(member, decltype(transport)(nullptr));
+		member->store(nullptr);
 		transport->stop();
 		return nullptr;
 	}
@@ -154,7 +155,7 @@ shared_ptr<T> emplaceTransport(PeerConnection *pc, shared_ptr<T> *member, shared
 
 shared_ptr<IceTransport> PeerConnection::initIceTransport() {
 	try {
-		if (auto transport = std::atomic_load(&mIceTransport))
+		if (auto transport = mIceTransport.load())
 			return transport;
 
 		PLOG_VERBOSE << "Starting ICE transport";
@@ -163,7 +164,7 @@ shared_ptr<IceTransport> PeerConnection::initIceTransport() {
 		    config, weak_bind(&PeerConnection::processLocalCandidate, this, _1),
 		    [this, weak_this = weak_from_this()](IceTransport::State transportState) {
 			    if (auto locked = weak_this.lock())
-				    std::invoke([=]() {
+				    std::invoke([=, this]() {
 					    switch (transportState) {
 					    case IceTransport::State::Connecting:
 						    changeIceState(IceState::Checking);
@@ -195,7 +196,7 @@ shared_ptr<IceTransport> PeerConnection::initIceTransport() {
 		    },
 		    [this, weak_this = weak_from_this()](IceTransport::GatheringState gatheringState) {
 			    if (auto locked = weak_this.lock())
-				    std::invoke([=]() {
+				    std::invoke([=, this]() {
 					    switch (gatheringState) {
 					    case IceTransport::GatheringState::InProgress:
 						    changeGatheringState(GatheringState::InProgress);
@@ -223,7 +224,7 @@ shared_ptr<IceTransport> PeerConnection::initIceTransport() {
 shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 	try {
 		std::lock_guard lock(mDtlsTransportInitMutex);
-		if (auto transport = std::atomic_load(&mDtlsTransport))
+		if (auto transport = mDtlsTransport.load())
 			return transport;
 
 		PLOG_VERBOSE << "Starting DTLS transport";
@@ -237,7 +238,7 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 			fingerprintAlgorithm = mRemoteFingerprintAlgorithm;
 		}
 
-		auto lower = std::atomic_load(&mIceTransport);
+		auto lower = mIceTransport.load();
 		if (!lower)
 			throw std::logic_error("No underlying ICE transport for DTLS transport");
 
@@ -246,7 +247,7 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 		auto dtlsStateChangeCallback = [this, weak_this = weak_from_this()](
 		                                   DtlsTransport::State transportState) {
 			if (auto locked = weak_this.lock())
-				std::invoke([=]() {
+				std::invoke([=, this]() {
 					switch (transportState) {
 					case DtlsTransport::State::Connected:
 						if (auto remote = remoteDescription(); remote && remote->hasApplication())
@@ -304,12 +305,12 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 
 shared_ptr<SctpTransport> PeerConnection::initSctpTransport() {
 	try {
-		if (auto transport = std::atomic_load(&mSctpTransport))
+		if (auto transport = mSctpTransport.load())
 			return transport;
 
 		PLOG_VERBOSE << "Starting SCTP transport";
 
-		auto lower = std::atomic_load(&mDtlsTransport);
+		auto lower = mDtlsTransport.load();
 		if (!lower)
 			throw std::logic_error("No underlying DTLS transport for SCTP transport");
 
@@ -331,7 +332,7 @@ shared_ptr<SctpTransport> PeerConnection::initSctpTransport() {
 		    weak_bind(&PeerConnection::forwardBufferedAmount, this, _1, _2),
 		    [this, weak_this = weak_from_this()](SctpTransport::State transportState) {
 			    if (auto locked = weak_this.lock())
-				    std::invoke([=]() {
+				    std::invoke([=, this]() {
 					    switch (transportState) {
 					    case SctpTransport::State::Connected:
 						    changeState(State::Connected);
@@ -364,15 +365,15 @@ shared_ptr<SctpTransport> PeerConnection::initSctpTransport() {
 }
 
 shared_ptr<IceTransport> PeerConnection::getIceTransport() const {
-	return std::atomic_load(&mIceTransport);
+	return mIceTransport.load();
 }
 
 shared_ptr<DtlsTransport> PeerConnection::getDtlsTransport() const {
-	return std::atomic_load(&mDtlsTransport);
+	return mDtlsTransport.load();
 }
 
 shared_ptr<SctpTransport> PeerConnection::getSctpTransport() const {
-	return std::atomic_load(&mSctpTransport);
+	return mSctpTransport.load();
 }
 
 void PeerConnection::closeTransports() {
@@ -390,9 +391,9 @@ void PeerConnection::closeTransports() {
 	resetCallbacks();
 
 	// Pass the pointers to a thread, allowing to terminate a transport from its own thread
-	auto sctp = std::atomic_exchange(&mSctpTransport, decltype(mSctpTransport)(nullptr));
-	auto dtls = std::atomic_exchange(&mDtlsTransport, decltype(mDtlsTransport)(nullptr));
-	auto ice = std::atomic_exchange(&mIceTransport, decltype(mIceTransport)(nullptr));
+	auto sctp = mSctpTransport.exchange(nullptr);
+	auto dtls = mDtlsTransport.exchange(nullptr);
+	auto ice = mIceTransport.exchange(nullptr);
 
 	if (sctp) {
 		sctp->onRecv(nullptr);
@@ -471,8 +472,8 @@ void PeerConnection::forwardMessage(message_ptr message) {
 		return;
 	}
 
-	auto iceTransport = std::atomic_load(&mIceTransport);
-	auto sctpTransport = std::atomic_load(&mSctpTransport);
+	auto iceTransport = mIceTransport.load();
+	auto sctpTransport = mSctpTransport.load();
 	if (!iceTransport || !sctpTransport)
 		return;
 
@@ -541,7 +542,7 @@ void PeerConnection::forwardMedia([[maybe_unused]] message_ptr message) {
 
 		try {
 			handler->incomingChain(messages, [this](message_ptr message) {
-				auto transport = std::atomic_load(&mDtlsTransport);
+				auto transport = mDtlsTransport.load();
 				if (auto srtpTransport = std::dynamic_pointer_cast<DtlsSrtpTransport>(transport))
 					srtpTransport->send(std::move(message));
 			});
@@ -707,7 +708,7 @@ shared_ptr<DataChannel> PeerConnection::emplaceDataChannel(string label, DataCha
 	lock.unlock(); // we are going to call assignDataChannels()
 
 	// If SCTP is connected, assign and open now
-	auto sctpTransport = std::atomic_load(&mSctpTransport);
+	auto sctpTransport = mSctpTransport.load();
 	if (sctpTransport && sctpTransport->state() == SctpTransport::State::Connected) {
 		assignDataChannels();
 		channel->open(sctpTransport);
@@ -730,14 +731,14 @@ bool PeerConnection::removeDataChannel(uint16_t stream) {
 }
 
 uint16_t PeerConnection::maxDataChannelStream() const {
-	auto sctpTransport = std::atomic_load(&mSctpTransport);
+	auto sctpTransport = mSctpTransport.load();
 	return sctpTransport ? sctpTransport->maxStream() : (MAX_SCTP_STREAMS_COUNT - 1);
 }
 
 void PeerConnection::assignDataChannels() {
 	std::unique_lock lock(mDataChannelsMutex); // we are going to emplace
 
-	auto iceTransport = std::atomic_load(&mIceTransport);
+	auto iceTransport = mIceTransport.load();
 	if (!iceTransport)
 		throw std::logic_error("Attempted to assign DataChannels without ICE transport");
 
@@ -795,7 +796,7 @@ void PeerConnection::iterateDataChannels(
 }
 
 void PeerConnection::openDataChannels() {
-	if (auto transport = std::atomic_load(&mSctpTransport))
+	if (auto transport = mSctpTransport.load())
 		iterateDataChannels([&](shared_ptr<DataChannel> channel) {
 			if (!channel->isOpen())
 				channel->open(transport);
@@ -896,7 +897,7 @@ void PeerConnection::iterateRemoteTracks(std::function<void(shared_ptr<Track> tr
 
 void PeerConnection::openTracks() {
 #if RTC_ENABLE_MEDIA
-	auto transport = std::atomic_load(&mDtlsTransport);
+	auto transport = mDtlsTransport.load();
 	if (!transport)
 		return;
 
@@ -1163,17 +1164,17 @@ void PeerConnection::processRemoteDescription(Description description) {
 		mRemoteDescription->addCandidates(std::move(existingCandidates));
 	}
 
-	auto dtlsTransport = std::atomic_load(&mDtlsTransport);
+	auto dtlsTransport = mDtlsTransport.load();
 	if (!dtlsTransport) {
 		// ICE might have connected before the remote fingerprint was committed.
-		auto iceTransport = std::atomic_load(&mIceTransport);
+		auto iceTransport = mIceTransport.load();
 		if (iceTransport && (iceTransport->state() == Transport::State::Connected ||
 		                     iceTransport->state() == Transport::State::Completed))
 			dtlsTransport = initDtlsTransport();
 	}
 
 	if (description.hasApplication()) {
-		auto sctpTransport = std::atomic_load(&mSctpTransport);
+		auto sctpTransport = mSctpTransport.load();
 		if (!sctpTransport && dtlsTransport &&
 		    dtlsTransport->state() == Transport::State::Connected)
 			initSctpTransport();
@@ -1187,7 +1188,7 @@ void PeerConnection::processRemoteDescription(Description description) {
 }
 
 void PeerConnection::processRemoteCandidate(Candidate candidate) {
-	auto iceTransport = std::atomic_load(&mIceTransport);
+	auto iceTransport = mIceTransport.load();
 	{
 		// Set as remote candidate
 		std::lock_guard lock(mRemoteDescriptionMutex);
@@ -1211,7 +1212,7 @@ void PeerConnection::processRemoteCandidate(Candidate candidate) {
 	} else {
 		// We might need a lookup, do it asynchronously
 		// We don't use the thread pool because we have no control on the timeout
-		if ((iceTransport = std::atomic_load(&mIceTransport))) {
+		if ((iceTransport = mIceTransport.load())) {
 			weak_ptr<IceTransport> weakIceTransport{iceTransport};
 			std::thread t([weakIceTransport, candidate = std::move(candidate)]() mutable {
 				utils::this_thread::set_name("RTC resolver");

@@ -398,11 +398,16 @@ struct sctp_strseq {
 	uint16_t ssn;
 } SCTP_PACKED;
 
+/*
+ * This structure is carried inside a byte packed chunk, so it must be
+ * packed as well. Otherwise a pointer to it may end up at an address
+ * which is not suitably aligned for the uint32_t member.
+ */
 struct sctp_strseq_mid {
 	uint16_t sid;
 	uint16_t flags;
 	uint32_t mid;
-};
+} SCTP_PACKED;
 
 struct sctp_forward_tsn_msg {
 	struct sctphdr sh;
@@ -588,6 +593,19 @@ struct sctp_zero_checksum_acceptable {
 #define SCTP_MIN_V4_OVERHEAD (sizeof(struct ip) + \
                               sizeof(struct sctphdr))
 
+/*
+ * Packed mirror of the UDP header. It is used whenever the UDP header is
+ * written into (or read from) a byte packed buffer, so that no pointer
+ * with a stricter alignment than the buffer itself is created. The field
+ * names and the layout match the platform struct udphdr.
+ */
+struct sctp_udphdr {
+	uint16_t uh_sport;
+	uint16_t uh_dport;
+	uint16_t uh_ulen;
+	uint16_t uh_sum;
+} SCTP_PACKED;
+
 #if defined(_WIN32) && !defined(__Userspace__)
 #include <packoff.h>
 #endif
@@ -595,4 +613,26 @@ struct sctp_zero_checksum_acceptable {
 #pragma pack(pop)
 #endif
 #undef SCTP_PACKED
+
+/*
+ * Stream identifier lists are carried inside byte packed wire structures,
+ * so the list may start at an odd address. Assemble the entries byte-wise
+ * to avoid unaligned accesses. The bytes are copied in memory order, so
+ * the result is the same value a memcpy into a uint16_t would produce.
+ */
+static inline uint16_t
+sctp_stream_id_at(const void *list, uint32_t index)
+{
+	const uint8_t *p;
+	union {
+		uint8_t bytes[sizeof(uint16_t)];
+		uint16_t id;
+	} value;
+
+	p = (const uint8_t *)list + (index * sizeof(uint16_t));
+	value.bytes[0] = p[0];
+	value.bytes[1] = p[1];
+	return value.id;
+}
+
 #endif				/* !__sctp_header_h__ */

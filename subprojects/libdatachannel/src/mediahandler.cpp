@@ -18,13 +18,11 @@ MediaHandler::~MediaHandler() {}
 
 void MediaHandler::addToChain(shared_ptr<MediaHandler> handler) { last()->setNext(handler); }
 
-void MediaHandler::setNext(shared_ptr<MediaHandler> handler) {
-	return std::atomic_store(&mNext, handler);
-}
+void MediaHandler::setNext(shared_ptr<MediaHandler> handler) { mNext.store(std::move(handler)); }
 
-shared_ptr<MediaHandler> MediaHandler::next() { return std::atomic_load(&mNext); }
+shared_ptr<MediaHandler> MediaHandler::next() { return mNext.load(); }
 
-shared_ptr<const MediaHandler> MediaHandler::next() const { return std::atomic_load(&mNext); }
+shared_ptr<const MediaHandler> MediaHandler::next() const { return mNext.load(); }
 
 shared_ptr<MediaHandler> MediaHandler::last() {
 	if (auto handler = next())
