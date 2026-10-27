@@ -25,7 +25,7 @@ This is the **defi branch** of the Warthog reference implementation. It is curre
 - New implicit transactions: `reward`, `match`
 - TUI wallet (replaces the master-branch CLI wallet)
 
-See [HUB.md](../../HUB.md) for full project state.
+See [`warthog-network/docs`](https://github.com/warthog-network/docs) for the published documentation.
 
 ## ⚡ Revolutionary Features
 

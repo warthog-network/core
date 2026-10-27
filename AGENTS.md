@@ -4,7 +4,7 @@
 
 This is the C++ reference implementation of the Warthog cryptocurrency, **defi branch**. The defi branch adds native DeFi features (tokens, DEX, liquidity pools, Fair Batch Matching) on top of the mainnet `master` branch. The project is built with Meson/Ninja, requires C++23, and targets Linux/Windows/macOS.
 
-For cross-repo context (other sub-repos, sub-repo → git remote mapping), see `/AGENTS.md` and `/HUB.md` at the project hub root.
+This repository is `warthog-network/core`. The `defi` branch adds native DeFi; `master` is mainnet; `dev` is a legacy branch, ignore it unless explicitly asked to work on it.
 
 ## Important Constants
 
@@ -103,7 +103,7 @@ The defi branch has the following GitHub Actions workflows (in `.github/workflow
 ## Constraints
 
 - **C++23 required** — `meson.build` declares `cpp_std=c++23`
-- **Sub-repo rules** — this is part of the Warthog project hub; see `/AGENTS.md` for hub-level rules
+- **Repository rules**: this is `warthog-network/core`; cross-repo references use the `org/repo` form
 - **Git operations** — the project hub root is NOT a git repository; this subdirectory IS a git repository. Use `git -C core/defi <command>` or `cd core/defi` for git operations.
 - **Public RPC mode** — for internet exposure, use `--enable-public` (shorthand for `--publicrpc=0.0.0.0:3001`). This exposes a filtered subset of the API on port 3001; critical admin endpoints are hidden. Default port 3000 is full-access and should never be exposed to the internet.
 - **End-to-end Fair Batch Matching** — all DeFi matching uses Fair Batch Matching. There is no traditional sequential matching.
@@ -146,9 +146,9 @@ The defi branch uses **Fair Batch Matching (FBM)** for the DEX. A few notes that
 
 ## Cross-references
 
-- **HUB.md** (hub root) — Cross-repo reference, public RPC info, research papers, depository structure
-- **AGENTS.md** (hub root) — Hub-level overview, sub-repos table
-- **`whitepaper/`** sub-repo — Project whitepaper (typst → PDF). [Auto-built PDF](https://github.com/warthog-network/whitepaper/releases/download/build/main.pdf)
+- **`warthog-network/whitepaper`**: project whitepaper (typst → PDF). [Auto-built PDF](https://github.com/warthog-network/whitepaper/releases/download/build/main.pdf)
+- **`warthog-network/warthog-ts`**: TypeScript SDK, the reference client for this node's API
+- **`warthog-network/fair-batch-matching`**: WASM build of this repo's FBM engine; this repo is the upstream source
 - **Research papers**:
   - [PoBW](https://warthog.network/PoBW.pdf) — Proof of Balanced Work paper
   - [Fair Batch Matching](https://warthog.network/FairBatchMatching.pdf) — FBM paper
