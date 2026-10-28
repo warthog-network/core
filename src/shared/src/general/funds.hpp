@@ -180,7 +180,7 @@ struct FundsDecimal {
     FundsDecimal(std::string_view);
     auto mantissa() const { return funds; };
 
-    bool adjust_to_decimals(TokenDecimals);
+    bool adjust_decimals(TokenDecimals);
     void serialize(RawSerializer auto&& s) const
     {
         s << funds << decimals;

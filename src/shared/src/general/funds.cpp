@@ -42,7 +42,7 @@ Result<FundsDecimal> FundsDecimal::try_parse(std::string_view s)
     return err;
 }
 
-bool FundsDecimal::adjust_to_decimals(TokenDecimals newDecimals)
+bool FundsDecimal::adjust_decimals(TokenDecimals newDecimals)
 {
     size_t vd { decimals.value() };
     size_t newvd { newDecimals.value() };
@@ -154,15 +154,14 @@ Funds_uint64::Funds_uint64(Reader& r)
 
 std::optional<Funds_uint64> Funds_uint64::parse(std::string_view s, TokenDecimals digits)
 {
-    auto fd { FundsDecimal::try_parse(s) };
-    if (!fd)
-        return {};
-    return parse(*fd, digits);
+    if (auto fd { FundsDecimal::try_parse(s) })
+        return parse(*fd, digits);
+    return {};
 }
 
 std::optional<Funds_uint64> Funds_uint64::parse(FundsDecimal fd, TokenDecimals digits)
 {
-    if (!fd.adjust_to_decimals(digits))
+    if (fd.decimals.value() > digits.value() || !fd.adjust_decimals(digits))
         return {};
     return fd.mantissa();
 }
