@@ -121,13 +121,13 @@ public:
             return {};
         return from_value(a.val - b.val);
     }
-    friend constexpr R diff_assert(FundsBase<R> a, FundsBase<R> b)
+    [[nodiscard]] friend constexpr R diff_assert(FundsBase<R> a, FundsBase<R> b)
     {
         auto d { diff(a, b) };
         assert(d.has_value());
         return *d;
     }
-    friend constexpr R diff_throw(FundsBase<R> a, FundsBase<R> b)
+    [[nodiscard]] friend constexpr R diff_throw(FundsBase<R> a, FundsBase<R> b)
     {
         auto d { diff(a, b) };
         if (!d.has_value())
