@@ -5,10 +5,10 @@
 #include "chainserver/server.hpp"
 #include "general/function_traits.hpp"
 #include "general/static_string.hpp"
+#include "general/try_parse.hpp"
 #include "glaze/glaze.hpp"
 #include "glaze/glz_convert.hpp"
 #include "glaze/schema_aggregator.hpp"
-#include "general/try_parse.hpp"
 #include "types/opt_param.hpp"
 // #include "general/funds.hpp"
 #include "api/http/parse.hpp"
@@ -99,9 +99,9 @@ struct ParameterParser {
             return { api::TokenSpec::parse_throw(*this) };
         return { TokenId(*this) };
     }
-    operator ParsedFunds()
+    operator FundsDecimal()
     {
-        return ParsedFunds(sv);
+        return FundsDecimal(sv);
     }
     operator Wart()
     {

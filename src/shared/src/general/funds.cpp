@@ -2,10 +2,8 @@
 #include "general/errors.hpp"
 #include "general/params.hpp"
 #include "general/reader.hpp"
-#include "nlohmann/json.hpp"
 #include "general/try_parse.hpp"
 #include <cassert>
-#include <charconv>
 #include <cstring>
 #include <limits>
 
@@ -14,13 +12,13 @@ TokenDecimals::TokenDecimals(Reader& r)
 {
 }
 
-Result<ParsedFunds> ParsedFunds::try_parse(std::string_view s)
+Result<FundsDecimal> FundsDecimal::try_parse(std::string_view s)
 {
     constexpr auto err { Error(EINV_FUNDS) };
     constexpr const size_t N { 20 }; // max uint64_t has 20 digits max
     char buf[N];
     size_t i { 0 };
-    uint8_t digits { 0 };
+    uint8_t decimals { 0 }; // number of decimal places
     bool dotfound { false };
     for (auto c : s) {
         if (c >= '0' && c <= '9') {
@@ -28,7 +26,7 @@ Result<ParsedFunds> ParsedFunds::try_parse(std::string_view s)
                 return err; // too many digits
             buf[i++] = c;
             if (dotfound)
-                digits += 1;
+                decimals += 1;
         } else if (c == '.') {
             if (dotfound)
                 return err; // two dots
@@ -38,13 +36,48 @@ Result<ParsedFunds> ParsedFunds::try_parse(std::string_view s)
         }
     }
     auto v { ::try_parse<uint64_t>({ buf, buf + i }) };
-    if (!v)
-        return err;
-    return ParsedFunds { *v, digits };
+    auto td { TokenDecimals::from_number(decimals) };
+    if (v && td)
+        return FundsDecimal { Funds_uint64 { *v }, *td };
+    return err;
 }
 
-ParsedFunds::ParsedFunds(std::string_view s)
-    : ParsedFunds([&s]() {
+bool FundsDecimal::adjust_to_decimals(TokenDecimals newDecimals)
+{
+    size_t vd { decimals.value() };
+    size_t newvd { newDecimals.value() };
+    if (vd < newvd) {
+        size_t zeros { newvd - vd };
+        auto v { mantissa().value() };
+
+        for (size_t i { 0 }; i < zeros; ++i) {
+            if (std::numeric_limits<uint64_t>::max() / 10 < v)
+                return {};
+            v *= 10;
+        }
+        funds = Funds_uint64(v);
+        decimals = newDecimals;
+    } else if (vd > newvd) {
+        size_t zeros { vd - newvd };
+        uint64_t pow10 { 10 };
+        for (size_t i { 1 }; i < zeros; ++i)
+            pow10 *= 10;
+
+        const auto v { mantissa().value() };
+        auto q { v / pow10 };
+        auto mod { v % pow10 };
+        if (mod != 0) { // would lose precision
+            return false;
+        }
+
+        funds = Funds_uint64(q);
+        decimals = newDecimals;
+    }
+    return true;
+}
+
+FundsDecimal::FundsDecimal(std::string_view s)
+    : FundsDecimal([&s]() {
         if (auto p { try_parse(s) })
             return *p;
         throw Error(EINV_FUNDS);
@@ -71,7 +104,7 @@ std::string FundsDecimal::to_string() const
     size_t p = s.size();
     if (d == 0) {
         return s;
-    }else if (p > d) {
+    } else if (p > d) {
         s.resize(p + 1);
         for (size_t i = 0; i < d; ++i)
             s[p - i] = s[p - i - 1];
@@ -108,9 +141,8 @@ Result<AssetSupply> AssetSupply::from_funds_decimal(FundsDecimal f)
 
 Result<AssetSupply> AssetSupply::try_parse(std::string_view s)
 {
-    if (auto p { ParsedFunds::try_parse(s) }; p.has_value()) {
-        if (auto prec { TokenDecimals::from_number(p->decimalPlaces) })
-            return from_funds_decimal({ Funds_uint64::from_value_throw(p->v), *prec });
+    if (auto p { FundsDecimal::try_parse(s) }; p.has_value()) {
+        return from_funds_decimal(*p);
     }
     return Error(EINV_SUPPLY);
 }
@@ -122,44 +154,28 @@ Funds_uint64::Funds_uint64(Reader& r)
 
 std::optional<Funds_uint64> Funds_uint64::parse(std::string_view s, TokenDecimals digits)
 {
-    auto fd { ParsedFunds::try_parse(s) };
+    auto fd { FundsDecimal::try_parse(s) };
     if (!fd)
         return {};
     return parse(*fd, digits);
 }
 
-std::optional<Funds_uint64> Funds_uint64::parse(ParsedFunds fd, TokenDecimals digits)
+std::optional<Funds_uint64> Funds_uint64::parse(FundsDecimal fd, TokenDecimals digits)
 {
-    if (fd.decimalPlaces > digits())
+    if (!fd.adjust_to_decimals(digits))
         return {};
-    size_t zeros { size_t(digits()) - size_t(fd.decimalPlaces) };
-    auto v { fd.v };
-
-    for (size_t i { 0 }; i < zeros; ++i) {
-        if (std::numeric_limits<uint64_t>::max() / 10 < v)
-            return {};
-        v *= 10;
-    }
-    return Funds_uint64::from_value(v);
-}
-
-nlohmann::json Supply::to_json() const
-{
-    return {
-        { "str", to_string() },
-        { "u64", this->funds.value() }
-    };
+    return fd.mantissa();
 }
 
 Result<Wart> Wart::try_parse(std::string_view s)
 {
-    auto p { ParsedFunds::try_parse(s) };
+    auto p { FundsDecimal::try_parse(s) };
     if (p)
         return try_parse(*p);
     return Error(EINV_WART);
 }
 
-Result<Wart> Wart::try_parse(ParsedFunds fd)
+Result<Wart> Wart::try_parse(FundsDecimal fd)
 {
     auto p { Funds_uint64::parse(fd, TokenDecimals::WART) };
     if (p)

@@ -27,7 +27,6 @@ public:
             throw Error(EBADASSETDECIMALS);
     }
     TokenDecimals(Reader& r);
-
     void serialize(RawSerializer auto&& s) const
     {
         s << val;
@@ -55,20 +54,6 @@ public:
 constexpr const TokenDecimals TokenDecimals::zero { 0 };
 constexpr const TokenDecimals TokenDecimals::WART { 8 };
 constexpr const TokenDecimals TokenDecimals::LIQUIDITY { 8 };
-
-struct ParsedFunds {
-    [[nodiscard]] static Result<ParsedFunds> try_parse(std::string_view);
-    ParsedFunds(std::string_view);
-    ParsedFunds(uint64_t v, uint8_t decimalPlaces)
-        : v(v)
-        , decimalPlaces(decimalPlaces)
-    {
-    }
-    std::string to_string() const;
-    auto uint64() const { return v; };
-    uint64_t v;
-    uint8_t decimalPlaces;
-};
 
 template <typename R>
 class FundsBase : public IsUint64 {
@@ -162,7 +147,7 @@ public:
     std::string to_string() const = delete;
     auto operator<=>(const Funds_uint64&) const = default;
     [[nodiscard]] static std::optional<Funds_uint64> parse(std::string_view, TokenDecimals);
-    [[nodiscard]] static std::optional<Funds_uint64> parse(ParsedFunds, TokenDecimals);
+    [[nodiscard]] static std::optional<Funds_uint64> parse(FundsDecimal, TokenDecimals);
     static Funds_uint64 parse_throw(std::string_view, TokenDecimals);
     constexpr uint64_t u64() const { return val; };
     FundsDecimal to_decimal(TokenDecimals d) const;
@@ -191,6 +176,11 @@ struct FundsDecimal {
     TokenDecimals decimals;
     constexpr static size_t byte_size() { return Funds_uint64::byte_size() + TokenDecimals::byte_size(); }
 
+    [[nodiscard]] static Result<FundsDecimal> try_parse(std::string_view);
+    FundsDecimal(std::string_view);
+    auto mantissa() const { return funds; };
+
+    bool adjust_to_decimals(TokenDecimals);
     void serialize(RawSerializer auto&& s) const
     {
         s << funds << decimals;
@@ -256,7 +246,7 @@ public:
     }
     auto operator<=>(const Wart&) const = default;
     [[nodiscard]] static Result<Wart> try_parse(std::string_view);
-    [[nodiscard]] static Result<Wart> try_parse(ParsedFunds);
+    [[nodiscard]] static Result<Wart> try_parse(FundsDecimal);
     static Wart parse_throw(std::string_view);
     [[nodiscard]] std::string to_string() const;
     [[nodiscard]] constexpr uint64_t E8() const { return val; };
