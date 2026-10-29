@@ -2,6 +2,7 @@ project('libdatachannel',
     'cpp',
     version : '0.24.6',
     license : 'Apache-2.0/GPL-2.0-or-later ',
+    default_options : ['cpp_std=c++20'],
 )
 
 sources = files(
