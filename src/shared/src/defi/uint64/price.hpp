@@ -73,12 +73,24 @@ public:
         // => We must take precision difference into account for real limit price
         return int(TokenDecimals::WART.value()) - int(prec.value());
     }
+    static double frexp10(double fraction, int exponent)
+    {
+        constexpr int max { 19 }; // 10^19 still fits into 64 bits
+        assert(exponent > -max && exponent < max);
+        int positiveExponent { exponent >= 0 ? exponent : -exponent };
+        uint64_t factor { 1 };
+        for (int i { 0 }; i < positiveExponent; ++i)
+            factor *= 10;
+        if (exponent < 0)
+            return fraction / double(factor);
+        return fraction * double(factor);
+    }
 
     // compute double price respecting the asset precision
     double to_double_adjusted(TokenDecimals prec) const
     {
         auto b10e { base10_decimals_exponent(prec) };
-        return to_double_raw() * std::pow(10.0, -b10e);
+        return frexp10(to_double_raw(), -b10e);
     }
     [[nodiscard]] static std::optional<Price_uint64>
     from_mantissa_exponent(uint32_t mantissa, int exponent)
@@ -115,7 +127,7 @@ public:
 
     static std::optional<Price_uint64> from_double_adjusted(double d, TokenDecimals basePrec, bool ceil = false)
     {
-        return from_double(d * std::pow(10.0, int(TokenDecimals::WART.value()) - int(basePrec.value())), ceil);
+        return from_double(frexp10(d, int(TokenDecimals::WART.value()) - int(basePrec.value())), ceil);
     }
 
     static std::optional<Price_uint64> from_double(double d, bool ceil = false)
