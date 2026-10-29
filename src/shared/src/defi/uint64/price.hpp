@@ -312,10 +312,12 @@ inline std::strong_ordering compare_fraction(Ratio128 ratio, Price_uint64 p)
     auto pb { b * p.mantissa_16bit() }; // pb is the 192 bit mantissa of p*b
 
     // Now compare leading zeros of a and the product pb seen as 192 bit numbers
-    int za = a.countl_zero() + 64; // seen as 192 bits, a has 64 more leading zeros
+    int za = a.countl_zero(); // counts leading zeros of product of a
     int zb = pb.countl_zero(); // counts leading zeros of product of p's mantissa and b
 
-    int z = zb - za; // difference of leading zeros of the two 192 bit numbers
+    // difference of leading zeros of the two numbers as 192 bit numbers
+    // a is 128 bit, seen as 192 bits, a has 64 more leading zeros
+    int z = zb - (za + 64);
 
     // Now account for the previously ignored base 2 exponent of p,
     z -= p.mantissa_exponent2(); // we are counting zeros, so base 2 exponent can be directly subtracted
