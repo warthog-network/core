@@ -301,7 +301,7 @@ inline std::strong_ordering compare_fraction(Ratio128 ratio, Price_uint64 p)
     // Now check for zero in a and b (p is never zero by design)
     if (a.is_zero()) {
         if (b.is_zero())
-            return std::strong_ordering::equal; // as a convention we return equal, it bisection_step is designed that the algorithm works with it
+            return std::strong_ordering::equal; // as a convention we return equal, bisection_step is designed that the algorithm works with it
         return std::strong_ordering::less;
     } else if (b.is_zero()) {
         return std::strong_ordering::greater;
