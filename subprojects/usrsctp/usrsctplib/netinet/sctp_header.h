@@ -596,14 +596,19 @@ struct sctp_zero_checksum_acceptable {
 /*
  * Packed mirror of the UDP header. It is used whenever the UDP header is
  * written into (or read from) a byte packed buffer, so that no pointer
- * with a stricter alignment than the buffer itself is created. The field
- * names and the layout match the platform struct udphdr.
+ * with a stricter alignment than the buffer itself is created. The layout
+ * matches the platform struct udphdr.
+ *
+ * The member names deliberately avoid the uh_ prefix. musl defines uh_sport,
+ * uh_dport, uh_ulen and uh_sum as macros in <netinet/udp.h> when
+ * _GNU_SOURCE is set, which would rewrite these members depending on the
+ * order in which the headers are included.
  */
 struct sctp_udphdr {
-	uint16_t uh_sport;
-	uint16_t uh_dport;
-	uint16_t uh_ulen;
-	uint16_t uh_sum;
+	uint16_t su_sport;
+	uint16_t su_dport;
+	uint16_t su_ulen;
+	uint16_t su_sum;
 } SCTP_PACKED;
 
 #if defined(_WIN32) && !defined(__Userspace__)

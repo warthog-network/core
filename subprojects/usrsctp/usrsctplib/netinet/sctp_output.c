@@ -11931,10 +11931,10 @@ sctp_send_resp_msg(struct sockaddr *src, struct sockaddr *dst,
 			return;
 		}
 		udp = (struct sctp_udphdr *)shout;
-		udp->uh_sport = htons(SCTP_BASE_SYSCTL(sctp_udp_tunneling_port));
-		udp->uh_dport = port;
-		udp->uh_sum = 0;
-		udp->uh_ulen = htons((uint16_t)(sizeof(struct udphdr) +
+		udp->su_sport = htons(SCTP_BASE_SYSCTL(sctp_udp_tunneling_port));
+		udp->su_dport = port;
+		udp->su_sum = 0;
+		udp->su_ulen = htons((uint16_t)(sizeof(struct udphdr) +
 		                                sizeof(struct sctphdr) +
 		                                sizeof(struct sctp_chunkhdr) +
 		                                cause_len + padding_len));
@@ -11980,15 +11980,15 @@ sctp_send_resp_msg(struct sockaddr *src, struct sockaddr *dst,
 #if !defined(_WIN32) && !defined(__Userspace__)
 #if defined(__FreeBSD__)
 			if (V_udp_cksum) {
-				udp->uh_sum = in_pseudo(ip->ip_src.s_addr, ip->ip_dst.s_addr, udp->uh_ulen + htons(IPPROTO_UDP));
+				udp->su_sum = in_pseudo(ip->ip_src.s_addr, ip->ip_dst.s_addr, udp->su_ulen + htons(IPPROTO_UDP));
 			} else {
-				udp->uh_sum = 0;
+				udp->su_sum = 0;
 			}
 #else
-			udp->uh_sum = in_pseudo(ip->ip_src.s_addr, ip->ip_dst.s_addr, udp->uh_ulen + htons(IPPROTO_UDP));
+			udp->su_sum = in_pseudo(ip->ip_src.s_addr, ip->ip_dst.s_addr, udp->su_ulen + htons(IPPROTO_UDP));
 #endif
 #else
-			udp->uh_sum = 0;
+			udp->su_sum = 0;
 #endif
 		}
 #if defined(__FreeBSD__) && !defined(__Userspace__)
@@ -12048,10 +12048,10 @@ sctp_send_resp_msg(struct sockaddr *src, struct sockaddr *dst,
 			SCTP_STAT_INCR(sctps_sendswcrc);
 #if !defined(__Userspace__)
 #if defined(_WIN32)
-			udp->uh_sum = 0;
+			udp->su_sum = 0;
 #else
-			if ((udp->uh_sum = in6_cksum(o_pak, IPPROTO_UDP, sizeof(struct ip6_hdr), len - sizeof(struct ip6_hdr))) == 0) {
-				udp->uh_sum = 0xffff;
+			if ((udp->su_sum = in6_cksum(o_pak, IPPROTO_UDP, sizeof(struct ip6_hdr), len - sizeof(struct ip6_hdr))) == 0) {
+				udp->su_sum = 0xffff;
 			}
 #endif
 #endif
