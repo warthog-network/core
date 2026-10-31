@@ -91,7 +91,7 @@ ChainDB::ChainDB(const std::string& path)
                             ") VALUES (?,?,?)")
     , stmtHistoryDeleteFrom(db, "DELETE FROM `History` WHERE `id`>=?")
     , stmtHistoryLookupByHash(db,
-          "SELECT `id`, `data` FROM `History` WHERE `hash`=?")
+          "SELECT `id`, `data` FROM `History` WHERE `hash`=? LIMIT 1")
     , stmtHistoryLookupById(db,
           "SELECT `hash`, `data` FROM `History` WHERE `id`=?")
     , stmtHistoryLookupRange(db,
