@@ -29,7 +29,7 @@ template <typename R>
 inline constexpr auto api_call { &APICall<R, typename R::base_tuple_t>::invoke };
 
 // mempool functions
-void lookup_tx(const TxHash& hash, TxCb f);
+void lookup_tx(const api::HistoryIdOrHash& h, TxCb f);
 
 void get_latest_transactions(LatestTxsCb f);
 void get_transaction_minfee(TransactionMinfeeCb f);

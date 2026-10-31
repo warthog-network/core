@@ -69,6 +69,12 @@ struct ParameterParser {
             return { Hash { *this } };
         return { Height { *this } };
     }
+    operator api::HistoryIdOrHash()
+    {
+        if (sv.length() == 64)
+            return { TxHash(static_cast<Hash>(*this)) };
+        return { HistoryId(static_cast<uint64_t>(*this)) };
+    }
     operator api::AccountIdOrAddress()
     {
         if (sv.length() == 48)
@@ -464,7 +470,7 @@ public:
         SECTION("Transaction Endpoints");
         POST_PUB<"/transaction/add">(parse_transaction_create, api_call<PutMempool>);
         GET_PUB<"/transaction/mempool">(api_call<GetMempool>);
-        GET_PUB<"/transaction/lookup/:txid">(api_call<LookupTxByHash>);
+        GET_PUB<"/transaction/lookup/:txid">(api_call<LookupTx>);
         GET_PUB<"/transaction/latest">(get_latest_transactions);
         GET_PUB<"/transaction/minfee">(get_transaction_minfee);
 

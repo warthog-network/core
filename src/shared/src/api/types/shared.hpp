@@ -20,6 +20,7 @@
 // #include "forward_declarations.hpp"
 #include "general/funds.hpp"
 #include "height_or_hash.hpp"
+#include "historyid_or_hash.hpp"
 #include "transport/helpers/ip.hpp"
 // #include "peerserver/db/offense_entry.hpp"
 #include <chrono>

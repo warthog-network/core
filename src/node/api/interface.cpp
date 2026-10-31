@@ -11,9 +11,9 @@
 
 // mempool functions
 
-void lookup_tx(const TxHash& hash, TxCb f)
+void lookup_tx(const api::HistoryIdOrHash& h, TxCb f)
 {
-    api_call<chainserver::LookupTxByHash>(hash, std::move(f));
+    api_call<chainserver::LookupTx>(h, std::move(f));
 }
 
 void get_latest_transactions(LatestTxsCb f)

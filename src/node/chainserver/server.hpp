@@ -18,7 +18,7 @@
     XX(MiningAppend, void, Block, block, std::string, worker)                    \
     XX(PutMempool, api::TransactionAddResult, TransactionCreate, message)        \
     XX(LatestTxs, api::TransactionsByBlocks)                                     \
-    XX(LookupTxByHash, api::TransactionDetails, TxHash, hash)                    \
+    XX(LookupTx, api::TransactionDetails, api::HistoryIdOrHash, h)               \
     XX(GetHeader, api::HeaderInfo, api::HeightOrHash, heightOrHash)              \
     XX(GetTransactionMinfee, api::TransactionMinfee)                             \
     XX(GetGrid, Grid)                                                            \
@@ -233,7 +233,10 @@ private:
     auto handle_api(chainserver::PutMempool&&) -> api::TransactionAddResult;
     auto handle_api(chainserver::MiningAppend&& e) { return append_mined(e, true); };
     auto handle_api(chainserver::LatestTxs&&) { return state.api_get_latest_txs(); }
-    auto handle_api(chainserver::LookupTxByHash&& e) { return state.api_get_tx(e.hash()); }
+    auto handle_api(chainserver::LookupTx&& e)
+    {
+        return std::visit([&](auto&& h) { return state.api_get_tx(h); }, e.h().data);
+    }
     auto handle_api(chainserver::GetTransactionMinfee&&) { return state.api_get_transaction_minfee(); }
     auto handle_api(chainserver::GetRichlist&& e) { return state.api_get_richlist(e.token(), 100); }
     auto handle_api(chainserver::GetTokenBalance&& e) { return state.api_get_token_balance_recursive(e.account(), e.token()); }
