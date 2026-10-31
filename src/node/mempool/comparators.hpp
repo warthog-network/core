@@ -33,6 +33,8 @@ struct ComparatorHash {
     using is_transparent = std::true_type;
     inline bool operator()(const_iter_t i1, const_iter_t i2) const
     {
+         if(i1->second.hash == i2->second.hash) // tie breaker for duplicate hash
+            return i1->first < i2->first;
         return i1->second.hash < i2->second.hash;
     }
     inline bool operator()(const_iter_t i1, const HashView rhs) const
