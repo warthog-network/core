@@ -62,7 +62,7 @@ void Mempool::apply_logevent(const Put& a)
     assert(p.second);
     assert(byPin.insert(p.first).second);
     assert(byFee.insert(p.first));
-    assert(byHash.insert(p.first).second);
+    byHash.insert(p.first);
 }
 
 void Mempool::apply_logevent(const Erase& e)
@@ -261,7 +261,7 @@ void Mempool::insert_tx_throw(const TransferTxExchangeMessage& pm,
         log.push_back(Put { *iter });
     assert(byPin.insert(iter).second);
     assert(byFee.insert(iter));
-    assert(byHash.insert(iter).second);
+    byHash.insert(iter);
     prune();
 }
 

@@ -79,7 +79,7 @@ private:
     Txmap txs;
     std::set<const_iter_t, ComparatorPin> byPin;
     ByFeeDesc byFee;
-    std::set<const_iter_t, ComparatorHash> byHash;
+    std::multiset<const_iter_t, ComparatorHash> byHash;
     BalanceEntries balanceEntries;
     bool master;
     size_t maxSize;

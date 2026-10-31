@@ -385,6 +385,8 @@ std::optional<std::pair<std::vector<uint8_t>, HistoryId>> ChainDB::lookup_histor
 }
 std::optional<std::pair<std::vector<uint8_t>, Hash>> ChainDB::lookup_history(HistoryId hid)
 {
+    if (hid.value() > std::numeric_limits<int64_t>::max())
+        return {};
     auto o = stmtHistoryLookupById.one(hid.value());
     if (!o.has_value())
         return {};
