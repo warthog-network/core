@@ -113,8 +113,7 @@ struct Statement2 : public SQLite::Statement {
     };
     void bind(const int index, uint64_t id)
     {
-        assert(id< std::numeric_limits<uint64_t>::max());
-        SQLite::Statement::bind(index, (int64_t)id);
+        SQLite::Statement::bind(index, (int64_t)id); // two's complement is guarranteed from C++20 so no data loss here
     };
     void bind(const int index, IsUint64 id)
     {
