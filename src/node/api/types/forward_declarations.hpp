@@ -19,6 +19,7 @@ struct HashrateChartRequest;
 struct Richlist;
 struct Peerinfo;
 struct HeightOrHash;
+struct HistoryIdOrHash;
 struct Round16Bit;
 struct PeerinfoConnections;
 struct AccountIdOrAddress;

@@ -14,6 +14,7 @@
 #include "general/funds.hpp"
 #include "general/tcp_util.hpp"
 #include "height_or_hash.hpp"
+#include "historyid_or_hash.hpp"
 #include <variant>
 #include <vector>
 namespace chainserver {

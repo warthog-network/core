@@ -13,7 +13,7 @@
 ChainDB::Cache ChainDB::Cache::init(SQLite::Database& db)
 {
     auto maxStateId = AccountId(int64_t(db.execAndGet("SELECT coalesce(max(ROWID),0) FROM `State`")
-                                    .getInt64()));
+            .getInt64()));
 
     int64_t hid = db.execAndGet("SELECT coalesce(max(id)+1,1) FROM History")
                       .getInt64();
@@ -21,7 +21,7 @@ ChainDB::Cache ChainDB::Cache::init(SQLite::Database& db)
         throw std::runtime_error("Database corrupted, negative history id.");
     return {
         .maxStateId { maxStateId },
-        .nextHistoryId = HistoryId{uint64_t(hid)},
+        .nextHistoryId = HistoryId { uint64_t(hid) },
         .deletionKey { 2 }
     };
 }
@@ -90,8 +90,10 @@ ChainDB::ChainDB(const std::string& path)
     , stmtHistoryInsert(db, "INSERT INTO `History` (`id`,`hash`, `data`"
                             ") VALUES (?,?,?)")
     , stmtHistoryDeleteFrom(db, "DELETE FROM `History` WHERE `id`>=?")
-    , stmtHistoryLookup(db,
+    , stmtHistoryLookupByHash(db,
           "SELECT `id`, `data` FROM `History` WHERE `hash`=?")
+    , stmtHistoryLookupById(db,
+          "SELECT `hash`, `data` FROM `History` WHERE `id`=?")
     , stmtHistoryLookupRange(db,
           "SELECT `hash`, `data` FROM `History` WHERE `id`>=? AND`id`<?")
     , stmtAccountHistoryInsert(db, "INSERT INTO `AccountHistory` "
@@ -366,19 +368,30 @@ void ChainDB::delete_history_from(NonzeroHeight h)
     assert(nextHistoryId >= 0);
     stmtHistoryDeleteFrom.run(nextHistoryId);
     stmtAccountHistoryDeleteFrom.run(nextHistoryId);
-    cache.nextHistoryId = HistoryId{nextHistoryId};
+    cache.nextHistoryId = HistoryId { nextHistoryId };
 }
 
 std::optional<std::pair<std::vector<uint8_t>, HistoryId>> ChainDB::lookup_history(const HashView hash)
 {
-    auto o = stmtHistoryLookup.one(hash);
+    auto o = stmtHistoryLookupByHash.one(hash);
     if (!o.has_value())
         return {};
-    auto index { HistoryId{o.get<int64_t>(0)} };
-    assert(index > HistoryId{0});
+    auto index { HistoryId { o.get<int64_t>(0) } };
+    assert(index > HistoryId { 0 });
     return std::pair {
         o.get_vector(1),
         index
+    };
+}
+std::optional<std::pair<std::vector<uint8_t>, Hash>> ChainDB::lookup_history(HistoryId hid)
+{
+    auto o = stmtHistoryLookupById.one(hid.value());
+    if (!o.has_value())
+        return {};
+    Hash hash { o.get_array<32>(0) };
+    return std::pair {
+        o.get_vector(1),
+        hash
     };
 }
 
@@ -386,7 +399,7 @@ std::vector<std::pair<Hash, std::vector<uint8_t>>> ChainDB::lookupHistoryRange(H
 {
     std::vector<std::pair<Hash, std::vector<uint8_t>>> out;
     int64_t l = lower.value();
-    int64_t u = (upper == HistoryId{0} ? std::numeric_limits<int64_t>::max() : upper.value());
+    int64_t u = (upper == HistoryId { 0 } ? std::numeric_limits<int64_t>::max() : upper.value());
     stmtHistoryLookupRange.for_each([&](Statement2::Row& r) {
         out.push_back(
             { r.get_array<32>(0),
@@ -406,7 +419,7 @@ std::optional<AccountFunds> ChainDB::lookup_address(const AddressView address) c
     auto p = stmtAddressLookup.one(address);
     if (!p.has_value())
         return {};
-    return AccountFunds{
+    return AccountFunds {
         p.get<AccountId>(0),
         p.get<Funds>(1)
     };
@@ -418,7 +431,7 @@ std::vector<std::tuple<HistoryId, Hash, std::vector<uint8_t>>> ChainDB::lookup_h
     std::vector<std::tuple<HistoryId, Hash, std::vector<uint8_t>>> out;
     stmtHistoryById.for_each(
         [&](Statement2::Row& row) {
-            out.push_back({ HistoryId{row.get<uint64_t>(0)},
+            out.push_back({ HistoryId { row.get<uint64_t>(0) },
                 row.get_array<32>(1),
                 row.get_vector(2) });
         },
@@ -468,9 +481,9 @@ std::optional<NonzeroHeight> ChainDB::lookup_block_height(const HashView hash) c
     auto o { stmtBlockHeightSelect.one(hash) };
     if (!o.has_value())
         return {};
-    auto h{o.get<Height>(0)};
+    auto h { o.get<Height>(0) };
     if (h == 0) {
-        throw std::runtime_error("Database corrupted, block " +serialize_hex(hash) + " has invalid height 0.");
+        throw std::runtime_error("Database corrupted, block " + serialize_hex(hash) + " has invalid height 0.");
     }
     return h.nonzero_assert();
 }

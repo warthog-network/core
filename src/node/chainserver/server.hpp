@@ -2,6 +2,7 @@
 #include "api/callbacks.hpp"
 #include "api/types/accountid_or_address.hpp"
 #include "api/types/height_or_hash.hpp"
+#include "api/types/historyid_or_hash.hpp"
 #include "chainserver/mining_subscription.hpp"
 #include "communication/create_payment.hpp"
 #include "communication/stage_operation/request.hpp"
@@ -62,8 +63,8 @@ public:
         std::vector<TransactionId> txids;
         MempoolTxsCb callback;
     };
-    struct LookupTxHash {
-        const Hash hash;
+    struct LookupTx {
+        const API::HistoryIdOrHash h;
         TxCb callback;
     };
     struct LookupLatestTxs {
@@ -131,7 +132,7 @@ public:
         GetBalance,
         GetMempool,
         LookupTxids,
-        LookupTxHash,
+        LookupTx,
         LookupLatestTxs,
         GetTransactionMinfee,
         SetSynced,
@@ -200,7 +201,7 @@ public:
     void api_get_balance(const API::AccountIdOrAddress& a, BalanceCb callback);
     void api_get_grid(GridCb);
     void api_get_mempool(MempoolCb callback);
-    void api_lookup_tx(const HashView hash, TxCb callback);
+    void api_lookup_tx(const API::HistoryIdOrHash& h, TxCb callback);
     void api_lookup_latest_txs(LatestTxsCb callback);
     void api_get_transaction_minfee(TransactionMinfeeCb callback);
     void api_get_history(const Address& address, uint64_t beforeId, HistoryCb callback);
@@ -233,7 +234,7 @@ private:
     void handle_event(GetBalance&&);
     void handle_event(GetMempool&&);
     void handle_event(LookupTxids&&);
-    void handle_event(LookupTxHash&&);
+    void handle_event(LookupTx&&);
     void handle_event(LookupLatestTxs&&);
     void handle_event(GetTransactionMinfee&&);
     void handle_event(SetSynced&& e);

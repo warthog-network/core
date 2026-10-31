@@ -83,10 +83,10 @@ void ChainServer::api_get_mempool(MempoolCb callback)
     defer_maybe_busy(GetMempool { std::move(callback) });
 }
 
-void ChainServer::api_lookup_tx(const HashView hash,
+void ChainServer::api_lookup_tx(const API::HistoryIdOrHash& h,
     TxCb callback)
 {
-    defer_maybe_busy(LookupTxHash { hash, std::move(callback) });
+    defer_maybe_busy(LookupTx { h, std::move(callback) });
 }
 void ChainServer::api_lookup_latest_txs(LatestTxsCb callback)
 {
@@ -275,10 +275,13 @@ tl::expected<T, int32_t> noval_to_err(std::optional<T>&& v)
     return tl::make_unexpected(ENOTFOUND);
 }
 
-void ChainServer::handle_event(LookupTxHash&& e)
+void ChainServer::handle_event(LookupTx&& e)
 {
-    auto t { timing->time("LookupTxHash") };
-    e.callback(noval_to_err(state.api_get_tx(e.hash)));
+    auto t { timing->time("LookupTx") };
+    std::visit([&](auto&& h) {
+        e.callback(noval_to_err(state.api_get_tx(h)));
+    },
+        e.h.data);
 }
 
 void ChainServer::handle_event(GetTransactionMinfee&& e)

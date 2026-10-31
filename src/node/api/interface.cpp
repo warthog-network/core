@@ -17,9 +17,9 @@ void get_mempool(MempoolCb cb)
     global().pcs->api_get_mempool(std::move(cb));
 }
 
-void lookup_tx(const Hash hash, TxCb f)
+void lookup_tx(const API::HistoryIdOrHash h, TxCb f)
 {
-    global().pcs->api_lookup_tx(hash, std::move(f));
+    global().pcs->api_lookup_tx(h, std::move(f));
 }
 
 void get_latest_transactions(LatestTxsCb f)

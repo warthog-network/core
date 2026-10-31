@@ -313,6 +313,7 @@ public:
         const std::vector<uint8_t>& data);
     void delete_history_from(NonzeroHeight);
     std::optional<std::pair<std::vector<uint8_t>, HistoryId>> lookup_history(const HashView hash);
+    std::optional<std::pair<std::vector<uint8_t>, Hash>> lookup_history(HistoryId);
 
     std::vector<std::pair<Hash, std::vector<uint8_t>>>
     lookupHistoryRange(HistoryId lower, HistoryId upper);
@@ -413,7 +414,8 @@ private:
     mutable Statement2 stmtRichlistLookup;
     Statement2 stmtHistoryInsert;
     Statement2 stmtHistoryDeleteFrom;
-    mutable Statement2 stmtHistoryLookup;
+    mutable Statement2 stmtHistoryLookupByHash;
+    mutable Statement2 stmtHistoryLookupById;
     mutable Statement2 stmtHistoryLookupRange;
     Statement2 stmtAccountHistoryInsert;
     Statement2 stmtAccountHistoryDeleteFrom;
