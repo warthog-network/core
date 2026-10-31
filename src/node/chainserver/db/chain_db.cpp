@@ -373,7 +373,7 @@ ChainDB::ChainDB(const std::string& path)
                             ") VALUES (?,?,?)")
     , stmtHistoryDeleteFrom(db, "DELETE FROM `" HISTORY_TABLE "` WHERE `id`>=?")
     , stmtHistoryLookupByHash(db,
-          "SELECT `id`, `data` FROM `" HISTORY_TABLE "` WHERE `hash`=?")
+          "SELECT `id`, `data` FROM `" HISTORY_TABLE "` WHERE `hash`=? LIMIT 1")
     , stmtHistoryLookupRange(db, "SELECT `id`, `hash`, `data` FROM `" HISTORY_TABLE "` WHERE `id`>=? AND `id`<?")
     , stmtHistoryLookupHash(db, "SELECT `hash` FROM `" HISTORY_TABLE "` WHERE `id`=?")
     , stmtAccountHistoryInsert(db, "INSERT OR IGNORE INTO `" ACCOUNTHISTORY_TABLE "` "

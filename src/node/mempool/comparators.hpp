@@ -12,7 +12,7 @@ struct ComparatorTxHeight {
     using is_transparent = std::true_type;
     inline bool operator()(const_iter_t i1, Height h2) const
     {
-        return i1->txHeight< h2;
+        return i1->txHeight < h2;
     }
     inline bool operator()(const_iter_t it1, const_iter_t it2) const
     {
@@ -38,6 +38,9 @@ struct ComparatorHash {
     using is_transparent = std::true_type;
     inline bool operator()(const_iter_t i1, const_iter_t i2) const
     {
+        if (i1->txhash == i2->txhash) // tie breaker for identical hash
+            return lex_less_by<TransactionId>(i1, i2);
+
         return i1->txhash < i2->txhash;
     }
     inline bool operator()(const_iter_t i1, const HashView rhs) const
