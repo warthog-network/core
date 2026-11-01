@@ -284,13 +284,13 @@ void Eventloop::work()
         std::visit([&](auto&& e) {
             handle_timeout(std::move(e));
         },
-            data);
+            std::move(data));
     }
     while (!tmp.empty()) {
         std::visit([&](auto&& e) {
             handle_event(std::move(e));
         },
-            tmp.front());
+            std::move(tmp.front()));
         tmp.pop();
     }
     connections.garbage_collect();
