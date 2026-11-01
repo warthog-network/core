@@ -90,7 +90,7 @@ void HTTPEndpoint::dispatch(std::vector<subscription_ptr> subscribers, std::stri
 void HTTPEndpoint::send_event(std::vector<subscription_ptr> subscribers, subscription::events::Event&& event)
 {
 
-    lc.loop->defer([&, subscribers = std::move(subscribers), event = std::move(event)] { dispatch(subscribers, event.json_str()); });
+    lc.loop->defer([&, subscribers = std::move(subscribers), event = std::move(event)] { dispatch(std::move(subscribers), event.json_str()); });
 }
 
 void HTTPEndpoint::work()
