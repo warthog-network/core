@@ -73,11 +73,12 @@ struct Chainstate {
     const auto& headers() const { return headerchain; }
     auto mining_data() const { return headerchain.mining_data(); };
     const Hash& final_hash() const { return headerchain.final_hash(); }
-    const Hash& hash_at(Height h) const { 
-        if (h==headerchain.length()) 
-            return headerchain.final_hash(); 
-        auto hash{headerchain.get_hash(h)};
-        if (!hash) 
+    Hash hash_at(Height h) const
+    {
+        if (h == headerchain.length())
+            return headerchain.final_hash();
+        auto hash { headerchain.get_hash(h) };
+        if (!hash)
             headerchain.throw_out_of_bounds(h);
         return *hash;
     }
@@ -97,7 +98,8 @@ struct Chainstate {
     {
         return historyOffsets.height(historyIndex);
     }
-    StateId64 state_lower_bound(NonzeroHeight height) const{
+    StateId64 state_lower_bound(NonzeroHeight height) const
+    {
         if (height.value() == 1)
             return StateId64(0);
         return stateOffsets.at(height);
