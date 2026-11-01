@@ -7,7 +7,7 @@ struct Descripted;
 class HeaderView;
 class Headerchain;
 class Grid;
-class GridView;
+struct GridView;
 
 class ForkHeight {
 
