@@ -7,9 +7,9 @@ struct map : public std::map<K, V> {
     auto try_emplace_lambda(const K& k, auto&& generator)
     {
         struct {
-            const std::remove_cvref_t<decltype(generator)>& gen;
+            std::remove_cvref_t<decltype(generator)> gen;
             operator V() const { return gen(); }
-        } g(std::forward<decltype(generator)>(generator));
+        } g { std::forward<decltype(generator)>(generator) };
         return std::map<K, V>::try_emplace(k, g);
     }
 };
