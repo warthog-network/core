@@ -4,6 +4,7 @@
 #include "chainserver/state/helpers/cache_fwd.hpp"
 #include "comparators.hpp"
 #include "defi/token/account_token.hpp"
+#include "general/fwd.hpp"
 #include "mempool/updates.hpp"
 #include <generator>
 namespace chainserver {
@@ -326,7 +327,7 @@ private:
         size_t i { 0 };
         for (auto iter = transactions.begin(); iter != transactions.end();) {
             auto iter_tmp = iter++;
-            if (std::forward<decltype(lambda)>(lambda)(*iter_tmp)) {
+            if (FWD(lambda)(*iter_tmp)) {
                 i += 1;
                 erase_internal(iter_tmp);
             }

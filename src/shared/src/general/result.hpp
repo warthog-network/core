@@ -1,5 +1,6 @@
 #pragma once
 #include "general/errors.hpp"
+#include "general/fwd.hpp"
 #include <expected>
 #include <optional>
 
@@ -38,16 +39,16 @@ struct Result : public std::expected<T, Error> {
             return std::move(*this).value();
         throw this->error();
     }
-    template <typename Self, typename F>
-    constexpr auto and_then(this Self&& self, F&& f)
+    template <typename F>
+    constexpr auto and_then(this auto&& self, F&& f)
     {
-        return result::make(std::forward<Self>(self).parent::and_then(std::forward<F>(f)));
+        return result::make(FWD(self).parent::and_then(std::forward<F>(f)));
     }
 
-    template <typename Self, typename F>
-    constexpr auto transform(this Self&& self, F&& f)
+    template <typename F>
+    constexpr auto transform(this auto&& self, F&& f)
     {
-        return result::make(std::forward<Self>(self).parent::transform(std::forward<F>(f)));
+        return result::make(FWD(self).parent::transform(std::forward<F>(f)));
     }
 
     Result(T t)

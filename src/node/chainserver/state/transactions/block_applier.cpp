@@ -13,6 +13,7 @@
 #include "defi/token/info.hpp"
 #include "defi/uint64/lazy_matching.hpp"
 #include "defi/uint64/pool.hpp"
+#include "general/fwd.hpp"
 
 using namespace block::body;
 
@@ -464,7 +465,7 @@ class BalanceChecker {
             if (addressInitialized)
                 return;
             addressInitialized = true;
-            address = std::forward<decltype(gen_addr)>(gen_addr)(data.id);
+            address = FWD(gen_addr)(data.id);
         }
         operator AccountData&() { return data; }
 

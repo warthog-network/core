@@ -3,6 +3,7 @@
 #include "defi/uint64/lazy_matching.hpp"
 #include "general/format_plural.hpp"
 #include "general/function_traits.hpp"
+#include "general/fwd.hpp"
 #include "general/now.hpp"
 #include "helpers/cache.hpp"
 #ifndef DISABLE_LIBUV
@@ -1264,7 +1265,7 @@ private:
                 }
             } };
             arr.visit_components_overload(
-                bindPinheight(std::forward<decltype(lambdas)>(lambdas))...);
+                bindPinheight(FWD(lambdas))...);
         } };
 
         using namespace block::body;

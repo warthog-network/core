@@ -1,4 +1,5 @@
 #pragma once
+#include "general/fwd.hpp"
 #include <map>
 namespace wrt {
 template <typename K, typename V>
@@ -9,7 +10,7 @@ struct map : public std::map<K, V> {
         struct {
             std::remove_cvref_t<decltype(generator)> gen;
             operator V() const { return gen(); }
-        } g { std::forward<decltype(generator)>(generator) };
+        } g { FWD(generator) };
         return std::map<K, V>::try_emplace(k, g);
     }
 };

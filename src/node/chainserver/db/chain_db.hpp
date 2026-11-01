@@ -19,6 +19,7 @@
 #include "deletion_key.hpp"
 #include "general/address_funds.hpp"
 #include "general/filelock/filelock.hpp"
+#include "general/fwd.hpp"
 #include "general/timestamp.hpp"
 #include "order_loader.hpp"
 #include "types_fwd.hpp"
@@ -282,7 +283,7 @@ public:
     template <typename T>
     T fetch_existing(auto&& key) const
     {
-        auto p { lookup<T>(std::forward<decltype(key)>(key)) };
+        auto p { lookup<T>(FWD(key)) };
         if (!p) {
             throw database_error_for_type(type_info::TypeInfo<T>::name);
         }

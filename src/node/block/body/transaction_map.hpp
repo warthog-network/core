@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block/body/transaction_types.hpp"
+#include "general/fwd.hpp"
 #include "wrt/type_collection.hpp"
 #include <cstddef>
 #include <type_traits>
@@ -11,7 +12,7 @@ class TypemapBool {
     template <size_t... Is>
     void for_each(auto&& lambda, std::index_sequence<Is...>)
     {
-        (std::forward<decltype(lambda)>(lambda)((Ts*)(nullptr), arr[Is]), ...);
+        (FWD(lambda)((Ts*)(nullptr), arr[Is]), ...);
     }
 
 public:
@@ -33,11 +34,11 @@ public:
     }
     void for_each(auto&& lambda)
     {
-        for_each(std::forward<decltype(lambda)>(lambda), std::index_sequence_for<Ts...>());
+        for_each(FWD(lambda), std::index_sequence_for<Ts...>());
     }
     TypemapBool() { arr.fill(false); }
     TypemapBool(auto&& lambda)
-        : arr { std::forward<decltype(lambda)>(lambda)((Ts*)(nullptr))... }
+        : arr { FWD(lambda)((Ts*)(nullptr))... }
     {
     }
 

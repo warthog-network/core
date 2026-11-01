@@ -5,6 +5,7 @@
 #include "block/body/transaction_types.hpp"
 #include "block/version.hpp"
 #include "crypto/hasher_sha256.hpp"
+#include "general/fwd.hpp"
 #include "general/reader_declaration.hpp"
 #include "general/structured_reader.hpp"
 #include "general/writer_fwd.hpp"
@@ -126,7 +127,7 @@ public:
     }
     void serialize(Serializer auto&& s) const
     {
-        vector.serialize(std::forward<decltype(s)>(s));
+        vector.serialize(FWD(s));
     }
     auto& entries() const { return vector; }
     auto& entries() { return *this; }

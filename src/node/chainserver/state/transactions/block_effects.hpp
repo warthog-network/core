@@ -5,6 +5,7 @@
 #include "chainserver/types.hpp"
 #include "defi/token/account_token.hpp"
 #include "general/funds.hpp"
+#include "general/fwd.hpp"
 #include "general/logging.hpp"
 #include <vector>
 
@@ -211,7 +212,7 @@ public:
     }
     auto& generate_asset(const auto& generator)
     {
-        return insert_generated([&](auto&& id) { return AssetInsert(generator(std::forward<decltype(id)>(id))); });
+        return insert_generated([&](auto&& id) { return AssetInsert(generator(FWD(id))); });
     }
     void delete_order(chain_db::OrderData o)
     {

@@ -1,4 +1,5 @@
 #pragma once
+#include "general/fwd.hpp"
 #include "general/serializer_fwd.hxx"
 #include "view_fwd.hpp"
 #include <array>
@@ -11,7 +12,7 @@ struct View {
     static constexpr size_t byte_size() { return N; }
     void serialize(RawSerializer auto&& s) const
     {
-        std::forward<decltype(s)>(s) << span();
+        FWD(s) << span();
     }
     bool is_null() const { return pos == nullptr; }
     const uint8_t* data() const { return pos; }

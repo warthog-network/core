@@ -1,4 +1,5 @@
 #pragma once
+#include "general/fwd.hpp"
 #include <utility>
 #include <variant>
 namespace wrt { // wart tools namesapce
@@ -17,13 +18,12 @@ struct variant : public std::variant<Ts...> {
     template <typename... U>
     auto visit_overload(this auto&& self, U&&... u)
     {
-        return std::forward<decltype(self)>(self).visit(Overload { std::forward<U>(u)... });
+        return FWD(self).visit(Overload { std::forward<U>(u)... });
     }
 
     constexpr auto visit(this auto&& self, auto&& lambda)
     {
-        return std::visit(std::forward<decltype(lambda)>(lambda),
-            std::forward<decltype(self)>(self));
+        return std::visit(FWD(lambda), FWD(self));
     }
 
     template <typename T>
@@ -35,7 +35,7 @@ struct variant : public std::variant<Ts...> {
     template <typename T>
     constexpr auto&& get(this auto&& self)
     {
-        return std::get<T>(std::forward<decltype(self)>(self));
+        return std::get<T>(FWD(self));
     }
 };
 

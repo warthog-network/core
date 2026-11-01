@@ -1,4 +1,5 @@
 #pragma once
+#include "general/fwd.hpp"
 #include <string>
 #include <variant>
 
@@ -23,9 +24,9 @@ struct APIReply : public std::variant<JSONString, HTMLString> {
     auto&& raw(this auto&& self)
     {
         return std::visit([](auto&& s) -> auto&& {
-            return std::forward<decltype(s)>(s).data;
+            return FWD(s).data;
         },
-            std::forward<decltype(self)>(self));
+            FWD(self));
     }
     static APIReply HTML(std::string raw)
     {

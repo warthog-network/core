@@ -1,5 +1,6 @@
 #pragma once
 
+#include "general/fwd.hpp"
 #include "wrt/variant.hpp"
 #include <optional>
 #include <utility>
@@ -20,20 +21,20 @@ public:
 
     auto visit(this auto&& self, auto&& lambda)
     {
-        return std::forward<decltype(self)>(self).v.visit(std::forward<decltype(lambda)>(lambda));
+        return FWD(self).v.visit(FWD(lambda));
     }
 
     template <typename... U>
     auto visit_overload(this auto&& self, U&&... u)
     {
-        return std::forward<decltype(self)>(self).v.visit_overload(std::forward<U>(u)...);
+        return FWD(self).v.visit_overload(std::forward<U>(u)...);
     }
 
     [[nodiscard]] std::optional<Id> map_alternative(auto&& lambda) const
     {
         return visit_overload(
             [&](Id id) -> std::optional<Id> { return id; },
-            [&](const Alt& a) -> std::optional<Id> { return std::forward<decltype(lambda)>(lambda)(a); });
+            [&](const Alt& a) -> std::optional<Id> { return FWD(lambda)(a); });
     }
 
 private:

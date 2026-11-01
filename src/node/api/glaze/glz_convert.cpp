@@ -5,6 +5,7 @@
 #include "crypto/hash.hpp"
 #include "eventloop/eventloop.hpp"
 #include "general/funds.hpp"
+#include "general/fwd.hpp"
 #include "general/hex.hpp"
 #include "general/is_testnet.hpp"
 #include "global/globals.hpp"
@@ -381,7 +382,7 @@ TransactionDetails from(const api::TransactionDetails& d)
         if (md) {
             auto& m { *md };
             return TransactionDetails {
-                .transaction { convert_transaction(std::forward<decltype(arg)>(arg).transaction) },
+                .transaction { convert_transaction(FWD(arg).transaction) },
                 .type { arg.transaction.data.label },
                 .mined { TransactionDetails::Mined {
                     .historyId = from(m.hid),
@@ -395,7 +396,7 @@ TransactionDetails from(const api::TransactionDetails& d)
             };
         } else {
             return TransactionDetails {
-                .transaction { convert_transaction(std::forward<decltype(arg)>(arg).transaction) },
+                .transaction { convert_transaction(FWD(arg).transaction) },
                 .type { arg.transaction.data.label },
                 .mined {},
                 .confirmations = confirmations,

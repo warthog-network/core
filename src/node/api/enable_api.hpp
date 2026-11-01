@@ -1,4 +1,5 @@
 #pragma once
+#include "general/fwd.hpp"
 #include "general/logger/timing_logger.hpp"
 #include "general/result.hpp"
 #include "wrt/variant.hpp"
@@ -28,7 +29,7 @@ struct APIRequest : public std::tuple<Args...> {
     requires(i < sizeof...(Args))
     auto&& get(this auto&& self)
     {
-        return std::get<i>(std::forward<decltype(self)>(self));
+        return std::get<i>(FWD(self));
     }
     struct Object {
         using is_api_object = std::true_type;
@@ -96,7 +97,7 @@ protected:
                 phost->handle_event(std::forward<E>(e));
             }
         },
-            std::forward<decltype(event)>(event));
+            FWD(event));
     }
 };
 
@@ -104,10 +105,10 @@ protected:
 // the request, so std::move(request).field() yields a reference that a by-value
 // callee can move from. The returned reference points into the request, so the
 // accessor must not be called on a temporary.
-#define DEFINE_API_ACCESSOR(field, index)                                \
-    auto&& field(this auto&& self)                                       \
-    {                                                                    \
-        return std::forward<decltype(self)>(self).template get<index>(); \
+#define DEFINE_API_ACCESSOR(field, index)       \
+    auto&& field(this auto&& self)              \
+    {                                           \
+        return FWD(self).template get<index>(); \
     }
 
 #define DEFINE_API_0(structname, restype)                        \

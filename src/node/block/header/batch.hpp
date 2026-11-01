@@ -1,6 +1,7 @@
 #pragma once
 #include "block/chain/pin.hpp"
 #include "general/errors.hpp"
+#include "general/fwd.hpp"
 #include <span>
 
 class Worksum;
@@ -119,7 +120,7 @@ public:
     }
 
     friend auto&& operator<<(RawSerializer auto&& s, const Headervec& hv){
-        return std::forward<decltype(s)>( s<< hv.bytes);
+        return FWD(s << hv.bytes);
     };
 
 
