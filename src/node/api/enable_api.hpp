@@ -2,6 +2,7 @@
 #include "general/logger/timing_logger.hpp"
 #include "general/result.hpp"
 #include "wrt/variant.hpp"
+#include <utility>
 
 template <typename T>
 struct APIResponseType {
@@ -25,16 +26,9 @@ struct APIRequest : public std::tuple<Args...> {
 
     template <size_t i>
     requires(i < sizeof...(Args))
-    auto& get() const
+    auto&& get(this auto&& self)
     {
-        return std::get<i>(*this);
-    }
-
-    template <size_t i>
-    requires(i < sizeof...(Args))
-    auto& get()
-    {
-        return std::get<i>(*this);
+        return std::get<i>(std::forward<decltype(self)>(self));
     }
     struct Object {
         using is_api_object = std::true_type;
@@ -106,6 +100,16 @@ protected:
     }
 };
 
+// Accessor for one request field. Deducing this preserves the value category of
+// the request, so std::move(request).field() yields a reference that a by-value
+// callee can move from. The returned reference points into the request, so the
+// accessor must not be called on a temporary.
+#define DEFINE_API_ACCESSOR(field, index)                                \
+    auto&& field(this auto&& self)                                       \
+    {                                                                    \
+        return std::forward<decltype(self)>(self).template get<index>(); \
+    }
+
 #define DEFINE_API_0(structname, restype)                        \
     struct structname : public APIRequest<structname, restype> { \
         static constexpr const char name[] = #structname;        \
@@ -116,41 +120,41 @@ protected:
     struct structname : public APIRequest<structname, restype, type0> { \
         static constexpr const char name[] = #structname;               \
         using APIRequest<structname, restype, type0>::APIRequest;       \
-        auto& name0() const { return get<0>(); }                        \
+        DEFINE_API_ACCESSOR(name0, 0)                                   \
     };
 #define DEFINE_API_2(structname, restype, type0, name0, type1, name1)          \
     struct structname : public APIRequest<structname, restype, type0, type1> { \
         using APIRequest<structname, restype, type0, type1>::APIRequest;       \
         static constexpr const char name[] = #structname;                      \
-        auto& name0() const { return get<0>(); }                               \
-        auto& name1() const { return get<1>(); }                               \
+        DEFINE_API_ACCESSOR(name0, 0)                                          \
+        DEFINE_API_ACCESSOR(name1, 1)                                          \
     };
 #define DEFINE_API_3(structname, restype, type0, name0, type1, name1, type2, name2)   \
     struct structname : public APIRequest<structname, restype, type0, type1, type2> { \
         using APIRequest<structname, restype, type0, type1, type2>::APIRequest;       \
         static constexpr const char name[] = #structname;                             \
-        auto& name0() const { return get<0>(); }                                      \
-        auto& name1() const { return get<1>(); }                                      \
-        auto& name2() const { return get<2>(); }                                      \
+        DEFINE_API_ACCESSOR(name0, 0)                                                 \
+        DEFINE_API_ACCESSOR(name1, 1)                                                 \
+        DEFINE_API_ACCESSOR(name2, 2)                                                 \
     };
 #define DEFINE_API_4(structname, restype, type0, name0, type1, name1, type2, name2, type3, name3) \
     struct structname : public APIRequest<structname, restype, type0, type1, type2, type3> {      \
         using APIRequest<structname, restype, type0, type1, type2, type3>::APIRequest;            \
         static constexpr const char name[] = #structname;                                         \
-        auto& name0() const { return get<0>(); }                                                  \
-        auto& name1() const { return get<1>(); }                                                  \
-        auto& name2() const { return get<2>(); }                                                  \
-        auto& name3() const { return get<3>(); }                                                  \
+        DEFINE_API_ACCESSOR(name0, 0)                                                             \
+        DEFINE_API_ACCESSOR(name1, 1)                                                             \
+        DEFINE_API_ACCESSOR(name2, 2)                                                             \
+        DEFINE_API_ACCESSOR(name3, 3)                                                             \
     };
 #define DEFINE_API_5(structname, restype, type0, name0, type1, name1, type2, name2, type3, name3, type4, name4) \
     struct structname : public APIRequest<structname, restype, type0, type1, type2, type3, type4> {             \
         using APIRequest<structname, restype, type0, type1, type2, type3, type4>::APIRequest;                   \
         static constexpr const char name[] = #structname;                                                       \
-        auto& name0() const { return get<0>(); }                                                                \
-        auto& name1() const { return get<1>(); }                                                                \
-        auto& name2() const { return get<2>(); }                                                                \
-        auto& name3() const { return get<3>(); }                                                                \
-        auto& name4() const { return get<4>(); }                                                                \
+        DEFINE_API_ACCESSOR(name0, 0)                                                                           \
+        DEFINE_API_ACCESSOR(name1, 1)                                                                           \
+        DEFINE_API_ACCESSOR(name2, 2)                                                                           \
+        DEFINE_API_ACCESSOR(name3, 3)                                                                           \
+        DEFINE_API_ACCESSOR(name4, 4)                                                                           \
     };
 #define GET_MACRO(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, NAME, ...) NAME
 #define DEFINE_API(...) GET_MACRO(__VA_ARGS__, DEFINE_API_5, DEFINE_API_5, DEFINE_API_4, DEFINE_API_4, \
