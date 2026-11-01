@@ -79,7 +79,7 @@ struct WSData : public std::shared_ptr<SubscriptionData> {
     }
 };
 
-void HTTPEndpoint::dispatch(std::vector<subscription_ptr> subscribers, std::string&& serialized)
+void HTTPEndpoint::dispatch(std::vector<subscription_ptr> subscribers, const std::string& serialized)
 {
     for (auto& s : subscribers) {
         if (s->ws)
