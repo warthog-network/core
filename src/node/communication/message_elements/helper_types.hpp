@@ -4,6 +4,7 @@
 #include "block/header/header.hpp"
 #include "general/descriptor.hpp"
 #include "general/errors_forward.hpp"
+#include "general/fwd.hpp"
 #include <cstddef>
 #include <cstdint>
 
@@ -19,8 +20,7 @@ struct WithNonce : public IsUint32 {
     {
     }
     using IsUint32::IsUint32;
-    auto& nonce() const { return val; }
-    auto& nonce() { return val; }
+    auto&& nonce(this auto&& self) { return FWD(self).val; }
 };
 struct RandNonce : public WithNonce {
     RandNonce();
