@@ -1,6 +1,8 @@
 #pragma once
 
 #include "wrt/variant.hpp"
+#include <optional>
+#include <utility>
 
 
 namespace wrt { // wart tools namesapce
@@ -8,7 +10,7 @@ template <typename Id, typename Alt>
 struct alternative {
 public:
     alternative(Id id)
-        : v(id)
+        : v(std::move(id))
     {
     }
     alternative(Alt a)
@@ -16,34 +18,22 @@ public:
     {
     }
 
-    auto visit(auto&& lambda)
+    auto visit(this auto&& self, auto&& lambda)
     {
-        return v.visit(std::forward<decltype(lambda)>(lambda));
+        return std::forward<decltype(self)>(self).v.visit(std::forward<decltype(lambda)>(lambda));
     }
-    auto visit(auto&& lambda) const
-    {
-        return v.visit(std::forward<decltype(lambda)>(lambda));
-    }
+
     template <typename... U>
-    auto visit_overload(U&&... u) &
+    auto visit_overload(this auto&& self, U&&... u)
     {
-        return v.visit_overload(std::forward<U>(u)...);
+        return std::forward<decltype(self)>(self).v.visit_overload(std::forward<U>(u)...);
     }
-    template <typename... U>
-    auto visit_overload(U&&... u) const&
-    {
-        return v.visit_overload(std::forward<U>(u)...);
-    }
-    template <typename... U>
-    auto visit_overload(U&&... u) &&
-    {
-        return std::move(v).visit_overload(std::forward<U>(u)...);
-    }
-    [[nodiscard]] std::optional<Id> map_alternative(auto lambda) const
+
+    [[nodiscard]] std::optional<Id> map_alternative(auto&& lambda) const
     {
         return visit_overload(
             [&](Id id) -> std::optional<Id> { return id; },
-            [&](const Alt& a) -> std::optional<Id> { return lambda(a); });
+            [&](const Alt& a) -> std::optional<Id> { return std::forward<decltype(lambda)>(lambda)(a); });
     }
 
 private:

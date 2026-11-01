@@ -9,44 +9,34 @@ struct Overload : Rs... {
 };
 template <typename... Rs>
 Overload(Rs...) -> Overload<Rs...>;
+
 template <typename... Ts>
 struct variant : public std::variant<Ts...> {
     using std::variant<Ts...>::variant;
 
     template <typename... U>
-    auto visit_overload(U&&... u) &
+    auto visit_overload(this auto&& self, U&&... u)
     {
-        return visit(Overload { std::forward<U>(u)... });
+        return std::forward<decltype(self)>(self).visit(Overload { std::forward<U>(u)... });
     }
-    template <typename... U>
-    auto visit_overload(U&&... u) const&
+
+    constexpr auto visit(this auto&& self, auto&& lambda)
     {
-        return visit(Overload { std::forward<U>(u)... });
+        return std::visit(std::forward<decltype(lambda)>(lambda),
+            std::forward<decltype(self)>(self));
     }
-    template <typename... U>
-    auto visit_overload(U&&... u) &&
-    {
-        return std::move(*this).visit(Overload { std::forward<U>(u)... });
-    }
-    constexpr auto visit(auto&& lambda) &
-    {
-        return std::visit(std::forward<decltype(lambda)>(lambda), *this);
-    }
-    constexpr auto visit(auto&& lambda) const&
-    {
-        return std::visit(std::forward<decltype(lambda)>(lambda), *this);
-    }
-    constexpr auto visit(auto&& lambda) &&
-    {
-        return std::visit(std::forward<decltype(lambda)>(lambda), std::move(*this));
-    }
-    template <typename T>
-    [[nodiscard]] bool holds() const { return std::holds_alternative<T>(*this); }
-    template <typename T>
-    constexpr auto& get() const { return std::get<T>(*this); }
 
     template <typename T>
-    constexpr auto& get() { return std::get<T>(*this); }
+    [[nodiscard]] bool holds(this const auto& self)
+    {
+        return std::holds_alternative<T>(self);
+    }
+
+    template <typename T>
+    constexpr auto&& get(this auto&& self)
+    {
+        return std::get<T>(std::forward<decltype(self)>(self));
+    }
 };
 
 }
