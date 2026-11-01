@@ -66,6 +66,7 @@ auto&& operator<<(ByteCounter& s, const std::optional<T>& o)
     s.add_size(1);
     if (o)
         return s << *o;
+    return s;
 }
 
 template <size_t N>
