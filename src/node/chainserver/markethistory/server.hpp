@@ -247,7 +247,6 @@ private:
     std::condition_variable cv;
     std::mutex m;
     bool _shutdown { false };
-    std::shared_mutex sqliteLock;
     std::vector<Event> events;
 
     ReaderThreadpool readers;
