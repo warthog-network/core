@@ -1,4 +1,5 @@
 #pragma once
+#include <utility>
 #include <variant>
 namespace wrt { // wart tools namesapce
 
@@ -27,17 +28,17 @@ struct variant : public std::variant<Ts...> {
     {
         return std::move(*this).visit(Overload { std::forward<U>(u)... });
     }
-    constexpr auto visit(auto lambda) &
+    constexpr auto visit(auto&& lambda) &
     {
-        return std::visit(lambda, *this);
+        return std::visit(std::forward<decltype(lambda)>(lambda), *this);
     }
-    constexpr auto visit(auto lambda) const&
+    constexpr auto visit(auto&& lambda) const&
     {
-        return std::visit(lambda, *this);
+        return std::visit(std::forward<decltype(lambda)>(lambda), *this);
     }
-    constexpr auto visit(auto lambda) &&
+    constexpr auto visit(auto&& lambda) &&
     {
-        return std::visit(lambda, std::move(*this));
+        return std::visit(std::forward<decltype(lambda)>(lambda), std::move(*this));
     }
     template <typename T>
     [[nodiscard]] bool holds() const { return std::holds_alternative<T>(*this); }

@@ -16,13 +16,13 @@ public:
     {
     }
 
-    auto visit(auto lambda)
+    auto visit(auto&& lambda)
     {
-        return v.visit(lambda);
+        return v.visit(std::forward<decltype(lambda)>(lambda));
     }
-    auto visit(auto lambda) const
+    auto visit(auto&& lambda) const
     {
-        return v.visit(lambda);
+        return v.visit(std::forward<decltype(lambda)>(lambda));
     }
     template <typename... U>
     auto visit_overload(U&&... u) &
