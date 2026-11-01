@@ -131,10 +131,6 @@ public:
         return out;
     }
 
-    [[nodiscard]] NonzeroHeight(const NonzeroHeight&) = default;
-
-    [[nodiscard]] NonzeroHeight& operator=(const NonzeroHeight&) = default;
-
     [[nodiscard]] PinHeight pin_begin() const;
     [[nodiscard]] PinFloor pin_floor() const;
 
