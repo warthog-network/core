@@ -238,20 +238,20 @@ private:
         return std::visit([&](auto&& h) { return state.api_get_tx(h); }, e.h().data);
     }
     auto handle_api(chainserver::GetTransactionMinfee&&) { return state.api_get_transaction_minfee(); }
-    auto handle_api(chainserver::GetRichlist&& e) { return state.api_get_richlist(e.token(), 100); }
-    auto handle_api(chainserver::GetTokenBalance&& e) { return state.api_get_token_balance_recursive(e.account(), e.token()); }
-    auto handle_api(chainserver::GetWartBalance&& e) { return state.api_get_wart_balance(e.account()); }
-    auto handle_api(chainserver::GetAccountOrders&& e) { return state.api_account_orders(e.account()); }
-    auto handle_api(chainserver::GetAccountOrdersAsset&& e) { return state.api_account_orders_market(e.account(), e.asset()); }
+    auto handle_api(chainserver::GetRichlist&& e) { return state.api_get_richlist(std::move(e.token()), 100); }
+    auto handle_api(chainserver::GetTokenBalance&& e) { return state.api_get_token_balance_recursive(std::move(e.account()), std::move(e.token())); }
+    auto handle_api(chainserver::GetWartBalance&& e) { return state.api_get_wart_balance(std::move(e.account())); }
+    auto handle_api(chainserver::GetAccountOrders&& e) { return state.api_account_orders(std::move(e.account())); }
+    auto handle_api(chainserver::GetAccountOrdersAsset&& e) { return state.api_account_orders_market(std::move(e.account()), std::move(e.asset())); }
     auto handle_api(chainserver::GetBlock&& e) { return state.api_get_block(e.heightOrHash()); }
     auto handle_api(chainserver::GetGrid&&) { return state.get_headers().grid(); }
-    auto handle_api(chainserver::GetAccountMempool&& m) { return state.api_get_account_mempool(m.account(), 2000); }
+    auto handle_api(chainserver::GetAccountMempool&& m) { return state.api_get_account_mempool(std::move(m.account()), 2000); }
     auto handle_api(chainserver::GetMempool&&) { return state.api_get_mempool(2000); }
     auto handle_api(chainserver::GetDBSize&&) { return api::DBSize { state.api_db_size() }; }
     auto handle_api(chainserver::GetHeader&& e) { return state.api_get_header(e.heightOrHash()); }
     auto handle_api(chainserver::GetBlockBinary&& e) { return state.api_get_block_binary(e.heightOrHash()); }
     auto handle_api(chainserver::LookupAsset&& e) { return state.api_get_asset(e.asset()); }
-    auto handle_api(chainserver::CompleteAsset&& e) { return state.api_search_asset({ .namePrefix = e.namePrefix(), .hashPrefix = e.hashPrefix() }); }
+    auto handle_api(chainserver::CompleteAsset&& e) { return state.api_search_asset({ .namePrefix = std::move(e.namePrefix()), .hashPrefix = std::move(e.hashPrefix()) }); }
     auto handle_api(chainserver::MarketDetail&& o) { return state.api_market_detail(o.asset()); }
     // auto handle_api(chainserver::GetOpenOrder&& o) { return state.api_market_detail(o.tx_hash()); }
     auto handle_api(chainserver::GetMining&& e) { return state.mining_task(e.address()); }
