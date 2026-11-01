@@ -1,11 +1,12 @@
 #pragma once
 
 #include "general/byte_order.hpp"
+#include "general/fwd.hpp"
 #include "serializer_fwd.hxx"
 #include "view_fwd.hpp"
 
-#include <optional>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
 
@@ -32,7 +33,7 @@ concept MerkleSerializing = MerkleSerializer<S> && requires(S& s, const T& t) {
 constexpr auto&& operator<<(RawSerializer auto&& s, std::span<const uint8_t> sp)
 {
     s.write(sp);
-    return std::forward<decltype(s)>(s);
+    return FWD(s);
 }
 constexpr auto& operator<<(ByteCounter& s, std::span<const uint8_t> sp)
 {
@@ -44,7 +45,7 @@ constexpr auto&& operator<<(RawSerializer auto&& s, ByteSwappable auto v)
 {
     auto valBe { network_byte_swap(v) };
     std::span<const uint8_t> sp((uint8_t*)&valBe, sizeof(v));
-    return std::forward<decltype(s)>(s << sp);
+    return FWD(s) << sp;
 }
 constexpr auto& operator<<(ByteCounter& s, ByteSwappable auto v)
 {
@@ -56,9 +57,9 @@ template <typename T>
 auto&& operator<<(RawSerializer auto&& s, const std::optional<T>& o)
 {
     if (o)
-        return std::forward<decltype(s)>(s << uint8_t(1) << *o);
+        return FWD(s) << uint8_t(1) << *o;
     else
-        return std::forward<decltype(s)>(s << uint8_t(0));
+        return FWD(s) << uint8_t(0);
 }
 template <typename T>
 auto&& operator<<(ByteCounter& s, const std::optional<T>& o)
@@ -78,13 +79,13 @@ constexpr auto& operator<<(ByteCounter& s, const View<N>&)
 
 constexpr auto&& operator<<(RawSerializer auto&& s, bool b)
 {
-    return std::forward<decltype(s)>(s << (b ? uint8_t(1) : uint8_t(0)));
+    return FWD(s) << (b ? uint8_t(1) : uint8_t(0));
 }
 
 constexpr auto&& operator<<(RawSerializer auto&& s, std::string_view r)
 {
     std::span sp(reinterpret_cast<const uint8_t*>(r.data()), r.size());
-    return std::forward<decltype(s)>(s << sp);
+    return FWD(s) << sp;
 }
 
 template <RawSerializer S, typename T>
