@@ -16,9 +16,9 @@ struct GetResultT<std::expected<T, Error>> {
 };
 
 template <typename T>
-GetResultT<T>::type make(std::expected<T, Error>&& e)
+Result<T> make(std::expected<T, Error>&& e)
 {
-    return std::move(e);
+    return Result<T>(std::move(e));
 }
 
 }
