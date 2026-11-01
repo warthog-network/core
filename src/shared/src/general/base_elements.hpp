@@ -122,7 +122,6 @@ struct ElementBase {
     [[nodiscard]] size_t byte_size() const { return data.byte_size(); }
     const T& get() const { return data; }
 
-    ElementBase(const ElementBase&) = default;
     ElementBase(T t)
         : data(std::move(t))
     {
