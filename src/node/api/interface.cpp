@@ -302,7 +302,7 @@ void get_signed_snapshot(Eventloop::SignedSnapshotCb&& cb)
 // account functions
 void get_account_token_balance(const api::AccountIdOrAddress& address, const api::TokenIdOrSpec& t, TokenBalanceCb cb)
 {
-    global().chainServer->api_call(chainserver::GetTokenBalance { address, t }, cb);
+    global().chainServer->api_call(chainserver::GetTokenBalance { address, t }, std::move(cb));
 }
 
 void get_token_richlist(const api::TokenIdOrSpec& token, RichlistCb f)
