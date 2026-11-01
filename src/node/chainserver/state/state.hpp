@@ -119,7 +119,7 @@ public:
     auto api_get_account_mempool(api::AccountIdOrAddress, size_t) const -> api::MempoolEntries;
     auto api_get_mempool(size_t) const -> api::MempoolEntries;
     auto api_get_tx(const TxHash& hash) const -> std::optional<api::TransactionDetails>;
-    auto api_get_tx(HistoryId hid) const -> std::optional<api::TransactionDetails>;
+    auto api_get_tx(const HistoryId& hid) const -> std::optional<api::TransactionDetails>;
     auto api_get_open_order(const TxHash& hash) const;
     auto api_get_transaction_minfee() -> api::TransactionMinfee;
     auto api_get_latest_txs(size_t N = 100) const -> api::TransactionsByBlocks;

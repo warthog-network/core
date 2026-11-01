@@ -763,7 +763,7 @@ api::TransactionDetails State::api_dispatch_history(const TxHash& txHash,
         });
 }
 
-std::optional<api::TransactionDetails> State::api_get_tx(HistoryId hid) const
+std::optional<api::TransactionDetails> State::api_get_tx(const HistoryId& hid) const
 {
     if (auto p { db.lookup_history(hid) }; p) {
         return api_dispatch_history(p->hash, hid, std::move(p->data));
