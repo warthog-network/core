@@ -152,12 +152,12 @@ void Eventloop::on_failed_connect(const ConnectRequest& r, Error reason)
 
 void Eventloop::api_get_peers(PeersCb&& cb)
 {
-    defer(GetPeers { cb });
+    defer(GetPeers { std::move(cb) });
 }
 
 void Eventloop::api_get_throttled(ThrottledCb&& cb)
 {
-    defer(GetThrottled { cb });
+    defer(GetThrottled { std::move(cb) });
 }
 
 void Eventloop::api_disconnect_peer(uint64_t id, ErrorCb&& cb)
