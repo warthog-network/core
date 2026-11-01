@@ -109,7 +109,7 @@ void ChainServer::get_block_market_history(NonzeroHeight h, Descriptor d, GetBlo
 
 void ChainServer::async_stage_request(stage_operation::Operation r)
 {
-    std::visit([&](auto req) {
+    std::visit([&](auto&& req) {
         defer(std::move(req));
     },
         std::move(r));
