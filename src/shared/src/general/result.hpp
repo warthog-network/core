@@ -8,14 +8,6 @@ struct Result;
 namespace result {
 
 template <typename T>
-struct GetResultT;
-
-template <typename T>
-struct GetResultT<std::expected<T, Error>> {
-    using type = Result<T>;
-};
-
-template <typename T>
 Result<T> make(std::expected<T, Error>&& e)
 {
     return Result<T>(std::move(e));
