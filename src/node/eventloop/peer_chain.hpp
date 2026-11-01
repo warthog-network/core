@@ -2,6 +2,7 @@
 #include "block/chain/fork_range.hpp"
 #include "block/chain/signed_snapshot.hpp"
 #include "block/chain/state.hpp"
+#include "general/fwd.hpp"
 #include <cstdint>
 #include <memory>
 
@@ -40,10 +41,8 @@ public:
     void on_stage_append_or_shrink(const Headerchain&);
     PeerchainMatch on_proberep(const ProbereqMsg&, const ProberepMsg& msg, const StageAndConsensus&);
 
-    ForkRange& consensus_fork_range() { return consensusForkRange; }
-    ForkRange& stage_fork_range() { return stageForkRange; }
-    const ForkRange& consensus_fork_range() const { return consensusForkRange; }
-    const ForkRange& stage_fork_range() const { return stageForkRange; }
+    auto&& consensus_fork_range(this auto&& self) { return FWD(self).consensusForkRange; }
+    auto&& stage_fork_range(this auto&& self) { return FWD(self).stageForkRange; }
     const auto& descripted() const { return desc; }
 
 private:
