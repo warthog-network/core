@@ -49,13 +49,13 @@ struct Result : public std::expected<T, Error> {
     template <typename Self, typename F>
     constexpr auto and_then(this Self&& self, F&& f)
     {
-        return result::make(std::forward<Self>(self)->parent::and_then([&f]() { return parent(std::forward<F>(f)); }));
+        return result::make(std::forward<Self>(self).parent::and_then(std::forward<F>(f)));
     }
 
     template <typename Self, typename F>
     constexpr auto transform(this Self&& self, F&& f)
     {
-        return result::make(std::forward<Self>(self)->parent::transform([&f]() { return parent(std::forward<F>(f)); }));
+        return result::make(std::forward<Self>(self).parent::transform(std::forward<F>(f)));
     }
 
     Result(T t)
