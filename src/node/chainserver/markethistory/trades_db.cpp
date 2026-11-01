@@ -157,7 +157,7 @@ MarketReaderDB MarketReaderDB::clone_reader() const
     return { SQLite::Database(db.getFilename(), SQLite::OPEN_READONLY) };
 }
 
-void MarketDB::aggregate_into_candles(AssetId assetId, Interval interval, const Trade tr, Timestamp ts)
+void MarketDB::aggregate_into_candles(AssetId assetId, Interval interval, const Trade& tr, Timestamp ts)
 {
     auto c { get_latest_candle(assetId, interval) };
     auto begin { ts.floor(interval.seconds()) };

@@ -186,7 +186,7 @@ private:
 
     [[nodiscard]] std::optional<Candle> get_latest_candle(AssetId, Interval) const;
 
-    void aggregate_into_candles(AssetId, Interval, const Trade t, Timestamp ts);
+    void aggregate_into_candles(AssetId, Interval, const Trade& t, Timestamp ts);
 
     void create_tables(AssetId asset);
     void insert_candle(AssetId, Interval, const Candle&);
