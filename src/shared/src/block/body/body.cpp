@@ -55,6 +55,7 @@ std::pair<ParsedBody, MerkleLeaves> ParsedBody::parse_throw(std::span<const uint
             auto a { r.annotate("newAddresses") };
             // read number of addresses
             size_t len { [&]() -> size_t {
+                auto mf { r.merkle_frame() };
                 auto a { r.annotate("length") };
                 return block_v2 ? size_t(r.uint16()) : size_t(r.uint32());
             }() };
@@ -73,6 +74,8 @@ std::pair<ParsedBody, MerkleLeaves> ParsedBody::parse_throw(std::span<const uint
             }()
         };
         body::Entries entries(r, version);
+        if (r.remaining() != 0)
+            throw Error(EINV_BODY);
         return { ParsedBody { std::move(addresses), std::move(reward), std::move(entries) }, std::move(r).move_leaves() };
     } catch (const Error& e) {
         if (e.code >= EMSGINTEGRITY0 && e.code <= EMSGINTEGRITY2)
@@ -87,7 +90,10 @@ void ParsedBody::serialize(MerkleSerializer auto&& s) const
 
     // serialize new addresses with 16 bit length
     assert(std::numeric_limits<uint16_t>::max() >= newAddresses.size());
-    s.writer << uint16_t(newAddresses.size());
+    {
+        [[maybe_unused]] auto hook { s.hook() };
+        s.writer << uint16_t(newAddresses.size());
+    }
     s << newAddresses
       << reward
       << entries();

@@ -16,6 +16,19 @@
 namespace block {
 namespace body {
 
+// On the write side a leaf is produced only by HookMerkle. Container elements
+// whose contents produce their own leaves (token sections) opt out by setting
+// merkle_leaf = false, so the reader does not frame them either. Every body
+// byte must end up in exactly one leaf on both sides.
+template <typename T>
+consteval bool has_own_merkle_leaf()
+{
+    if constexpr (requires { T::merkle_leaf; })
+        return bool(T::merkle_leaf);
+    else
+        return true;
+}
+
 // Vector elements without serialization of length
 template <typename T>
 struct VectorEntries : public std::vector<T> {
@@ -59,7 +72,11 @@ struct VectorEntries : public std::vector<T> {
     VectorEntries(StructuredReader& r, size_t n, Args&&... args)
     {
         for (size_t i { 0 }; i < n; ++i) {
-            this->push_back(T(r.merkle_frame().reader, std::forward<Args>(args)...));
+            if constexpr (has_own_merkle_leaf<T>()) {
+                this->push_back(T(r.merkle_frame().reader, std::forward<Args>(args)...));
+            } else {
+                this->push_back(T(r, std::forward<Args>(args)...));
+            }
         }
     }
 };
@@ -70,7 +87,10 @@ struct SizeVector : public VectorEntries<Elem> {
     using VectorEntries<Elem>::entries;
     void serialize(MerkleSerializer auto& w) const
     {
-        w.writer << UInt(this->size());
+        {
+            [[maybe_unused]] auto hook { w.hook() };
+            w.writer << UInt(this->size());
+        }
         VectorEntries<Elem>::serialize(w);
     }
     SizeVector() { }
@@ -80,7 +100,10 @@ struct SizeVector : public VectorEntries<Elem> {
             if (r.remaining() == 0) {
                 return VectorEntries<Elem> {};
             } else {
-                UInt len(r.annotate("length").reader);
+                const auto len { [&] {
+                    auto mf { r.merkle_frame() };
+                    return UInt(r.annotate("length").reader);
+                }() };
                 return VectorEntries<Elem> { r, len, std::forward<Args>(args)... };
             };
         }() }
@@ -334,7 +357,10 @@ public:
     void serialize(MerkleSerializer auto&& s) const
     {
         typename bits_t::arr_t arr { static_cast<const Ts*>(this)->entries().size()... };
-        s.writer << bits_t(arr);
+        {
+            [[maybe_unused]] auto hook { s.hook() };
+            s.writer << bits_t(arr);
+        }
         (s << ... << parent<Ts>());
     }
 
@@ -362,11 +388,17 @@ class TokenSection : public AssetIdElement, public TokenEntries<AssetTransfers, 
 
 public:
     static constexpr const size_t n_vectors = 5;
+    // A section is a container. Its assetId, its lengths and each of its
+    // transactions produce their own leaf; the section itself must not.
+    static constexpr bool merkle_leaf = false;
     void append_tx_ids(PinFloor, std::vector<TransactionId>& appendTo) const;
 
     void serialize(MerkleSerializer auto&& s) const
     {
-        s.writer << assetId;
+        {
+            [[maybe_unused]] auto hook { s.hook() };
+            s.writer << assetId;
+        }
         s << token_entries();
     }
     TokenSection(StructuredReader& m, BlockVersion v);

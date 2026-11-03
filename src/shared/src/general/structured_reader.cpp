@@ -2,6 +2,7 @@
 #include "block/body/container.hpp"
 #include "block/chain/height.hpp"
 #include "general/is_testnet.hpp"
+#include "spdlog/spdlog.h"
 
 std::vector<uint8_t> MerkleLeaves::merkle_prefix() const
 {
@@ -42,6 +43,7 @@ Hash MerkleLeaves::merkle_root(const BodyData& data, NonzeroHeight h) const
     const std::vector<Hash>* from;
     std::vector<Hash> tmp, to;
     from = &hashes;
+    spdlog::info("MerkleLeaves {}", hashes.size());
 
     bool new_root_type = is_testnet() || h.value() >= NEWMERKLEROOT;
     bool block_v2 = is_testnet() || h.value() >= NEWBLOCKSTRUCUTREHEIGHT;

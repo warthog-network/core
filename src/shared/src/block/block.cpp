@@ -12,4 +12,13 @@ Block BlockData::parse_throw(ParseAnnotations* annotations) &&
 {
     return { height, std::move(header), Body::parse_throw(std::move(body), height, annotations) };
 }
+
+Block::Block(NonzeroHeight nh, HeaderView header, Body b)
+    : height(std::move(nh))
+    , header(std::move(header))
+    , body(std::move(b))
+{
+    if (header.merkleroot() != body.merkle_root(height))
+        throw Error(EMROOT);
+}
 }
