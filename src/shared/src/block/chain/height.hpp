@@ -67,7 +67,9 @@ public:
     }
     Funds reward() const
     {
-        int32_t halvings = (val - 1) / HALVINTINTERVAL;
+        uint64_t halvings = (val - 1) / HALVINTINTERVAL;
+        if (halvings >= 64)
+            return Funds::zero();
         return Funds::from_value(GENESISBLOCKREWARD >> halvings).value();
     }
 
@@ -165,7 +167,9 @@ public:
     }
     Funds reward() const
     {
-        int32_t halvings = (val - 1) / HALVINTINTERVAL;
+        uint64_t halvings = (val - 1) / HALVINTINTERVAL;
+        if (halvings >= 64)
+            return Funds::zero();
         return Funds::from_value(GENESISBLOCKREWARD >> halvings).value();
     }
 
