@@ -3,6 +3,7 @@
 #include "general/is_testnet.hpp"
 #include "general/now.hpp"
 #include "spdlog/spdlog.h"
+#include <algorithm>
 
 HeaderVerifier::HeaderVerifier(const SharedBatch& b)
     : nextTarget(TargetV1())
@@ -188,21 +189,12 @@ void HeaderVerifier::initialize(const Headerchain& hc,
     // time validator
     //////////////////////////////
     timeValidator.clear();
-    // now fill timestamp vaildator
-    if (hc.incompleteBatch.size() >= timeValidator.N) {
-        for (size_t i = hc.incompleteBatch.size() - timeValidator.N;
-             i < hc.incompleteBatch.size(); ++i) {
-            timeValidator.append(hc.incompleteBatch[i].timestamp());
-        }
-    } else {
-        if (hc.completeBatches.size() > 0) {
-            const SharedBatchView& sb = hc.completeBatches.back();
-            size_t rem = timeValidator.N - hc.incompleteBatch.size();
-            for (size_t i = sb.size() - rem; i < sb.size(); ++i)
-                timeValidator.append(sb.getBatch()[i].timestamp());
-        }
-        for (size_t i = 0; i < hc.incompleteBatch.size(); ++i)
-            timeValidator.append(hc.incompleteBatch[i].timestamp());
+    // A fork comparison can initialize the verifier below the local tip.
+    const auto count = std::min(length.value(), TimestampValidator::N);
+    auto windowHeight = length - count;
+    while (windowHeight < length) {
+        ++windowHeight;
+        timeValidator.append(hc.get_header(windowHeight).value().timestamp());
     }
 
     //////////////////////////////
